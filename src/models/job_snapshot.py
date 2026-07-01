@@ -27,4 +27,6 @@ class JobSnapshot(Base):
     salary_max: Mapped[int | None] = mapped_column(Integer)
 
     def __repr__(self) -> str:  # pragma: no cover
-        return f"<JobSnapshot job_id={self.job_id} date={self.snapshot_date} active={self.is_active}>"
+        return (
+            f"<JobSnapshot job_id={self.job_id} date={self.snapshot_date} active={self.is_active}>"
+        )

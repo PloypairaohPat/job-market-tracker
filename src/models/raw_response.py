@@ -28,9 +28,7 @@ class RawResponse(Base):
     params: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     response: Mapped[dict] = mapped_column(JSONB, nullable=False)
 
-    __table_args__ = (
-        Index("ix_raw_responses_source_fetched_at", "source", "fetched_at"),
-    )
+    __table_args__ = (Index("ix_raw_responses_source_fetched_at", "source", "fetched_at"),)
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<RawResponse id={self.id} source={self.source!r} fetched_at={self.fetched_at}>"

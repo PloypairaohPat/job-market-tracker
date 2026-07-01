@@ -1,0 +1,150 @@
+{
+  "count": 1243,
+  "mean": 87456.12,
+  "results": [
+    {
+      "id": "5000000000",
+      "title": "Junior Data Analyst",
+      "description": "We are seeking a Junior Data Analyst to join our team. Proficiency in Excel and Power BI. SQL a plus. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "Peraton"
+      },
+      "location": {
+        "area": [
+          "US"
+        ],
+        "display_name": "US"
+      },
+      "salary_min": null,
+      "salary_max": null,
+      "salary_is_predicted": "0",
+      "created": "2026-06-05T12:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000000",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": "permanent",
+      "contract_time": null,
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000001",
+      "title": "Data Analyst - Remote",
+      "description": "We are seeking a Data Analyst - Remote to join our team. Strong SQL skills required. Experience with Python and Tableau preferred. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "TekSystems"
+      },
+      "location": {
+        "area": [
+          "US",
+          "Massachusetts",
+          "Suffolk County",
+          "Boston"
+        ],
+        "display_name": "Boston, Suffolk County"
+      },
+      "salary_min": null,
+      "salary_max": null,
+      "salary_is_predicted": "0",
+      "created": "2026-06-11T16:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000001",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": "contract",
+      "contract_time": "full_time",
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000002",
+      "title": "Data Analyst II",
+      "description": "We are seeking a Data Analyst II to join our team. Familiarity with dbt, Snowflake, and modern data stack tooling. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {},
+      "location": {
+        "area": [
+          "US",
+          "California",
+          "San Francisco County",
+          "San Francisco"
+        ],
+        "display_name": "San Francisco, San Francisco County"
+      },
+      "salary_min": 75000,
+      "salary_max": 95000,
+      "salary_is_predicted": "1",
+      "created": "2026-06-12T10:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000002",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": null,
+      "contract_time": null,
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000003",
+      "title": "Business Intelligence Analyst",
+      "description": "We are seeking a Business Intelligence Analyst to join our team. Advanced Excel; no programming required. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "Meta Platforms Inc"
+      },
+      "location": {
+        "area": [
+          "US",
+          "Massachusetts",
+          "Suffolk County",
+          "Boston"
+        ],
+        "display_name": "Boston, Suffolk County"
+      },
+      "salary_min": 75000,
+      "salary_max": 85000,
+      "salary_is_predicted": "1",
+      "created": "2026-06-02T10:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000003",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": null,
+      "contract_time": "part_time",
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000004",
+      "title": "Marketing Data Analyst",
+      "description": "We are seeking a Marketing Data Analyst to join our team. Experience with R or Python for statistical analysis. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "CVS Health"
+      },
+      "location": {
+        "area": [
+          "US",
+          "Virginia"
+        ],
+        "display_name": "Virginia, US"
+      },
+      "salary_min": null,
+      "salary_max": null,
+      "salary_is_predicted": "0",
+      "created": "2026-06-02T04:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000004",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": null,
+      "contract_time": null,
+      "latitude": null,
+      "longitude": null
+    }
+  ],
+  "__note__": "SYNTHETIC fixture matching Adzuna response shape (developer.adzuna.com docs). Replace docs/adzuna_sample_response.json with a real capture in Step 3."
+}

@@ -1,0 +1,1479 @@
+{
+  "count": 1243,
+  "mean": 87456.12,
+  "results": [
+    {
+      "id": "5000000000",
+      "title": "Data Analyst",
+      "description": "We are seeking a Data Analyst to join our team. Advanced Excel; no programming required. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "TekSystems"
+      },
+      "location": {
+        "area": [
+          "US",
+          "Illinois",
+          "Cook County",
+          "Chicago"
+        ],
+        "display_name": "Chicago, Cook County"
+      },
+      "salary_min": null,
+      "salary_max": null,
+      "salary_is_predicted": "0",
+      "created": "2026-06-08T04:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000000",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": null,
+      "contract_time": "full_time",
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000001",
+      "title": "Lead Data Analyst",
+      "description": "We are seeking a Lead Data Analyst to join our team. Strong SQL skills required. Experience with Python and Tableau preferred. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "MITRE"
+      },
+      "location": {
+        "area": [
+          "US",
+          "Virginia",
+          "Fairfax County",
+          "Fairfax"
+        ],
+        "display_name": "Fairfax, Fairfax County"
+      },
+      "salary_min": null,
+      "salary_max": null,
+      "salary_is_predicted": "0",
+      "created": "2026-06-01T02:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000001",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": "permanent",
+      "contract_time": "full_time",
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000002",
+      "title": "Data Analyst",
+      "description": "We are seeking a Data Analyst to join our team. Familiarity with dbt, Snowflake, and modern data stack tooling. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "Meta"
+      },
+      "location": {
+        "area": [
+          "US"
+        ],
+        "display_name": "US"
+      },
+      "salary_min": null,
+      "salary_max": null,
+      "salary_is_predicted": "0",
+      "created": "2026-06-14T07:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000002",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": "contract",
+      "contract_time": null,
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000003",
+      "title": "Data Analyst - Remote",
+      "description": "We are seeking a Data Analyst - Remote to join our team. Advanced Excel; no programming required. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "MITRE"
+      },
+      "location": {
+        "area": [
+          "US",
+          "Washington",
+          "King County",
+          "Seattle"
+        ],
+        "display_name": "Seattle, King County"
+      },
+      "salary_min": 55000,
+      "salary_max": 75000,
+      "salary_is_predicted": "0",
+      "created": "2026-06-07T10:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000003",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": "permanent",
+      "contract_time": "full_time",
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000004",
+      "title": "Product Analyst",
+      "description": "We are seeking a Product Analyst to join our team. Familiarity with dbt, Snowflake, and modern data stack tooling. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "TekSystems"
+      },
+      "location": {
+        "area": [
+          "US",
+          "Virginia",
+          "Fairfax County",
+          "Fairfax"
+        ],
+        "display_name": "Fairfax, Fairfax County"
+      },
+      "salary_min": 75000,
+      "salary_max": 105000,
+      "salary_is_predicted": "1",
+      "created": "2026-06-18T03:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000004",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": "contract",
+      "contract_time": "full_time",
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000005",
+      "title": "Sr. Data Analyst (Hybrid)",
+      "description": "We are seeking a Sr. Data Analyst (Hybrid) to join our team. Familiarity with dbt, Snowflake, and modern data stack tooling. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "Fannie Mae"
+      },
+      "location": {
+        "area": [
+          "US",
+          "Illinois",
+          "Cook County",
+          "Chicago"
+        ],
+        "display_name": "Chicago, Cook County"
+      },
+      "salary_min": null,
+      "salary_max": null,
+      "salary_is_predicted": "0",
+      "created": "2026-06-23T02:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000005",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": "permanent",
+      "contract_time": null,
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000006",
+      "title": "Senior Data Analyst",
+      "description": "We are seeking a Senior Data Analyst to join our team. Proficiency in Excel and Power BI. SQL a plus. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "Capital One"
+      },
+      "location": {
+        "area": [
+          "US",
+          "Massachusetts",
+          "Suffolk County",
+          "Boston"
+        ],
+        "display_name": "Boston, Suffolk County"
+      },
+      "salary_min": 75000,
+      "salary_max": 95000,
+      "salary_is_predicted": "1",
+      "created": "2026-06-21T11:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000006",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": "permanent",
+      "contract_time": "part_time",
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000007",
+      "title": "Analytics Engineer",
+      "description": "We are seeking a Analytics Engineer to join our team. Advanced Excel; no programming required. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "Deloitte Consulting LLP"
+      },
+      "location": {
+        "area": [
+          "US",
+          "California",
+          "San Francisco County",
+          "San Francisco"
+        ],
+        "display_name": "San Francisco, San Francisco County"
+      },
+      "salary_min": 110000,
+      "salary_max": 140000,
+      "salary_is_predicted": "0",
+      "created": "2026-06-06T14:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000007",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": "contract",
+      "contract_time": "part_time",
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000008",
+      "title": "Sr. Data Analyst (Hybrid)",
+      "description": "We are seeking a Sr. Data Analyst (Hybrid) to join our team. Advanced Excel; no programming required. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "Meta Platforms Inc"
+      },
+      "location": {
+        "area": [
+          "US",
+          "Washington",
+          "King County",
+          "Seattle"
+        ],
+        "display_name": "Seattle, King County"
+      },
+      "salary_min": null,
+      "salary_max": null,
+      "salary_is_predicted": "0",
+      "created": "2026-06-27T01:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000008",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": "permanent",
+      "contract_time": "full_time",
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000009",
+      "title": "Marketing Data Analyst",
+      "description": "We are seeking a Marketing Data Analyst to join our team. You will build dashboards in Looker and write complex SQL queries. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "Deloitte Consulting LLP"
+      },
+      "location": {
+        "area": [
+          "US",
+          "Illinois",
+          "Cook County",
+          "Chicago"
+        ],
+        "display_name": "Chicago, Cook County"
+      },
+      "salary_min": null,
+      "salary_max": null,
+      "salary_is_predicted": "0",
+      "created": "2026-06-19T22:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000009",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": "contract",
+      "contract_time": "full_time",
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000010",
+      "title": "Marketing Data Analyst",
+      "description": "We are seeking a Marketing Data Analyst to join our team. Advanced Excel; no programming required. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "Peraton"
+      },
+      "location": {
+        "area": [
+          "US",
+          "California",
+          "San Francisco County",
+          "San Francisco"
+        ],
+        "display_name": "San Francisco, San Francisco County"
+      },
+      "salary_min": null,
+      "salary_max": null,
+      "salary_is_predicted": "0",
+      "created": "2026-06-09T04:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000010",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": "permanent",
+      "contract_time": null,
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000011",
+      "title": "Analytics Engineer",
+      "description": "We are seeking a Analytics Engineer to join our team. Advanced Excel; no programming required. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "MITRE"
+      },
+      "location": {
+        "area": [
+          "US",
+          "Massachusetts",
+          "Suffolk County",
+          "Boston"
+        ],
+        "display_name": "Boston, Suffolk County"
+      },
+      "salary_min": null,
+      "salary_max": null,
+      "salary_is_predicted": "0",
+      "created": "2026-06-12T07:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000011",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": "permanent",
+      "contract_time": null,
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000012",
+      "title": "Data Analyst",
+      "description": "We are seeking a Data Analyst to join our team. Strong SQL skills required. Experience with Python and Tableau preferred. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "CVS Health"
+      },
+      "location": {
+        "area": [
+          "US",
+          "California",
+          "San Francisco County",
+          "San Francisco"
+        ],
+        "display_name": "San Francisco, San Francisco County"
+      },
+      "salary_min": null,
+      "salary_max": null,
+      "salary_is_predicted": "0",
+      "created": "2026-06-26T21:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000012",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": "contract",
+      "contract_time": null,
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000013",
+      "title": "Data Analyst II",
+      "description": "We are seeking a Data Analyst II to join our team. Experience with R or Python for statistical analysis. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "TekSystems"
+      },
+      "location": {
+        "area": [
+          "US"
+        ],
+        "display_name": "US"
+      },
+      "salary_min": 85000,
+      "salary_max": 95000,
+      "salary_is_predicted": "0",
+      "created": "2026-06-22T17:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000013",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": "contract",
+      "contract_time": null,
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000014",
+      "title": "Marketing Data Analyst",
+      "description": "We are seeking a Marketing Data Analyst to join our team. Proficiency in Excel and Power BI. SQL a plus. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "Peraton"
+      },
+      "location": {
+        "area": [
+          "US",
+          "Virginia",
+          "Fairfax County",
+          "Fairfax"
+        ],
+        "display_name": "Fairfax, Fairfax County"
+      },
+      "salary_min": 75000,
+      "salary_max": 105000,
+      "salary_is_predicted": "1",
+      "created": "2026-06-17T05:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000014",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": null,
+      "contract_time": "full_time",
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000015",
+      "title": "Analytics Engineer",
+      "description": "We are seeking a Analytics Engineer to join our team. Advanced Excel; no programming required. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "Meta"
+      },
+      "location": {
+        "area": [
+          "US",
+          "California",
+          "San Francisco County",
+          "San Francisco"
+        ],
+        "display_name": "San Francisco, San Francisco County"
+      },
+      "salary_min": null,
+      "salary_max": null,
+      "salary_is_predicted": "0",
+      "created": "2026-06-12T05:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000015",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": null,
+      "contract_time": null,
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000016",
+      "title": "Data Analyst II",
+      "description": "We are seeking a Data Analyst II to join our team. You will build dashboards in Looker and write complex SQL queries. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {},
+      "location": {
+        "area": [
+          "US",
+          "Virginia",
+          "Fairfax County",
+          "Fairfax"
+        ],
+        "display_name": "Fairfax, Fairfax County"
+      },
+      "salary_min": null,
+      "salary_max": null,
+      "salary_is_predicted": "0",
+      "created": "2026-06-04T11:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000016",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": "contract",
+      "contract_time": "full_time",
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000017",
+      "title": "Senior Data Analyst",
+      "description": "We are seeking a Senior Data Analyst to join our team. Strong SQL skills required. Experience with Python and Tableau preferred. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {},
+      "location": {
+        "area": [
+          "US",
+          "New York",
+          "New York County",
+          "New York"
+        ],
+        "display_name": "New York, New York County"
+      },
+      "salary_min": 95000,
+      "salary_max": 125000,
+      "salary_is_predicted": "0",
+      "created": "2026-06-05T21:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000017",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": "contract",
+      "contract_time": null,
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000018",
+      "title": "Data Analyst II",
+      "description": "We are seeking a Data Analyst II to join our team. Experience with R or Python for statistical analysis. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "Meta"
+      },
+      "location": {
+        "area": [
+          "US"
+        ],
+        "display_name": "US"
+      },
+      "salary_min": 95000,
+      "salary_max": 125000,
+      "salary_is_predicted": "0",
+      "created": "2026-06-23T09:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000018",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": "contract",
+      "contract_time": null,
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000019",
+      "title": "Junior Data Analyst",
+      "description": "We are seeking a Junior Data Analyst to join our team. Familiarity with dbt, Snowflake, and modern data stack tooling. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "Peraton"
+      },
+      "location": {
+        "area": [
+          "US",
+          "New York",
+          "New York County",
+          "New York"
+        ],
+        "display_name": "New York, New York County"
+      },
+      "salary_min": null,
+      "salary_max": null,
+      "salary_is_predicted": "0",
+      "created": "2026-06-08T07:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000019",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": "permanent",
+      "contract_time": "part_time",
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000020",
+      "title": "Business Intelligence Analyst",
+      "description": "We are seeking a Business Intelligence Analyst to join our team. Familiarity with dbt, Snowflake, and modern data stack tooling. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "Meta Platforms Inc"
+      },
+      "location": {
+        "area": [
+          "US",
+          "Virginia",
+          "Fairfax County",
+          "Fairfax"
+        ],
+        "display_name": "Fairfax, Fairfax County"
+      },
+      "salary_min": 95000,
+      "salary_max": 105000,
+      "salary_is_predicted": "0",
+      "created": "2026-06-08T02:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000020",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": "permanent",
+      "contract_time": "part_time",
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000021",
+      "title": "Analytics Engineer",
+      "description": "We are seeking a Analytics Engineer to join our team. Advanced Excel; no programming required. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {},
+      "location": {
+        "area": [
+          "US",
+          "Illinois",
+          "Cook County",
+          "Chicago"
+        ],
+        "display_name": "Chicago, Cook County"
+      },
+      "salary_min": 65000,
+      "salary_max": 95000,
+      "salary_is_predicted": "0",
+      "created": "2026-06-24T18:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000021",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": null,
+      "contract_time": "part_time",
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000022",
+      "title": "Marketing Data Analyst",
+      "description": "We are seeking a Marketing Data Analyst to join our team. Proficiency in Excel and Power BI. SQL a plus. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "Capital One"
+      },
+      "location": {
+        "area": [
+          "US",
+          "New York",
+          "New York County",
+          "New York"
+        ],
+        "display_name": "New York, New York County"
+      },
+      "salary_min": 85000,
+      "salary_max": 115000,
+      "salary_is_predicted": "1",
+      "created": "2026-06-12T13:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000022",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": "contract",
+      "contract_time": "part_time",
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000023",
+      "title": "Data Analyst",
+      "description": "We are seeking a Data Analyst to join our team. Advanced Excel; no programming required. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "Capital One"
+      },
+      "location": {
+        "area": [
+          "US",
+          "Virginia",
+          "Fairfax County",
+          "Fairfax"
+        ],
+        "display_name": "Fairfax, Fairfax County"
+      },
+      "salary_min": null,
+      "salary_max": null,
+      "salary_is_predicted": "0",
+      "created": "2026-06-13T23:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000023",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": "contract",
+      "contract_time": "full_time",
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000024",
+      "title": "Lead Data Analyst",
+      "description": "We are seeking a Lead Data Analyst to join our team. Experience with R or Python for statistical analysis. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "CVS Health"
+      },
+      "location": {
+        "area": [
+          "US",
+          "Massachusetts",
+          "Suffolk County",
+          "Boston"
+        ],
+        "display_name": "Boston, Suffolk County"
+      },
+      "salary_min": 65000,
+      "salary_max": 75000,
+      "salary_is_predicted": "1",
+      "created": "2026-06-15T07:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000024",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": "permanent",
+      "contract_time": "part_time",
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000025",
+      "title": "Lead Data Analyst",
+      "description": "We are seeking a Lead Data Analyst to join our team. Strong SQL skills required. Experience with Python and Tableau preferred. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "Deloitte"
+      },
+      "location": {
+        "area": [
+          "US"
+        ],
+        "display_name": "US"
+      },
+      "salary_min": null,
+      "salary_max": null,
+      "salary_is_predicted": "0",
+      "created": "2026-06-27T00:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000025",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": "permanent",
+      "contract_time": "full_time",
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000026",
+      "title": "Junior Data Analyst",
+      "description": "We are seeking a Junior Data Analyst to join our team. Proficiency in Excel and Power BI. SQL a plus. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "Geico"
+      },
+      "location": {
+        "area": [
+          "US",
+          "Virginia",
+          "Fairfax County",
+          "Fairfax"
+        ],
+        "display_name": "Fairfax, Fairfax County"
+      },
+      "salary_min": 85000,
+      "salary_max": 95000,
+      "salary_is_predicted": "1",
+      "created": "2026-06-01T12:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000026",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": "contract",
+      "contract_time": "part_time",
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000027",
+      "title": "BI Analyst",
+      "description": "We are seeking a BI Analyst to join our team. Familiarity with dbt, Snowflake, and modern data stack tooling. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {},
+      "location": {
+        "area": [
+          "US",
+          "California",
+          "San Francisco County",
+          "San Francisco"
+        ],
+        "display_name": "San Francisco, San Francisco County"
+      },
+      "salary_min": 110000,
+      "salary_max": 120000,
+      "salary_is_predicted": "1",
+      "created": "2026-06-07T01:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000027",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": null,
+      "contract_time": null,
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000028",
+      "title": "BI Analyst",
+      "description": "We are seeking a BI Analyst to join our team. You will build dashboards in Looker and write complex SQL queries. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "Deloitte"
+      },
+      "location": {
+        "area": [
+          "US",
+          "Virginia",
+          "Fairfax County",
+          "Fairfax"
+        ],
+        "display_name": "Fairfax, Fairfax County"
+      },
+      "salary_min": null,
+      "salary_max": null,
+      "salary_is_predicted": "0",
+      "created": "2026-06-19T15:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000028",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": null,
+      "contract_time": null,
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000029",
+      "title": "Senior Data Analyst",
+      "description": "We are seeking a Senior Data Analyst to join our team. Proficiency in Excel and Power BI. SQL a plus. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "Deloitte Consulting LLP"
+      },
+      "location": {
+        "area": [
+          "US",
+          "New York",
+          "New York County",
+          "New York"
+        ],
+        "display_name": "New York, New York County"
+      },
+      "salary_min": 95000,
+      "salary_max": 125000,
+      "salary_is_predicted": "0",
+      "created": "2026-06-13T03:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000029",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": null,
+      "contract_time": "full_time",
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000030",
+      "title": "Data Analyst",
+      "description": "We are seeking a Data Analyst to join our team. Familiarity with dbt, Snowflake, and modern data stack tooling. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "Deloitte Consulting LLP"
+      },
+      "location": {
+        "area": [
+          "US",
+          "Massachusetts",
+          "Suffolk County",
+          "Boston"
+        ],
+        "display_name": "Boston, Suffolk County"
+      },
+      "salary_min": null,
+      "salary_max": null,
+      "salary_is_predicted": "0",
+      "created": "2026-06-22T18:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000030",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": null,
+      "contract_time": null,
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000031",
+      "title": "Business Intelligence Analyst",
+      "description": "We are seeking a Business Intelligence Analyst to join our team. Advanced Excel; no programming required. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "Insight Global"
+      },
+      "location": {
+        "area": [
+          "US",
+          "Illinois",
+          "Cook County",
+          "Chicago"
+        ],
+        "display_name": "Chicago, Cook County"
+      },
+      "salary_min": 75000,
+      "salary_max": 95000,
+      "salary_is_predicted": "1",
+      "created": "2026-06-05T21:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000031",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": null,
+      "contract_time": "part_time",
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000032",
+      "title": "Senior Data Analyst",
+      "description": "We are seeking a Senior Data Analyst to join our team. Strong SQL skills required. Experience with Python and Tableau preferred. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "Peraton"
+      },
+      "location": {
+        "area": [
+          "US",
+          "New York",
+          "New York County",
+          "New York"
+        ],
+        "display_name": "New York, New York County"
+      },
+      "salary_min": null,
+      "salary_max": null,
+      "salary_is_predicted": "0",
+      "created": "2026-06-03T17:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000032",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": "permanent",
+      "contract_time": null,
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000033",
+      "title": "Senior Data Analyst",
+      "description": "We are seeking a Senior Data Analyst to join our team. Proficiency in Excel and Power BI. SQL a plus. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "Fannie Mae"
+      },
+      "location": {
+        "area": [
+          "US",
+          "Texas",
+          "Travis County",
+          "Austin"
+        ],
+        "display_name": "Austin, Travis County"
+      },
+      "salary_min": 75000,
+      "salary_max": 85000,
+      "salary_is_predicted": "1",
+      "created": "2026-06-27T17:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000033",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": null,
+      "contract_time": "part_time",
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000034",
+      "title": "Sr. Data Analyst (Hybrid)",
+      "description": "We are seeking a Sr. Data Analyst (Hybrid) to join our team. Familiarity with dbt, Snowflake, and modern data stack tooling. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "Acme Analytics"
+      },
+      "location": {
+        "area": [
+          "US"
+        ],
+        "display_name": "US"
+      },
+      "salary_min": null,
+      "salary_max": null,
+      "salary_is_predicted": "0",
+      "created": "2026-06-10T21:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000034",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": "permanent",
+      "contract_time": "full_time",
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000035",
+      "title": "BI Analyst",
+      "description": "We are seeking a BI Analyst to join our team. Familiarity with dbt, Snowflake, and modern data stack tooling. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "CVS Health"
+      },
+      "location": {
+        "area": [
+          "US",
+          "Texas",
+          "Travis County",
+          "Austin"
+        ],
+        "display_name": "Austin, Travis County"
+      },
+      "salary_min": 55000,
+      "salary_max": 75000,
+      "salary_is_predicted": "0",
+      "created": "2026-06-23T10:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000035",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": "permanent",
+      "contract_time": null,
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000036",
+      "title": "Analytics Engineer",
+      "description": "We are seeking a Analytics Engineer to join our team. Familiarity with dbt, Snowflake, and modern data stack tooling. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {},
+      "location": {
+        "area": [
+          "US",
+          "Texas",
+          "Travis County",
+          "Austin"
+        ],
+        "display_name": "Austin, Travis County"
+      },
+      "salary_min": null,
+      "salary_max": null,
+      "salary_is_predicted": "0",
+      "created": "2026-06-28T01:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000036",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": "permanent",
+      "contract_time": null,
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000037",
+      "title": "Data Analyst",
+      "description": "We are seeking a Data Analyst to join our team. Strong SQL skills required. Experience with Python and Tableau preferred. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "Insight Global"
+      },
+      "location": {
+        "area": [
+          "US",
+          "California",
+          "San Francisco County",
+          "San Francisco"
+        ],
+        "display_name": "San Francisco, San Francisco County"
+      },
+      "salary_min": 75000,
+      "salary_max": 105000,
+      "salary_is_predicted": "1",
+      "created": "2026-06-06T23:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000037",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": "contract",
+      "contract_time": null,
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000038",
+      "title": "Lead Data Analyst",
+      "description": "We are seeking a Lead Data Analyst to join our team. Strong SQL skills required. Experience with Python and Tableau preferred. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "Capital One"
+      },
+      "location": {
+        "area": [
+          "US",
+          "New York",
+          "New York County",
+          "New York"
+        ],
+        "display_name": "New York, New York County"
+      },
+      "salary_min": null,
+      "salary_max": null,
+      "salary_is_predicted": "0",
+      "created": "2026-06-23T04:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000038",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": null,
+      "contract_time": "full_time",
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000039",
+      "title": "Data Analyst II",
+      "description": "We are seeking a Data Analyst II to join our team. Familiarity with dbt, Snowflake, and modern data stack tooling. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "CVS Health"
+      },
+      "location": {
+        "area": [
+          "US",
+          "Massachusetts",
+          "Suffolk County",
+          "Boston"
+        ],
+        "display_name": "Boston, Suffolk County"
+      },
+      "salary_min": null,
+      "salary_max": null,
+      "salary_is_predicted": "0",
+      "created": "2026-06-05T01:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000039",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": "contract",
+      "contract_time": "part_time",
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000040",
+      "title": "Data Analyst",
+      "description": "We are seeking a Data Analyst to join our team. You will build dashboards in Looker and write complex SQL queries. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "Meta"
+      },
+      "location": {
+        "area": [
+          "US",
+          "Illinois",
+          "Cook County",
+          "Chicago"
+        ],
+        "display_name": "Chicago, Cook County"
+      },
+      "salary_min": null,
+      "salary_max": null,
+      "salary_is_predicted": "0",
+      "created": "2026-06-22T03:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000040",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": "contract",
+      "contract_time": null,
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000041",
+      "title": "Marketing Data Analyst",
+      "description": "We are seeking a Marketing Data Analyst to join our team. Familiarity with dbt, Snowflake, and modern data stack tooling. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "CVS Health"
+      },
+      "location": {
+        "area": [
+          "US",
+          "Illinois",
+          "Cook County",
+          "Chicago"
+        ],
+        "display_name": "Chicago, Cook County"
+      },
+      "salary_min": null,
+      "salary_max": null,
+      "salary_is_predicted": "0",
+      "created": "2026-06-28T05:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000041",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": "permanent",
+      "contract_time": "part_time",
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000042",
+      "title": "Product Analyst",
+      "description": "We are seeking a Product Analyst to join our team. Experience with R or Python for statistical analysis. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "Meta Platforms Inc"
+      },
+      "location": {
+        "area": [
+          "US",
+          "Texas",
+          "Travis County",
+          "Austin"
+        ],
+        "display_name": "Austin, Travis County"
+      },
+      "salary_min": 110000,
+      "salary_max": 120000,
+      "salary_is_predicted": "0",
+      "created": "2026-06-13T01:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000042",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": "contract",
+      "contract_time": "full_time",
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000043",
+      "title": "Product Analyst",
+      "description": "We are seeking a Product Analyst to join our team. You will build dashboards in Looker and write complex SQL queries. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "Meta Platforms Inc"
+      },
+      "location": {
+        "area": [
+          "US",
+          "Illinois",
+          "Cook County",
+          "Chicago"
+        ],
+        "display_name": "Chicago, Cook County"
+      },
+      "salary_min": 85000,
+      "salary_max": 95000,
+      "salary_is_predicted": "0",
+      "created": "2026-06-13T10:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000043",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": "contract",
+      "contract_time": "full_time",
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000044",
+      "title": "Analytics Engineer",
+      "description": "We are seeking a Analytics Engineer to join our team. You will build dashboards in Looker and write complex SQL queries. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "Geico"
+      },
+      "location": {
+        "area": [
+          "US"
+        ],
+        "display_name": "US"
+      },
+      "salary_min": null,
+      "salary_max": null,
+      "salary_is_predicted": "0",
+      "created": "2026-06-11T00:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000044",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": "permanent",
+      "contract_time": "part_time",
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000045",
+      "title": "Data Analyst",
+      "description": "We are seeking a Data Analyst to join our team. Strong SQL skills required. Experience with Python and Tableau preferred. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "MITRE"
+      },
+      "location": {
+        "area": [
+          "US",
+          "Washington",
+          "King County",
+          "Seattle"
+        ],
+        "display_name": "Seattle, King County"
+      },
+      "salary_min": 75000,
+      "salary_max": 105000,
+      "salary_is_predicted": "1",
+      "created": "2026-06-14T19:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000045",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": null,
+      "contract_time": "full_time",
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000046",
+      "title": "Business Intelligence Analyst",
+      "description": "We are seeking a Business Intelligence Analyst to join our team. You will build dashboards in Looker and write complex SQL queries. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "Deloitte"
+      },
+      "location": {
+        "area": [
+          "US",
+          "Massachusetts",
+          "Suffolk County",
+          "Boston"
+        ],
+        "display_name": "Boston, Suffolk County"
+      },
+      "salary_min": 95000,
+      "salary_max": 105000,
+      "salary_is_predicted": "0",
+      "created": "2026-06-12T13:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000046",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": "permanent",
+      "contract_time": null,
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000047",
+      "title": "Data Analyst II",
+      "description": "We are seeking a Data Analyst II to join our team. You will build dashboards in Looker and write complex SQL queries. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "Capital One"
+      },
+      "location": {
+        "area": [
+          "US",
+          "Texas",
+          "Travis County",
+          "Austin"
+        ],
+        "display_name": "Austin, Travis County"
+      },
+      "salary_min": null,
+      "salary_max": null,
+      "salary_is_predicted": "0",
+      "created": "2026-06-17T09:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000047",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": null,
+      "contract_time": "part_time",
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000048",
+      "title": "Analytics Engineer",
+      "description": "We are seeking a Analytics Engineer to join our team. Familiarity with dbt, Snowflake, and modern data stack tooling. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "CVS Health"
+      },
+      "location": {
+        "area": [
+          "US",
+          "Illinois",
+          "Cook County",
+          "Chicago"
+        ],
+        "display_name": "Chicago, Cook County"
+      },
+      "salary_min": 110000,
+      "salary_max": 130000,
+      "salary_is_predicted": "1",
+      "created": "2026-06-22T23:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000048",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": "permanent",
+      "contract_time": null,
+      "latitude": null,
+      "longitude": null
+    },
+    {
+      "id": "5000000049",
+      "title": "Marketing Data Analyst",
+      "description": "We are seeking a Marketing Data Analyst to join our team. Familiarity with dbt, Snowflake, and modern data stack tooling. This role involves stakeholder communication and data storytelling. Bachelor's degree in a quantitative field preferred...",
+      "company": {
+        "display_name": "Acme Analytics"
+      },
+      "location": {
+        "area": [
+          "US",
+          "Texas",
+          "Travis County",
+          "Austin"
+        ],
+        "display_name": "Austin, Travis County"
+      },
+      "salary_min": null,
+      "salary_max": null,
+      "salary_is_predicted": "0",
+      "created": "2026-06-10T06:14:02Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5000000049",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      },
+      "contract_type": "contract",
+      "contract_time": null,
+      "latitude": null,
+      "longitude": null
+    }
+  ],
+  "__note__": "SYNTHETIC fixture matching Adzuna response shape (developer.adzuna.com docs). Replace docs/adzuna_sample_response.json with a real capture in Step 3."
+}
