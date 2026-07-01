@@ -1,0 +1,27 @@
+# Environments & secrets
+.env
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+dist/
+build/
+
+# Jupyter
+notebooks/.ipynb_checkpoints/
+.ipynb_checkpoints/
+
+# Data & databases
+*.sqlite
+*.db
+data/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
