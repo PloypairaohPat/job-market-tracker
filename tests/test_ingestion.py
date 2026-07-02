@@ -161,3 +161,24 @@ def test_null_location_components_do_not_duplicate(db):
             )
         ).scalar_one()
     assert dupes == 0
+
+
+def test_demo_seeder_is_idempotent_across_processes(db):
+    """The demo seeder must produce stable external IDs across separate
+    Python processes (regression: hash() randomization duplicated rows)."""
+    import subprocess
+    import sys
+
+    env = dict(os.environ, DATABASE_URL=TEST_DB_URL)
+    root = Path(__file__).parent.parent
+    for _ in range(2):
+        subprocess.run(
+            [sys.executable, "scripts/seed_demo_data.py"],
+            cwd=root,
+            env=env,
+            check=True,
+            capture_output=True,
+        )
+    with db.connect() as conn:
+        n = conn.execute(text("select count(*) from jobs")).scalar_one()
+    assert n == 600, f"expected 600 jobs after two seed runs, got {n}"

@@ -11,6 +11,7 @@ dataset.
 """
 
 import copy
+import hashlib
 import json
 import logging
 import sys
@@ -38,7 +39,9 @@ class FixtureClient(AdzunaClient):
 
     def iter_search(self, query, max_results=1000, results_per_page=50, **filters):
         # Give each query a distinct slice of IDs so the demo DB has volume.
-        offset = abs(hash(query)) % 900_000
+        # NOTE: must be a *stable* hash — Python's hash() is randomized per
+        # process (PYTHONHASHSEED), which broke seeder idempotency across runs.
+        offset = int(hashlib.md5(query.encode()).hexdigest()[:6], 16) % 900_000
         for i, page in enumerate(self._pages, start=1):
             page = copy.deepcopy(page)
             for job in page["results"]:
