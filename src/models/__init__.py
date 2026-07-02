@@ -5,6 +5,7 @@ from src.models.company import Company
 from src.models.job import Job
 from src.models.job_snapshot import JobSnapshot
 from src.models.location import Location
+from src.models.skill import JobSkill, Skill
 from src.models.raw_response import RawResponse
 
-__all__ = ["Base", "Company", "Job", "JobSnapshot", "Location", "RawResponse"]
+__all__ = ["Base", "Company", "Job", "JobSkill", "JobSnapshot", "Location", "RawResponse", "Skill"]

@@ -113,3 +113,30 @@ One row per `(job_id, snapshot_date)`, written on every ingestion run that obser
 1. **Per-query counts don't sum to the jobs total.** The same posting matches multiple search queries; upserts dedupe it into one row. This is correct behavior, not data loss.
 2. **`raw_responses` grows on every run; nothing else duplicates.** If `jobs` counts rise on an immediate re-run, that's a bug (and a failing test).
 3. **The dataset only contains what the six target queries return.** It is a view of the *analyst job market as reachable through those queries on Adzuna*, not the labor market as a whole. Selection effects apply to every conclusion.
+
+---
+
+## `skills` — skill taxonomy *(added in Phase 2 prep)*
+
+Materialization of the curated taxonomy in `src/cleaning/data/skills.json` — **the JSON file is the source of truth** (reviewable in diffs); the table is synced by `python -m src.cleaning.extract_skills`.
+
+| Column | Type | Meaning |
+|---|---|---|
+| `id` | serial PK | |
+| `name` | text, unique | canonical display name (`'Python'`, `'Power BI'`) — aliases resolve here, so co-occurrence analysis never double-counts |
+| `category` | text | `language` \| `database` \| `bi_tool` \| `data_tool` \| `cloud` \| `ml_stats` \| `workflow` \| `soft` |
+| `aliases` | text[] | reserved; alias matching currently lives in the taxonomy JSON patterns |
+
+## `job_skills` — job ↔ skill links *(added in Phase 2 prep)*
+
+Written by regex-based extraction over `title + description`. **A derived layer**: it can always be rebuilt from stored descriptions (`--rebuild`), which is the raw-then-normalized pattern applied to NLP.
+
+| Column | Type | Meaning / judgment calls |
+|---|---|---|
+| `job_id` | int FK, PK | |
+| `skill_id` | int FK, PK | |
+| `confidence` | numeric(3,2) | pattern-level confidence from the taxonomy, **not** a per-mention probability. `1.0` = unambiguous term (`Tableau`); `< 1.0` = term needing case/context anchoring (`R` 0.8, `Excel` 0.9, soft skills 0.5–0.7). Filter with `WHERE confidence >= x` per analysis. |
+
+**Extraction philosophy — precision over recall.** Ambiguous terms only match with case-sensitive or context-anchored patterns ("in R", "Python/R" — never bare `R`, so "HR" and "R&D" can't false-positive). A missed mention costs a little recall; a false positive silently corrupts every downstream skill analysis. Every ambiguous term has a false-positive trap test in `tests/test_skill_extractor.py` — **when adding a skill, write its trap case first**.
+
+**Known recall limits** (documented, accepted for now): Adzuna truncates descriptions, capping recall regardless of extractor quality; and spaCy-based patterns (Phase 2 proper) will be measured against a manual audit of a random sample before adoption.
