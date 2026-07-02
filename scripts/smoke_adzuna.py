@@ -8,7 +8,6 @@ confirm the account works before running full ingestion.
 """
 
 import logging
-
 import sys
 from pathlib import Path
 
