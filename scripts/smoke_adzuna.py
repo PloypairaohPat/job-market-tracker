@@ -9,6 +9,11 @@ confirm the account works before running full ingestion.
 
 import logging
 
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # allow `python scripts/x.py`
+
 from src.ingestion.adzuna_client import AdzunaClient
 from src.utils.config import get_settings
 
