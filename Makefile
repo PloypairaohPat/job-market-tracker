@@ -1,0 +1,25 @@
+.PHONY: up db-migrate seed-demo ingest smoke test lint notebook
+
+up:              ## start Postgres
+	docker compose up -d
+
+db-migrate:      ## apply schema migrations
+	alembic upgrade head
+
+seed-demo:       ## load synthetic demo data (no API key needed)
+	python scripts/seed_demo_data.py
+
+smoke:           ## one live API call to verify Adzuna credentials
+	python scripts/smoke_adzuna.py
+
+ingest:          ## full Adzuna ingestion (budgeted)
+	python -m src.ingestion.ingest_adzuna
+
+test:            ## run all tests (integration tests need TEST_DATABASE_URL)
+	pytest
+
+lint:            ## lint + format check
+	ruff check . && ruff format --check .
+
+notebook:        ## open the exploration notebook
+	jupyter lab notebooks/01_initial_exploration.ipynb
