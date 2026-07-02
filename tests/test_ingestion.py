@@ -22,7 +22,8 @@ from sqlalchemy import create_engine, func, select, text
 
 from src.ingestion.adzuna_client import AdzunaClient
 from src.ingestion.ingest_adzuna import run_ingestion
-from src.models import Base, Company, Job, JobSnapshot, Location, RawResponse
+from src.models import Company, Job, JobSnapshot, Location, RawResponse
+from tests.conftest import reset_schema
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -59,8 +60,7 @@ class FixtureBackedClient(AdzunaClient):
 def db():
     """Fresh schema per test."""
     engine = create_engine(TEST_DB_URL)
-    Base.metadata.drop_all(engine)
-    Base.metadata.create_all(engine)
+    reset_schema(engine)
     yield engine
     engine.dispose()
     # reset the process-wide session factory used by session_scope
