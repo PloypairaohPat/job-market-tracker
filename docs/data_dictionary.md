@@ -140,3 +140,24 @@ Written by regex-based extraction over `title + description`. **A derived layer*
 **Extraction philosophy — precision over recall.** Ambiguous terms only match with case-sensitive or context-anchored patterns ("in R", "Python/R" — never bare `R`, so "HR" and "R&D" can't false-positive). A missed mention costs a little recall; a false positive silently corrupts every downstream skill analysis. Every ambiguous term has a false-positive trap test in `tests/test_skill_extractor.py` — **when adding a skill, write its trap case first**.
 
 **Known recall limits** (documented, accepted for now): Adzuna truncates descriptions, capping recall regardless of extractor quality; and spaCy-based patterns (Phase 2 proper) will be measured against a manual audit of a random sample before adoption.
+
+---
+
+## Cleaning-layer columns *(added in Phase 2 prep)*
+
+All populated by `python -m src.cleaning.apply_cleaning` — idempotent, derived entirely from stored raw values, recomputable after any rule change.
+
+### `jobs.seniority`
+`'junior' | 'mid' | 'senior' | 'lead' | NULL` from title patterns. **NULL means no signal, never "mid"** — a bare "Data Analyst" carries no seniority information and forcing a bucket would fabricate data. Judgment calls: "Associate Director" is `lead` (not junior); lead/principal/staff/head/director/manager share one bucket; precedence is lead > senior > mid > junior. Full rules + trap tests: `src/cleaning/seniority.py`, `tests/test_cleaning.py`.
+
+### `jobs.salary_quality`
+`NULL` (no salary disclosed) `| 'ok' | 'suspect_hourly_as_annual' | 'suspect_inverted' | 'suspect_outlier_high'`. Raw salary values are **never modified or discarded** — analyses choose their own inclusion rule (typically `WHERE salary_quality = 'ok'`). Thresholds live in ONE place (`salary_quality.py`: hourly ceiling $25k, outlier floor $500k) and get tuned there after real-data audits, never inline in analyses. Note `salary_is_predicted` is orthogonal: an Adzuna estimate can still be `'ok'` quality — filter on both dimensions deliberately.
+
+### `jobs.is_remote` (upgraded semantics)
+Phase 2 policy: title/location "remote" is a strong signal that wins over hybrid language in descriptions; description positives ("fully remote", "work from home") count only absent negation/hybrid patterns. **Hybrid is not remote** — this flag tracks fully-remote eligibility only.
+
+### `locations.metro_area`
+`'NYC' | 'SF Bay Area' | 'LA' | 'Chicago' | 'Boston' | 'Seattle' | 'Austin' | 'DC' | NULL`. City-list based (explicit, auditable; a missing suburb is a one-line fix). DC added beyond the original guide list — it's a top analytics market via federal/contractor demand and the planned USAJobs source skews there. Disambiguation traps handled: Washington-the-city requires DC state; only Virginia's Springfield is claimed. NULL = not in a tracked metro (distinct from unknown location).
+
+### `companies.normalized_name`
+Lowercase **grouping key** from the three-tier normalization layer: deterministic rules (legal-suffix stripping, "The" prefix, punctuation) → curated aliases (`src/cleaning/data/company_aliases.json`, e.g. facebook→meta) → fuzzy candidates written to `data/company_merge_candidates.csv` for **manual review, never auto-merged**. Approved pairs get promoted into the alias file, making review output durable and versioned. Display names for reporting are chosen at query time (most frequent raw name per key); `canonical_name`/`raw_names` are never modified.

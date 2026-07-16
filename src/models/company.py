@@ -22,6 +22,9 @@ class Company(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     canonical_name: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
+    normalized_name: Mapped[str | None] = mapped_column(
+        Text, index=True
+    )  # lowercase grouping key from the normalization layer; recomputable
     raw_names: Mapped[list[str]] = mapped_column(ARRAY(Text), nullable=False, default=list)
     industry: Mapped[str | None] = mapped_column(Text)
     size_bucket: Mapped[str | None] = mapped_column(Text)  # '1-50' | '51-200' | ...

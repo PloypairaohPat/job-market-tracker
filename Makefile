@@ -23,3 +23,9 @@ lint:            ## lint + format check
 
 notebook:        ## open the exploration notebook
 	jupyter lab notebooks/01_initial_exploration.ipynb
+
+extract-skills:  ## sync taxonomy + extract job skills
+	python -m src.cleaning.extract_skills
+
+apply-cleaning:  ## seniority, salary quality, remote, metro, company normalization
+	python -m src.cleaning.apply_cleaning

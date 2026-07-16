@@ -47,6 +47,9 @@ class Job(Base):
     salary_currency: Mapped[str | None] = mapped_column(Text)
     salary_period: Mapped[str | None] = mapped_column(Text)  # 'year' | 'hour' | 'month'
     salary_is_predicted: Mapped[bool | None] = mapped_column(Boolean)  # Adzuna estimates flagged
+    salary_quality: Mapped[str | None] = mapped_column(
+        Text
+    )  # None|ok|suspect_* — set by cleaning pipeline; see data dictionary
 
     is_remote: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     category: Mapped[str | None] = mapped_column(Text)
