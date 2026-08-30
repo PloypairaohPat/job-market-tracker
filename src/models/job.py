@@ -41,6 +41,10 @@ class Job(Base):
     title_normalized: Mapped[str | None] = mapped_column(Text)  # lowercased/trimmed only in Phase 1
     seniority: Mapped[str | None] = mapped_column(Text)  # classified in Phase 2
     description: Mapped[str | None] = mapped_column(Text)
+    # Full-length text from a source that doesn't truncate (e.g. USAJobs) or a
+    # second-pass fetch. `description` (the API-provided field, possibly
+    # truncated) is never overwritten; extraction prefers this when present.
+    description_full: Mapped[str | None] = mapped_column(Text)
 
     salary_min: Mapped[int | None] = mapped_column(Integer)
     salary_max: Mapped[int | None] = mapped_column(Integer)

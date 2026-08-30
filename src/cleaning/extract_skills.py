@@ -59,15 +59,15 @@ def extract_for_all_jobs(
     offset = 0
     while True:
         batch = session.execute(
-            select(Job.id, Job.title, Job.description)
+            select(Job.id, Job.title, Job.description, Job.description_full)
             .order_by(Job.id)
             .offset(offset)
             .limit(BATCH_SIZE)
         ).all()
         if not batch:
             break
-        for job_id, title, description in batch:
-            text = f"{title or ''}\n{description or ''}"
+        for job_id, title, description, description_full in batch:
+            text = f"{title or ''}\n{description_full or description or ''}"
             for skill_name, confidence in extractor.extract(text).items():
                 if confidence < min_confidence:
                     continue

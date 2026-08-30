@@ -38,14 +38,17 @@ class Settings:
     adzuna_app_key: str = field(repr=False, default="")
     adzuna_min_request_interval: float = 1.5
     adzuna_monthly_call_budget: int = 1000
+    usajobs_api_key: str = field(repr=False, default="")
+    usajobs_user_agent_email: str = field(repr=False, default="")
+    usajobs_min_request_interval: float = 1.0
 
 
-def get_settings(require_adzuna: bool = False) -> Settings:
+def get_settings(require_adzuna: bool = False, require_usajobs: bool = False) -> Settings:
     """Build Settings from the environment.
 
-    Adzuna credentials are only *required* when `require_adzuna=True`
-    (i.e. for live ingestion). Analysis notebooks and tests only need
-    the database URL.
+    Source credentials are only *required* when the matching
+    `require_*` flag is set (i.e. for that source's live ingestion).
+    Analysis notebooks and tests only need the database URL.
     """
     return Settings(
         database_url=_require("DATABASE_URL"),
@@ -59,4 +62,17 @@ def get_settings(require_adzuna: bool = False) -> Settings:
             os.environ.get("ADZUNA_MIN_REQUEST_INTERVAL_SECONDS", "1.5")
         ),
         adzuna_monthly_call_budget=int(os.environ.get("ADZUNA_MONTHLY_CALL_BUDGET", "1000")),
+        usajobs_api_key=(
+            _require("USAJOBS_API_KEY")
+            if require_usajobs
+            else os.environ.get("USAJOBS_API_KEY", "")
+        ),
+        usajobs_user_agent_email=(
+            _require("USAJOBS_USER_AGENT_EMAIL")
+            if require_usajobs
+            else os.environ.get("USAJOBS_USER_AGENT_EMAIL", "")
+        ),
+        usajobs_min_request_interval=float(
+            os.environ.get("USAJOBS_MIN_REQUEST_INTERVAL_SECONDS", "1.0")
+        ),
     )

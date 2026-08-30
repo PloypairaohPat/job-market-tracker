@@ -7,6 +7,7 @@ import pytest
 from sqlalchemy import create_engine, text
 
 from src.cleaning.extract_skills import extract_for_all_jobs, sync_taxonomy
+from src.models import Job
 from src.utils.db import session_scope
 from tests.conftest import reset_schema
 
@@ -82,3 +83,60 @@ def test_backfill_finds_expected_fixture_skills(seeded_db):
     # fixture snippets explicitly mention these
     for expected in ("SQL", "Python", "Tableau", "Excel", "Power BI", "Looker", "dbt", "Snowflake"):
         assert expected in top, f"{expected} should be extracted from fixture descriptions"
+
+
+def test_extraction_prefers_description_full_over_description():
+    """A job with description_full set uses it; one without falls back."""
+    engine = create_engine(TEST_DB_URL)
+    reset_schema(engine)
+    try:
+        with session_scope(TEST_DB_URL) as session:
+            session.add_all(
+                [
+                    Job(
+                        external_id="has-full",
+                        source="usajobs",
+                        title="Data Analyst",
+                        description="Teaser text with no skill mentions at all.",
+                        description_full="Full posting requires strong Python and Tableau skills.",
+                    ),
+                    Job(
+                        external_id="truncated-only",
+                        source="adzuna",
+                        title="Data Analyst",
+                        description="Truncated teaser mentioning SQL experience.",
+                        description_full=None,
+                    ),
+                ]
+            )
+
+        with session_scope(TEST_DB_URL) as session:
+            skill_ids = sync_taxonomy(session)
+            extract_for_all_jobs(session, skill_ids)
+
+        with engine.connect() as conn:
+            rows = conn.execute(
+                text(
+                    """
+                    select j.external_id, s.name
+                    from job_skills js
+                    join jobs j on j.id = js.job_id
+                    join skills s on s.id = js.skill_id
+                    where j.external_id in ('has-full', 'truncated-only')
+                    """
+                )
+            ).all()
+        skills_by_job: dict[str, set[str]] = {}
+        for external_id, name in rows:
+            skills_by_job.setdefault(external_id, set()).add(name)
+
+        # description_full is used, not description (which mentions no skills)
+        assert skills_by_job.get("has-full") == {"Python", "Tableau"}
+        # no description_full -> falls back to description
+        assert skills_by_job.get("truncated-only") == {"SQL"}
+    finally:
+        engine.dispose()
+        import src.utils.db as dbmod
+
+        dbmod._engine = None
+        dbmod._SessionFactory = None

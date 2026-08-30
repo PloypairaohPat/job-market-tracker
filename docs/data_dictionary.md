@@ -74,6 +74,7 @@ Natural key: **`(source, external_id)`** — Adzuna IDs are only guaranteed uniq
 | `title_normalized` | text | **lowercase + whitespace-collapse only.** No seniority stripping, no role clustering — that's Phase 2. |
 | `seniority` | text, null | not populated in Phase 1 |
 | `description` | text, null | as provided (Adzuna truncates long descriptions — a known source limitation affecting Phase 2 skill extraction recall) |
+| `description_full` | text, null | *(added Phase 2 prep)* untruncated text when available — from a source that doesn't truncate (USAJobs) or a future second-pass fetch. `description` is never overwritten; `src/cleaning/extract_skills.py` prefers this column when present, falling back to `description`. See "USAJobs source notes" below for how it's composed. |
 | `salary_min`, `salary_max` | int, null | `NULL` = not disclosed. **Never zero-filled.** |
 | `salary_currency` | text, null | `'USD'` when salary present (US endpoint); `NULL` otherwise |
 | `salary_period` | text, null | `'year'` when salary present — Adzuna US returns annualized figures. **Caveat**: suspected hourly-as-annual contamination in the low tail (see phase 1 findings); Phase 2 adds a quality flag. |
@@ -142,6 +143,64 @@ Written by regex-based extraction over `title + description`. **A derived layer*
 **Known recall limits** (documented, accepted for now): Adzuna truncates descriptions, capping recall regardless of extractor quality; and spaCy-based patterns (Phase 2 proper) will be measured against a manual audit of a random sample before adoption.
 
 ---
+
+## USAJobs source notes *(added in Phase 2 prep)*
+
+USAJobs (`jobs.source = 'usajobs'`) returns full, untruncated text via its
+official API — no ToS or scraping concerns, unlike the redirect-URL
+enrichment path evaluated and rejected for Adzuna (see `phase_1_findings.md`).
+Parsing lives in `src/ingestion/usajobs_parser.py`; every judgment call below
+was made against a real sample response (`docs/usajobs_sample_response.json`),
+not guessed from documentation alone.
+
+- **`external_id` is `MatchedObjectId`, not `PositionID`.** `PositionID`
+  (e.g. `"FD-2026-0027"`) is the hiring agency's own announcement number —
+  human-readable but agency-assigned, not guaranteed unique across agencies.
+  `MatchedObjectId` is USAJobs' own system key.
+- **`companies.canonical_name` = `DepartmentName`** (cabinet-level agency,
+  e.g. "Department of Homeland Security"), not `OrganizationName`
+  (sub-component, e.g. "Federal Emergency Management Agency"). Coarser, but
+  keeps `companies` from fragmenting into hundreds of internal office names.
+  `OrganizationName` is not currently captured anywhere.
+- **`location_id` is `NULL` whenever a posting has anything other than
+  exactly one `PositionLocation` entry.** Real postings can list dozens or
+  hundreds of locations ("Nationwide" postings); picking one arbitrarily
+  would fabricate a specific location the posting doesn't actually have.
+  This extends the existing "NULL = no parsable location" semantics to
+  "no *single* parsable location" — an accepted recall cost, not a bug.
+- **USAJobs location fields are cross-source inconsistent, stored as-is.**
+  `CountryCode` holds the full country name ("United States") and
+  `CountrySubDivisionCode` the full state name ("Maryland") — despite the
+  field names, neither is an abbreviated code like Adzuna's `"US"`. Phase
+  1/2-prep philosophy is store-what-the-source-gives, don't normalize across
+  sources yet — so `locations.country`/`state` will contain both styles
+  until a real cross-source normalization layer exists. `city` is derived by
+  stripping the `", {state}"` suffix USAJobs redundantly appends to
+  `CityName`.
+- **`description_full` concatenates only narrative fields**: `JobSummary`,
+  `MajorDuties`, `Education`, `Requirements`, and the top-level
+  `QualificationSummary` (which, unlike the others, does not live under
+  `UserArea.Details`). Deliberately excludes application-process fields
+  (`HowToApply`, `RequiredDocuments`, `Benefits`, `OtherInformation`) that
+  would dilute skill-extraction signal with "submit your resume by..."
+  boilerplate. `description` gets the short `JobSummary` field alone — not
+  truncated by USAJobs, just naturally brief (confirmed against a live
+  25-result sample: lengths 55–500, and the two that happened to land at
+  exactly 500 both end on a complete sentence, unlike Adzuna's mid-word cut).
+- **`salary_period` only maps codes verified against USAJobs' own codelist**
+  (`GET /api/codelist/remunerationrateintervalcodes`): `PA`→`year`,
+  `PH`→`hour`, `PM`→`month`. Real but unmapped codes (`BW` biweekly, `PD`
+  daily, `FB`, `PW`, `ST`, `SY`, `WC`) leave `salary_period` `NULL` while
+  still storing the disclosed `salary_min`/`salary_max` — flag, don't guess.
+  `salary_is_predicted` is always `False` for this source (federal pay bands
+  are employer-disclosed, never a modeled estimate).
+- **`contract_time`/`contract_type` only map codes verified against
+  USAJobs' codelists** (`positionscheduletypes`, `positionofferingtypes`):
+  schedule `1`→`full_time`, `2`→`part_time`; offering `15317`→`permanent`.
+  The many other offering types (Temporary, Term, Seasonal, Internships,
+  Telework, ...) don't collapse cleanly onto Adzuna's binary
+  permanent/contract vocabulary and are left `NULL` rather than
+  force-fitted into a misleading bucket.
 
 ## Cleaning-layer columns *(added in Phase 2 prep)*
 
