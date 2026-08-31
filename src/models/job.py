@@ -57,6 +57,11 @@ class Job(Base):
 
     is_remote: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     category: Mapped[str | None] = mapped_column(Text)
+    # None = not yet classified. Flag, never delete: every row is kept and
+    # auditable via scope_reason regardless of relevance -- see
+    # src/cleaning/scope_classifier.py and the data dictionary.
+    in_scope: Mapped[bool | None] = mapped_column(Boolean)
+    scope_reason: Mapped[str | None] = mapped_column(Text)
     contract_type: Mapped[str | None] = mapped_column(Text)
     contract_time: Mapped[str | None] = mapped_column(Text)
     redirect_url: Mapped[str | None] = mapped_column(Text)

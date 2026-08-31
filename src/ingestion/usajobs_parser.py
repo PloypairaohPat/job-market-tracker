@@ -34,6 +34,11 @@ Judgment calls made during Phase 2-prep recon (docs/usajobs_sample_response.json
   `/api/codelist/positionscheduletypes`, `/api/codelist/positionofferingtypes`).
   Codes with no clean fit onto our existing enums resolve to None
   instead of being force-collapsed into a possibly-misleading bucket.
+- `category` joins *every* `JobCategory` entry's label (semicolon-
+  delimited, see `split_categories`), not just the first. Confirmed
+  live that ~4% of postings carry more than one (interdisciplinary
+  announcements) -- keeping only the first silently hid the second from
+  anything filtering on category. See `src/cleaning/scope_classifier.py`.
 """
 
 from __future__ import annotations
@@ -213,12 +218,33 @@ def _parse_remote(mod: dict[str, Any]) -> bool:
     return bool(details.get("RemoteIndicator"))
 
 
+_CATEGORY_DELIMITER = "; "
+
+
 def _parse_category(mod: dict[str, Any]) -> str | None:
+    """Join every JobCategory entry's label (falling back to Code per
+    entry when its Name is blank) -- a posting can carry more than one
+    (confirmed live: ~4% of a real sample), e.g. an "INTERDISCIPLINARY
+    GENERAL ENGINEER/OPERATIONS RESEARCH ANALYST" tagged both General
+    Engineering and Operations Research. Keeping only the first would
+    silently hide the second from anything filtering on category
+    (see scope_classifier.py)."""
     categories = mod.get("JobCategory") or []
-    if not categories:
-        return None
-    name = (categories[0].get("Name") or "").strip()
-    return name or categories[0].get("Code")
+    labels = []
+    for cat in categories:
+        label = (cat.get("Name") or "").strip() or cat.get("Code")
+        if label and label not in labels:
+            labels.append(label)
+    return _CATEGORY_DELIMITER.join(labels) or None
+
+
+def split_categories(category: str | None) -> list[str]:
+    """Inverse of the joining in `_parse_category` -- for consumers
+    (e.g. scope_classifier.py) that need to check membership per label
+    rather than treat `jobs.category` as a single opaque string."""
+    if not category:
+        return []
+    return category.split(_CATEGORY_DELIMITER)
 
 
 def _parse_contract_time(mod: dict[str, Any]) -> str | None:

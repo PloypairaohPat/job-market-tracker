@@ -52,6 +52,16 @@ TARGET_QUERIES = [
     "product analyst",
 ]
 
+# Occupational series confirmed unambiguously quantitative/analytics via
+# GET /api/codelist/occupationalseries and validated against real search
+# counts (docs/data_dictionary.md): 1560 Data Science Series, 1515
+# Operations Research, 1530 Statistics. Deliberately excludes 0343
+# (Management And Program Analysis) and 2210 (IT Management) -- both
+# stay huge (229/271 results) even combined with a keyword filter, so
+# series-code querying doesn't clean them up; they're handled by the
+# relevance layer (src/cleaning/scope_classifier.py) instead.
+TARGET_SERIES_CODES = ["1560", "1515", "1530"]
+
 # Fields refreshed when a known job is seen again. description_full can
 # genuinely change (an agency edits the announcement); identity fields
 # never do.
@@ -115,15 +125,20 @@ def upsert_job(
 # --------------------------------------------------------------------- #
 
 
-def ingest_page(session: Session, query: str, page: int, response: dict) -> int:
-    """Persist one raw page + all its jobs. Returns jobs processed."""
+def ingest_page(session: Session, query_params: dict, page: int, response: dict) -> int:
+    """Persist one raw page + all its jobs. Returns jobs processed.
+
+    `query_params` records what was actually searched (`{"Keyword": ...}`
+    or `{"JobCategoryCode": ...}`) for the raw_responses audit trail --
+    it's not necessarily a keyword, since series-code searches carry none.
+    """
     now = datetime.now(UTC)
     today = now.date()
     items = response.get("SearchResult", {}).get("SearchResultItems", [])
     raw_id = save_raw_response(
         session,
         endpoint="/api/search",
-        params={"Keyword": query, "Page": page},
+        params={**query_params, "Page": page},
         response=response,
     )
     processed = 0
@@ -131,7 +146,9 @@ def ingest_page(session: Session, query: str, page: int, response: dict) -> int:
         try:
             job_fields = parser.parse_job(raw_job)
         except KeyError:
-            logger.warning("Skipping result with no MatchedObjectId in query %r page %d", query, page)
+            logger.warning(
+                "Skipping result with no MatchedObjectId in %r page %d", query_params, page
+            )
             continue
         company_id = upsert_company(session, parser.parse_company(raw_job))
         location_id = upsert_location(session, parser.parse_location(raw_job))
@@ -144,33 +161,89 @@ def ingest_page(session: Session, query: str, page: int, response: dict) -> int:
 def run_ingestion(
     client: USAJobsClient,
     queries: list[str] | None = None,
+    series_codes: list[str] | None = None,
     max_pages_per_query: int = 5,
     results_per_page: int = 25,
     dry_run: bool = False,
     database_url: str | None = None,
 ) -> dict[str, int]:
-    """Full ingestion across all target queries. Returns per-query counts."""
-    queries = queries or TARGET_QUERIES
+    """Full ingestion across all target queries and (optionally) series codes.
+
+    `queries` defaults to TARGET_QUERIES when None. `series_codes` is
+    opt-in -- None means "run keyword search only" (unlike `queries`, it
+    does NOT default to TARGET_SERIES_CODES) so existing callers get
+    unchanged behavior; `main()` passes TARGET_SERIES_CODES explicitly
+    for real runs. Series-code search exists because keyword search
+    structurally cannot find some series -- confirmed live: 23 real Data
+    Science (series 1560) postings exist, and combining
+    `Keyword=data analyst`+`JobCategoryCode=1560` still returns zero.
+
+    Returns per-search counts, keyed by the query string for keyword
+    searches (unchanged from before) and `"series:<code>"` for series
+    searches.
+    """
+    queries = TARGET_QUERIES if queries is None else queries
+    series_codes = series_codes or []
     counts: dict[str, int] = {}
-    for query in queries:
-        counts[query] = 0
+
+    searches: list[tuple[str, dict]] = [(q, {"query": q}) for q in queries]
+    searches += [(f"series:{code}", {"query": None, "JobCategoryCode": code}) for code in series_codes]
+
+    for label, search_kwargs in searches:
+        counts[label] = 0
+        query_params = (
+            {"JobCategoryCode": search_kwargs["JobCategoryCode"]}
+            if "JobCategoryCode" in search_kwargs
+            else {"Keyword": search_kwargs["query"]}
+        )
         try:
             for page, response in client.iter_search(
-                query,
                 max_results=max_pages_per_query * results_per_page,
                 results_per_page=results_per_page,
+                **search_kwargs,
             ):
                 if dry_run:
                     n = len(response.get("SearchResult", {}).get("SearchResultItems", []))
-                    logger.info("[dry-run] %r page %d: %d results (not persisted)", query, page, n)
-                    counts[query] += n
+                    logger.info("[dry-run] %r page %d: %d results (not persisted)", label, page, n)
+                    counts[label] += n
                     continue
                 with session_scope(database_url) as session:
-                    counts[query] += ingest_page(session, query, page, response)
+                    counts[label] += ingest_page(session, query_params, page, response)
         except CallBudgetExceeded as exc:
             logger.error("Stopping: %s", exc)
             break
     return counts
+
+
+def backfill_from_raw_responses(session: Session) -> int:
+    """Re-parse every stored USAJobs raw_responses row and refresh the
+    matching jobs' derived fields -- without any network call. The
+    raw-then-normalized pattern applied to a parser bugfix: replay
+    history, don't re-fetch (e.g. the `category` multi-label fix means
+    already-ingested rows can hold a stale, incomplete value).
+
+    Does not touch job_snapshots (this is a data-repair pass, not a new
+    observation) and never creates new raw_responses rows. Every item in
+    every stored page already has a matching job row by (source,
+    external_id), so this only ever hits the ON CONFLICT UPDATE branch.
+    """
+    now = datetime.now(UTC)
+    raw_rows = session.execute(
+        select(RawResponse.id, RawResponse.response).where(RawResponse.source == parser.SOURCE)
+    ).all()
+    processed = 0
+    for raw_id, response in raw_rows:
+        items = response.get("SearchResult", {}).get("SearchResultItems", [])
+        for raw_job in items:
+            try:
+                job_fields = parser.parse_job(raw_job)
+            except KeyError:
+                continue
+            company_id = upsert_company(session, parser.parse_company(raw_job))
+            location_id = upsert_location(session, parser.parse_location(raw_job))
+            upsert_job(session, job_fields, company_id, location_id, raw_id, now)
+            processed += 1
+    return processed
 
 
 def summarize(database_url: str | None = None) -> None:
@@ -201,6 +274,17 @@ def main() -> None:
     )
     argp = argparse.ArgumentParser(description="Ingest USAJobs job postings.")
     argp.add_argument("--queries", nargs="*", default=None, help="Override target queries")
+    argp.add_argument(
+        "--series-codes",
+        nargs="*",
+        default=TARGET_SERIES_CODES,
+        help=(
+            "Occupational series codes to query directly, in addition to "
+            "keyword search (default: the 3 confirmed-clean series -- "
+            "Data Science 1560, Operations Research 1515, Statistics "
+            "1530). Pass no arguments to disable."
+        ),
+    )
     argp.add_argument("--max-pages", type=int, default=5, help="Max pages per query (default 5)")
     argp.add_argument(
         "--max-calls",
@@ -211,7 +295,22 @@ def main() -> None:
     argp.add_argument(
         "--dry-run", action="store_true", help="Fetch but do not write to the database"
     )
+    argp.add_argument(
+        "--backfill-from-raw",
+        action="store_true",
+        help=(
+            "Re-parse stored raw_responses and refresh derived job fields "
+            "without fetching anything (no API credentials needed). Use "
+            "after a parser fix; ignores all other flags."
+        ),
+    )
     args = argp.parse_args()
+
+    if args.backfill_from_raw:
+        with session_scope() as session:
+            n = backfill_from_raw_responses(session)
+        logger.info("Backfilled %d jobs from stored raw_responses.", n)
+        return
 
     settings = get_settings(require_usajobs=True)
     client = USAJobsClient(
@@ -223,6 +322,7 @@ def main() -> None:
     counts = run_ingestion(
         client,
         queries=args.queries,
+        series_codes=args.series_codes,
         max_pages_per_query=args.max_pages,
         dry_run=args.dry_run,
     )

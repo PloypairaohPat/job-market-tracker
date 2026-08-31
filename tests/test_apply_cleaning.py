@@ -10,8 +10,10 @@ from src.cleaning.apply_cleaning import (
     apply_companies,
     apply_metro,
     apply_salary_quality,
+    apply_scope,
     apply_seniority,
 )
+from src.models import Job
 from src.utils.db import session_scope
 from tests.conftest import reset_schema
 
@@ -116,3 +118,95 @@ def test_candidates_csv_written_for_review(seeded_db, tmp_path):
         apply_companies(session, out)
     content = out.read_text()
     assert content.startswith("name_a,name_b,relation,similarity,approved")
+
+
+def test_scope_defaults_adzuna_to_in_scope(seeded_db):
+    """Fixture jobs are all source='adzuna' -- commercial keyword search
+    is far less polluted, so everything defaults in."""
+    with session_scope(TEST_DB_URL) as session:
+        dist = apply_scope(session)
+    assert dist == {"in_scope": 100}
+    with seeded_db.connect() as conn:
+        wrong_reason = conn.execute(
+            text("select count(*) from jobs where scope_reason != 'non_usajobs_default'")
+        ).scalar_one()
+    assert wrong_reason == 0
+
+
+def test_scope_classifies_usajobs_jobs_by_category(seeded_db):
+    """Insert one job per real classification path and verify each lands
+    where it should -- flag, never delete: every row stays, just tagged."""
+    with session_scope(TEST_DB_URL) as session:
+        session.add_all(
+            [
+                Job(
+                    external_id="clean-1",
+                    source="usajobs",
+                    title="Operations Research Analyst",
+                    category="Operations Research",
+                    description="",
+                ),
+                Job(
+                    external_id="ambiguous-pass-1",
+                    source="usajobs",
+                    title="Data Analyst",
+                    category="Management And Program Analysis",
+                    description="Requires SQL and Python experience.",
+                ),
+                Job(
+                    external_id="ambiguous-fail-1",
+                    source="usajobs",
+                    title="Management Analyst",
+                    category="Management And Program Analysis",
+                    description="General administrative duties.",
+                ),
+                Job(
+                    external_id="excluded-1",
+                    source="usajobs",
+                    title="Budget Analyst",
+                    category="Budget Analysis",
+                    description="",
+                ),
+                Job(
+                    external_id="no-category-1",
+                    source="usajobs",
+                    title="Mystery Role",
+                    category=None,
+                    description="",
+                ),
+                Job(
+                    external_id="multi-category-1",
+                    source="usajobs",
+                    title="Interdisciplinary Engineer/Operations Research Analyst",
+                    category="General Engineering; Operations Research",
+                    description="",
+                ),
+            ]
+        )
+
+    with session_scope(TEST_DB_URL) as session:
+        apply_scope(session)
+
+    with seeded_db.connect() as conn:
+        rows = dict(
+            conn.execute(
+                text(
+                    "select external_id, in_scope from jobs where external_id like '%-1' "
+                    "and source = 'usajobs'"
+                )
+            ).all()
+        )
+    assert rows["clean-1"] is True
+    assert rows["ambiguous-pass-1"] is True
+    assert rows["ambiguous-fail-1"] is False
+    assert rows["excluded-1"] is False
+    assert rows["no-category-1"] is False
+    assert rows["multi-category-1"] is True
+
+
+def test_scope_is_idempotent(seeded_db):
+    with session_scope(TEST_DB_URL) as session:
+        first = apply_scope(session)
+    with session_scope(TEST_DB_URL) as session:
+        second = apply_scope(session)
+    assert first == second

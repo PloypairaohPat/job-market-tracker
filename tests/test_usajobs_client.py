@@ -70,6 +70,21 @@ def test_search_returns_payload_and_sends_auth_headers():
     assert params["Fields"] == "Full"
 
 
+def test_search_without_query_omits_keyword_param():
+    """Series-code-only searches (JobCategoryCode, no Keyword) must work --
+    confirmed live that USAJobs accepts this, and it matters because
+    keyword search structurally can't find some series (see
+    scope_classifier.py)."""
+    session = StubSession(
+        [StubResponse(200, {"SearchResult": {"SearchResultItems": [{"MatchedObjectId": "1"}]}})]
+    )
+    client = make_client(session)
+    client.search(JobCategoryCode="1560")
+    _, params, _ = session.calls[0]
+    assert "Keyword" not in params
+    assert params["JobCategoryCode"] == "1560"
+
+
 def test_retries_on_429_then_succeeds(monkeypatch):
     monkeypatch.setattr("time.sleep", lambda s: None)
     session = StubSession(

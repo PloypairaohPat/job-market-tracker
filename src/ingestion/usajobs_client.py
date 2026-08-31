@@ -70,30 +70,36 @@ class USAJobsClient:
 
     def search(
         self,
-        query: str,
+        query: str | None = None,
         page: int = 1,
         results_per_page: int = 25,
         **filters: Any,
     ) -> dict:
         """Fetch one page of search results as the raw response dict.
 
+        `query` is optional -- confirmed live that `JobCategoryCode`-only
+        searches (no `Keyword`) work fine, which matters for querying by
+        occupational series rather than keyword (see `scope_classifier.py`
+        for why keyword search structurally can't find some series).
         `filters` are passed through as query params (e.g. `LocationName`,
-        `DatePosted`). `Fields=Full` is requested explicitly so the
-        response always includes `UserArea.Details` (the full narrative
-        fields) rather than whatever USAJobs treats as the default.
+        `JobCategoryCode`, `DatePosted`). `Fields=Full` is requested
+        explicitly so the response always includes `UserArea.Details`
+        (the full narrative fields) rather than whatever USAJobs treats
+        as the default.
         """
         params: dict[str, Any] = {
-            "Keyword": query,
             "Page": page,
             "ResultsPerPage": results_per_page,
             "Fields": "Full",
             **filters,
         }
+        if query:
+            params["Keyword"] = query
         return self._get(BASE_URL, params)
 
     def iter_search(
         self,
-        query: str,
+        query: str | None = None,
         max_results: int = 1000,
         results_per_page: int = 25,
         **filters: Any,

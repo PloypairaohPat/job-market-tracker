@@ -80,7 +80,9 @@ Natural key: **`(source, external_id)`** — Adzuna IDs are only guaranteed uniq
 | `salary_period` | text, null | `'year'` when salary present — Adzuna US returns annualized figures. **Caveat**: suspected hourly-as-annual contamination in the low tail (see phase 1 findings); Phase 2 adds a quality flag. |
 | `salary_is_predicted` | bool, null | `true` = the figure is **Adzuna's model estimate**, not employer-disclosed. Must be separable in every salary analysis. |
 | `is_remote` | bool | Phase 1 signal = word-boundary `remote` in title or location display name. **A floor, not an estimate** — description-level detection is Phase 2. |
-| `category` | text, null | Adzuna category label, e.g. `'IT Jobs'` |
+| `category` | text, null | Adzuna category label, e.g. `'IT Jobs'`. For USAJobs *(Phase 2 prep)*: every `JobCategory` label, semicolon-joined (a posting can carry more than one) — see "jobs.category now joins every label" below |
+| `in_scope` | bool, null | *(added Phase 2 prep)* `NULL` = not yet classified. Relevance flag — see "jobs.in_scope / jobs.scope_reason" below. Filter analyses with `WHERE in_scope` |
+| `scope_reason` | text, null | *(added Phase 2 prep)* always set alongside `in_scope`; makes the classification auditable and revisitable |
 | `contract_type` | text, null | `'permanent'` / `'contract'` when provided |
 | `contract_time` | text, null | `'full_time'` / `'part_time'` when provided |
 | `redirect_url` | text, null | Adzuna landing URL for the posting |
@@ -201,6 +203,89 @@ not guessed from documentation alone.
   Telework, ...) don't collapse cleanly onto Adzuna's binary
   permanent/contract vocabulary and are left `NULL` rather than
   force-fitted into a misleading bucket.
+
+## `jobs.in_scope` / `jobs.scope_reason` — relevance classification *(added in Phase 2 prep)*
+
+**Problem, backed by real data.** Federal keyword search is badly polluted: "analyst" matches
+Budget Analysts, Intelligence Specialists, Procurement Analysts, Accountants, and Engineers
+alongside genuine data-analytics roles. Of 183 USAJobs postings ingested by keyword, only 28
+are genuinely data-analytics roles once classified (see below) — every unfiltered federal skill
+statistic was measuring analytics-skill density across a population that's mostly non-analytics
+jobs.
+
+**Policy: flag, never delete.** Every job keeps its row regardless of relevance; `in_scope`
+(nullable bool, `NULL` = not yet classified) and `scope_reason` (text, always set alongside
+`in_scope`) make the filter auditable and revisitable — analyses use `WHERE in_scope`, exactly
+like `salary_quality`. Classification logic lives in `src/cleaning/scope_classifier.py`
+(`python -m src.cleaning.apply_cleaning --only scope`), recomputable at any time from stored
+`category`/`description`/`description_full` — no re-fetch needed.
+
+**Source-agnostic design, currently source-differentiated in practice:**
+- Any non-USAJobs source (currently just Adzuna) → always `in_scope=True`,
+  `scope_reason='non_usajobs_default'`. Commercial keyword search is far less polluted;
+  reconsider only if real data says otherwise.
+- USAJobs → category-based. `jobs.category` can hold multiple semicolon-joined labels (see
+  below) — a posting counts as in-scope if *any* label qualifies:
+  - **Clean in-scope** (`CLEAN_IN_SCOPE_CATEGORIES`): Data Science Series, Operations Research,
+    Statistics — confirmed unambiguously quantitative via `GET /api/codelist/occupationalseries`.
+    Passes regardless of description content.
+  - **Ambiguous, skill-density tie-break** (`AMBIGUOUS_CATEGORIES`): Management And Program
+    Analysis, Information Technology Management — federal generalist-analyst catch-alls.
+    Tie-broken by counting distinct skills the existing `SkillExtractor` finds in
+    `title + (description_full or description)`, restricted to the `language`/`database`/
+    `bi_tool`/`data_tool`/`ml_stats` taxonomy categories (excludes `cloud`/`workflow`/`soft` —
+    weaker standalone signals). Threshold: **≥2** distinct skills. Empirically validated against
+    the real 66-job Management-And-Program-Analysis bucket before adoption: distribution was
+    0→40, 1→12, 2→8, 3→5, 4→1 jobs; ≥2 yields 14 in-scope (titles like "Data Analyst" and
+    "Program Analyst (Informatics)" correctly pass; generic "MANAGEMENT ANALYST" and bare
+    "Program Analyst" — 0 skills — correctly fail).
+  - **Everything else** → out of scope by default, `scope_reason='category_excluded:<category>'`.
+    A posting with no category at all → out of scope (`'no_category'`) — no signal to include it
+    on, flag don't guess.
+  - `scope_reason` values: `'series:<label>'`, `'skill_density:<label>:<n>'`, or
+    `'category_excluded:<category>'` / `'no_category'`.
+
+**Real classification result** (full 183-row USAJobs population, run 2026-08-31): **28 in-scope**
+— 14 via `series:Operations Research`, 8 via `skill_density:...:2`, 5 via `:3`, 1 via `:4`; 155
+out of scope. Lands close to an independent ~10–25 estimate, and every row is auditable via
+`scope_reason` rather than silently discarded.
+
+### `jobs.category` now joins *every* label, not just the first
+
+Discovered during this work: a posting can carry multiple `JobCategory` entries (confirmed live,
+~4% of a real sample) — e.g. job `865002200`, "INTERDISCIPLINARY GENERAL ENGINEER/OPERATIONS
+RESEARCH ANALYST", is tagged both General Engineering *and* Operations Research. The original
+parser kept only `categories[0]`, so this real Operations Research role was stored as
+`"General Engineering"` and would have been silently excluded by a category-only classifier.
+Fixed in `usajobs_parser._parse_category` to join all labels, semicolon-delimited
+(`usajobs_parser.split_categories` reverses it). The 183 already-ingested rows were corrected via
+`python -m src.ingestion.ingest_usajobs --backfill-from-raw` — re-parses stored `raw_responses`
+without any network call (raw-then-normalized applied to a parser bugfix); does not touch
+`job_snapshots` or create new `raw_responses` rows, since it's a data-repair pass, not a new
+observation. Result: `jobs.category` now has 9 multi-label rows (was architecturally impossible
+to represent before), and the Operations Research in-scope count rose from 9 (single-label) to 14
+(any-label).
+
+## Series-code ingestion *(added in Phase 2 prep)*
+
+`ingest_usajobs.py` can query USAJobs by occupational series code (`JobCategoryCode`) directly,
+in addition to keyword search — confirmed live this finds postings keyword search structurally
+cannot: `JobCategoryCode=1560` (Data Science) alone returns 23 real results, while
+`Keyword=data analyst`+`JobCategoryCode=1560` returns **zero** — those postings' searchable text
+doesn't contain "data analyst" as a phrase.
+
+- `TARGET_SERIES_CODES = ["1560", "1515", "1530"]` (Data Science, Operations Research,
+  Statistics) — the 3 series confirmed unambiguously clean. **Deliberately excludes** 0343
+  (Management And Program Analysis) and 2210 (IT Management): confirmed live that neither gets
+  cleaner via series-code querying — `JobCategoryCode=0343` alone is 323 open postings
+  system-wide, and even `Keyword=data`+`0343` stays at 229. Query-time filtering can't fix these;
+  they're handled by the relevance layer above instead.
+- `run_ingestion(..., series_codes=...)` is **opt-in** (defaults to `None` = skip), unlike
+  `queries` (defaults to `TARGET_QUERIES`) — a new capability shouldn't silently change behavior
+  for existing callers. `main()`'s `--series-codes` flag defaults to `TARGET_SERIES_CODES` so real
+  CLI runs get it by default; the underlying function requires an explicit argument.
+- Counts dict keys: keyword searches keep the plain query string (unchanged); series searches use
+  `"series:<code>"`.
 
 ## Cleaning-layer columns *(added in Phase 2 prep)*
 

@@ -9,6 +9,7 @@ Steps (all idempotent — the layer is recomputable at any time):
   metro       assign locations.metro_area from (city, state)
   companies   set companies.normalized_name; write fuzzy merge
               candidates to a CSV for MANUAL review (never auto-merged)
+  scope       set jobs.in_scope / jobs.scope_reason (flag, never delete)
 
 Everything here derives from stored raw values (titles, descriptions,
 cities) and can be rebuilt after any rule change — the raw-then-
@@ -29,13 +30,15 @@ from src.cleaning.company_normalizer import find_merge_candidates, normalize_com
 from src.cleaning.metro import assign_metro
 from src.cleaning.remote import detect_remote
 from src.cleaning.salary_quality import assess_salary_quality
+from src.cleaning.scope_classifier import classify_scope
 from src.cleaning.seniority import classify_seniority
+from src.cleaning.skill_extractor import SkillExtractor
 from src.models import Company, Job, Location
 from src.utils.db import session_scope
 
 logger = logging.getLogger(__name__)
 
-ALL_STEPS = ("seniority", "salary", "remote", "metro", "companies")
+ALL_STEPS = ("seniority", "salary", "remote", "metro", "companies", "scope")
 DEFAULT_CANDIDATES_OUT = Path("data/company_merge_candidates.csv")
 
 
@@ -112,6 +115,17 @@ def apply_companies(session: Session, candidates_out: Path) -> dict[str, int]:
     }
 
 
+def apply_scope(session: Session) -> dict[str, int]:
+    extractor = SkillExtractor()
+    dist: dict[str, int] = {}
+    for job in session.execute(select(Job)).scalars():
+        text = f"{job.title or ''}\n{job.description_full or job.description or ''}"
+        job.in_scope, job.scope_reason = classify_scope(job.source, job.category, text, extractor)
+        key = "in_scope" if job.in_scope else "out_of_scope"
+        dist[key] = dist.get(key, 0) + 1
+    return dist
+
+
 def summarize_normalization_effect(session: Session) -> None:
     """Before/after view: top employers by raw vs normalized grouping."""
     top = session.execute(
@@ -146,6 +160,8 @@ def main() -> None:
         if "companies" in steps:
             logger.info("companies: %s", apply_companies(session, args.candidates_out))
             summarize_normalization_effect(session)
+        if "scope" in steps:
+            logger.info("scope: %s", apply_scope(session))
 
 
 if __name__ == "__main__":

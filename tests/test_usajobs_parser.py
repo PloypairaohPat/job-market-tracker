@@ -140,6 +140,50 @@ def test_category_uses_name_falls_back_to_code():
     assert p.parse_job(raw)["category"] == "0343"
 
 
+def test_category_joins_all_entries_not_just_first():
+    """Real case: job 865002200, 'INTERDISCIPLINARY GENERAL ENGINEER/
+    OPERATIONS RESEARCH ANALYST', is tagged both General Engineering and
+    Operations Research. Keeping only the first would silently hide a
+    genuinely relevant category from anything filtering on it."""
+    raw = {
+        "MatchedObjectId": "865002200",
+        "MatchedObjectDescriptor": {
+            "PositionTitle": "INTERDISCIPLINARY GENERAL ENGINEER/OPERATIONS RESEARCH ANALYST",
+            "JobCategory": [
+                {"Code": "0801", "Name": "General Engineering"},
+                {"Code": "1515", "Name": "Operations Research"},
+            ],
+        },
+    }
+    category = p.parse_job(raw)["category"]
+    assert "General Engineering" in p.split_categories(category)
+    assert "Operations Research" in p.split_categories(category)
+
+
+def test_split_categories_roundtrips_and_handles_none():
+    assert p.split_categories(None) == []
+    assert p.split_categories("") == []
+    assert p.split_categories("Operations Research") == ["Operations Research"]
+    assert p.split_categories("General Engineering; Operations Research") == [
+        "General Engineering",
+        "Operations Research",
+    ]
+
+
+def test_category_dedupes_repeated_labels():
+    raw = {
+        "MatchedObjectId": "1",
+        "MatchedObjectDescriptor": {
+            "PositionTitle": "x",
+            "JobCategory": [
+                {"Name": "Operations Research", "Code": "1515"},
+                {"Name": "Operations Research", "Code": "1515"},
+            ],
+        },
+    }
+    assert p.parse_job(raw)["category"] == "Operations Research"
+
+
 def test_contract_time_and_type_from_verified_codes(items):
     job = p.parse_job(items[0])
     assert job["contract_time"] == "full_time"  # PositionSchedule code '1'
