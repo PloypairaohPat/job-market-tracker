@@ -19,7 +19,7 @@ notebooks/.ipynb_checkpoints/
 # Data & databases
 *.sqlite
 *.db
-data/
+/data/
 
 # OS / editor
 .DS_Store

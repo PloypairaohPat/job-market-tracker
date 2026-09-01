@@ -1,0 +1,22 @@
+{
+  "_meta": {
+    "description": "Curated company alias map: lowercase raw/normalized form -> canonical normalized key. ONLY for unambiguous same-employer mappings. Subsidiary-level judgments are flagged inline. Fuzzy candidates that pass manual review get promoted into this file — the file IS the review's output.",
+    "version": 1
+  },
+  "aliases": {
+    "facebook": "meta",
+    "fb": "meta",
+    "meta platforms": "meta",
+    "amazon.com": "amazon",
+    "amazon.com services": "amazon",
+    "google llc": "google",
+    "deloitte consulting": "deloitte",
+    "_comment_deloitte": "judgment call: Deloitte member firms are legally distinct but one employer brand for market analysis",
+    "booz allen": "booz allen hamilton",
+    "jpmorgan chase & co": "jpmorgan chase",
+    "j.p. morgan": "jpmorgan chase",
+    "jp morgan": "jpmorgan chase",
+    "ernst & young": "ey",
+    "pricewaterhousecoopers": "pwc"
+  }
+}
