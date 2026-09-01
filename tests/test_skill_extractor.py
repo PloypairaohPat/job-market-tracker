@@ -123,3 +123,36 @@ def test_java_not_matched_in_javascript(extractor):
 def test_mode_requires_full_brand(extractor):
     assert "Mode" not in extractor.extract("Work in hybrid mode from our NYC office.")
     assert "Mode" in extractor.extract("Build reports in Mode Analytics.")
+
+
+# ------------------------------------------------------------------ #
+# federal-vocabulary additions (Phase 3 #2: commercial vs federal skill demand)
+
+
+def test_sql_structured_query_language_alias(extractor):
+    found = extractor.extract("Experience with structured query language required.")
+    assert "SQL" in found
+
+
+def test_spss_case_sensitivity(extractor):
+    assert "SPSS" in extractor.extract("Experience with SPSS or SAS required.")
+    assert "SPSS" not in extractor.extract("Statistical work using spss-like tools.")  # lowercase
+
+
+def test_gis_context_anchoring(extractor):
+    assert "GIS" in extractor.extract("Proficiency with ArcGIS required.")
+    assert "GIS" in extractor.extract("Experience with GIS software for spatial analysis.")
+    assert "GIS" in extractor.extract("Using GIS to visualize geographic data.")
+    assert "GIS" not in extractor.extract(
+        "Coordinate with the Global Information Security (GIS) team on access requests."
+    )
+
+
+def test_ssis_case_sensitivity(extractor):
+    assert "SSIS" in extractor.extract("Build ETL packages with SSIS.")
+    assert "SSIS" not in extractor.extract("Random text with ssis lowercase noise.")
+
+
+def test_ssrs_case_sensitivity(extractor):
+    assert "SSRS" in extractor.extract("Author reports in SSRS.")
+    assert "SSRS" not in extractor.extract("Random text with ssrs lowercase noise.")
