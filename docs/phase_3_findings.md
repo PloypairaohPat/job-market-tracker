@@ -115,3 +115,112 @@ who discloses) is an **inferred hypothesis**. Phase 5 must not cite it as proven
   `data_dictionary.md`'s `jobs.in_scope` section), GS bands not comparable to
   commercial figures. Time-series salary analysis is still unanswerable — no
   snapshot history has accumulated yet.
+
+---
+
+## Investigation #2 — Commercial vs federal skill demand
+
+**Question asked**: what skills / skill-categories do commercial (Adzuna) analyst
+postings emphasize vs federal (USAJobs in-scope) analytics postings — and how much of
+any gap is real vs a measurement artifact?
+
+**Outcome**: a positive finding, unlike #1's refusal — the two markets want measurably
+different things, and the contrast holds after normalizing out the ~13x text-volume
+confound between sources (federal descriptions run full-length; Adzuna's cap
+truncates to ~500 chars).
+
+### Shipped artifacts
+
+- `sql/views/v_skill_category_composition.sql` — **source of truth.** Share of each
+  source's skill tags per taxonomy category (`workflow`, `bi_tool`, `language`,
+  `ml_stats`, `database`, `cloud`, `data_tool`), counts alongside every share.
+- `sql/views/v_skill_top_by_source.sql` — the skill-level drill-down, deliberately
+  **unfiltered** by minimum n (mirrors `v_commercial_salary_clean` leaving
+  `salary_is_predicted` unfiltered in #1) — the reporting floor (n≥5 federal / n≥15
+  commercial) is a consumer decision, not baked into the view.
+- `docs/findings_commercial_vs_federal_skills.md` — taxonomy-provenance seam
+  (which skills were added *this investigation*, fitted to federal vocabulary), the
+  symmetric-truncation caveat, and the full Statistics-tag circularity table.
+- Artifact: grouped-bar category-composition chart as the primary visual (counts
+  labelled on every bar), the skill drill-down rendered as plain subordinate tables —
+  deliberately not chart marks, so it can't be mistaken for a claim at the same
+  confidence as the composition contrast — plus 3 honest sentences.
+
+### Prep that made the investigation valid — two "built but never run" bugs
+
+- **Series-code ingest** (`JobCategoryCode` 1560/1515/1530) existed in
+  `src/ingestion/ingest_usajobs.py` and was documented in `data_dictionary.md`, but had
+  only ever been dry-run probed, never executed for real. Running it grew federal
+  in-scope **28 → 70**: Data Science (24) and Statistics (5) categories went from zero
+  to populated; Operations Research grew 14 → 27. Roughly halved the confidence-interval
+  width the investigation was working under.
+- **Taxonomy gaps**, found by a targeted spot-check of federal description text and
+  closed precision-first (trap test written and confirmed failing *before* each
+  pattern was added): SQL gained a `"structured query language"` alias — federal
+  postings spell it out where commercial ones say "SQL," so this word was previously
+  silently untagged, a wrong number rather than a caveat. Four new skills: SPSS, SSIS,
+  SSRS (case-sensitive, low collision risk) and GIS (context-anchored around ArcGIS /
+  "Geographic Information System(s)" / anchored bare "GIS," specifically built to reject
+  unrelated-acronym reuse like "Global Information Security (GIS)"). Taxonomy 66 → 70
+  skills; 160 tests pass / 22 skip, no regressions. **These additions were fitted to
+  observed federal vocabulary** — the methods doc records that provenance so a reader
+  can see the instrument was partly tuned to one side of the comparison.
+- Both bugs were silent — no error, just a capability the project believed it had.
+  Flagged as **a candidate seams audit before Phase 6**: check other "we have this"
+  assumptions (is scheduling actually running? do snapshots actually accumulate daily?).
+
+### Key numbers (confidence ≥ 0.8)
+
+| Category | Commercial n / % (n=1,483 jobs) | Federal n / % (n=70 jobs) |
+|---|---|---|
+| workflow | 180 / 33.8% | 26 / 11.0% |
+| bi_tool | 122 / 22.9% | 37 / 15.7% |
+| language | 99 / 18.6% | 66 / 28.0% |
+| ml_stats | 82 / 15.4% | 92 / 39.0% |
+| database | 20 / 3.8% | 9 / 3.8% |
+| cloud | 20 / 3.8% | 3 / 1.3% |
+| data_tool | 10 / 1.9% | 3 / 1.3% |
+
+Commercial skews **workflow + bi_tool** (56.7% combined); federal skews
+**ml_stats + language** (67.0% combined). This is a composition contrast (share of
+each source's own tags), not a raw-rate comparison — the latter would just measure
+which source has more text.
+
+**Federal Statistics tag — validated non-circular.** 75.7% of federal in-scope jobs
+carry a Statistics tag overall, but the rate holds at 92.6% (25/27) within the
+Operations Research series specifically — a bucket admitted by occupational-series
+code, not any statistics-related label — nearly matching the Statistics/Data-Science
+series' own 93.1% (27/29). It collapses to 7.1% (1/14) in the skill-density-admitted
+slice. Reported as **concentrated in the 56 series-identified jobs**, not a flat claim
+across all 70.
+
+**Truncation cost, kept as a demonstration, not a correction.** Federal loses ~70x its
+skill density when its full text is cut to Adzuna's ~500-char cap and re-extracted
+(2.5 → 0.036 tags/job) — because federal's first 500 characters are `JobSummary`
+mission prose, not a requirements list. This was the basis for **dropping** the
+originally-planned truncation-matched (commercial-500-vs-federal-500) comparison:
+equal character count isn't equal content, so it doesn't control for anything.
+
+### Guardrails carried forward
+
+- Commercial's own composition is **also** subject to placement/truncation — its
+  native ~500-char text may be front-load-inflated on workflow/bi_tool and
+  back-load-suppressed on language/ml_stats by the same mechanism that hurts federal.
+  This seam is symmetric; only federal's side has been separately measured (the 70x).
+- Skill-level drill-down (n≥5 federal / n≥15 commercial) is directional texture, never
+  presented at the same confidence as the composition contrast. Every rate ships with
+  its count inline — no federal percentage without its n beside it.
+- Federal's measured skill mix is partly a function of taxonomy work done *to find it*
+  this investigation — see the provenance table in `findings_commercial_vs_federal_skills.md`.
+
+### Open threads after #2
+
+1. **Skill co-occurrence / role clustering** — previously data-starved to attempt.
+   Federal at n=70 / 3.37 tags/job is the first population where within-source
+   co-occurrence is worth a look, though still thin for genuine clustering.
+2. **Disclosure-selection** (parked from #1) — still open, still wants a full-text
+   commercial source this project doesn't have yet. Arguably the sharpest unasked
+   question in Phase 3 so far.
+3. **Seams audit** — a deliberate pass over other "we have this" claims in the project
+   (scheduling, daily snapshot accumulation, anything assumed-running-but-unverified)
+   before Phase 6, prompted by finding two of them this investigation.
