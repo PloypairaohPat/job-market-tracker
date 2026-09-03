@@ -224,3 +224,106 @@ equal character count isn't equal content, so it doesn't control for anything.
 3. **Seams audit** — a deliberate pass over other "we have this" claims in the project
    (scheduling, daily snapshot accumulation, anything assumed-running-but-unverified)
    before Phase 6, prompted by finding two of them this investigation.
+
+---
+
+## Investigation #3 — Field completeness / transparency profile
+
+**Question asked**: how much does a data-analyst posting actually tell a candidate?
+Measured field completeness (salary, seniority, skills, location/metro, remote) per
+source, and — where it applies — the gap between a field being PRESENT and being
+INFORMATIVE.
+
+**Outcome**: of the five candidate-relevant fields, only salary survives recon as a
+clean market fact end to end. Skills is real but capped by commercial-side truncation.
+Seniority, metro-bucket, and federal remote status are limited by how this project's
+own instruments read the data, not by what employers disclosed — that asymmetry between
+"measured" and "instrument-limited" fields is itself the finding, and the artifact is
+built to keep the two visually and numerically separate rather than presenting all five
+as equally confident bars.
+
+### Shipped artifacts
+
+- `sql/views/v_field_completeness.sql` — **source of truth.** One row per market
+  (`commercial` | `federal`), per-field PRESENT% for every candidate-relevant column,
+  with the salary two-layer (`pct_salary_present` / `pct_salary_disclosed`) and the
+  metro two-layer (`pct_location_present` / `pct_metro_present`) built in as separate
+  columns rather than left to the consumer to derive.
+- `docs/findings_field_completeness.md` — the recon evidence behind every
+  market-fact-vs-instrument-limited label: the seniority sample (raw quotes, 2/15),
+  the federal-remote `description` vs `description_full` gap (12/70, with an example),
+  and the metro-allowlist mechanism.
+- Artifact (published, "Field Completeness":
+  https://claude.ai/code/artifact/10bdd651-d9c1-4e42-a7c9-fcc517cb4f8d): two visually distinct zones — a
+  **Measured** zone (grouped bars, commercial vs federal, for salary-present,
+  salary-disclosed, skills-present) and an **Instrument-limited** zone (labeled cards,
+  not bars, for seniority / metro-bucket / federal-remote, each with its one-line
+  mechanism and honest figures) — plus a full data table and 3 headline sentences.
+
+### Key numbers
+
+| Field | Layer | Commercial (n=1,483) | Federal in-scope (n=70) |
+|---|---|---|---|
+| Salary | any figure present | 100.0% | 100.0% |
+| Salary | employer-disclosed | **12.1%** (180) | **100.0%** (70) |
+| Salary | model-predicted | 87.9% (1,303) | 0.0% |
+| Skills | ≥1 tag present | 42.1% (624) | 98.6% (69) |
+| Seniority *(instrument-limited)* | title carries explicit marker | 50.4% (747) | 7.1% (5) |
+| Location | any location parsed | 100.0% | 75.7% (53) |
+| Metro *(instrument-limited)* | in tracked 8-city+DC list | 8.9% (132) | 22.9% (16) |
+| Remote *(instrument-limited)* | flagged true | 4.2% (62) | 0.0% — not measurable |
+| Company | company_id present | 99.9% (1,482) | 100.0% |
+| Posted date | posted_at present | 100.0% | 100.0% |
+
+### Why three fields are instrument-limited, not market facts
+
+- **Seniority.** `classify_seniority()` (`src/cleaning/seniority.py`) reads the job
+  title only — documented, deliberate scope. A 15-row sample of commercial
+  `seniority IS NULL` postings found **2/15** descriptions carrying an unambiguous
+  years-of-experience cue ("3-5 years of experience", "2-3 Years Experience") that a
+  title-only classifier structurally cannot see; a further 2/15 had an ambiguous
+  "lead"-as-verb match, not counted as a real hit. Reported only as raw counts
+  (2/15), never scaled to a percentage — the sample's job is to show the NULL
+  population is mixed, not to re-estimate the true rate.
+- **Metro bucket.** `assign_metro()` (`src/cleaning/metro.py`) is a strict lookup
+  against a curated 8-city + DC allowlist — never a default. The real disclosure
+  rate is `pct_location_present` (100%/75.7%); `pct_metro_present` (8.9%/22.9%)
+  measures only whether that location happens to sit on our tracked list. Real,
+  parseable cities seen directly in the seniority sample (Miami, Phoenix, Charlotte,
+  San Antonio) fall outside it.
+- **Federal remote.** `apply_remote()` (`src/cleaning/apply_cleaning.py`) scans
+  `jobs.description` only, never `description_full`, for every source — harmless for
+  commercial (its only text) but not for federal, whose telework policy lives in
+  `description_full`'s boilerplate ("Telework: Ad-hoc" / "Not Available"). Checked
+  directly: 13/70 federal postings mention remote/telework in `description_full`,
+  and **12 of those nowhere else** — invisible to the classifier. Federal's 0.0% is
+  not charted beside commercial's 4.2% as a comparison.
+
+### Guardrails carried forward
+
+- Never pooled across sources — every number in the view and artifact is per-market;
+  a blended "% populated" would be a category error given federal's legal salary
+  disclosure floor vs commercial's discretionary one.
+- Skills present% inherits the truncation caveat from Investigation #2 (Adzuna
+  ~500-char cap, 99.7% of commercial descriptions sitting at/near it) — an absent
+  commercial skill tag is disproportionately a recall failure, not a skill-free
+  posting.
+- Instrument-limited fields are never rendered as bars beside salary/skills in the
+  artifact — a distinct zone, dashed border, labeled cards — specifically so nothing
+  reads as comparable-confidence to the measured zone.
+- Any tiny-sample figure (the seniority 2/15) ships as a raw count, never scaled to
+  a percentage — same discipline as the metro 3.5x-on-n=7 caveat from Investigation #1.
+
+### Open threads
+
+1. Federal remote is currently unmeasurable, not just under-measured — fixing
+   `apply_remote()` to read `description_full` for sources that have it (and mapping
+   USAJobs' own Telework codelist, noted but left `NULL` in Phase 2 prep per
+   `data_dictionary.md`) is a candidate for a future cleaning-layer pass, not this
+   investigation.
+2. Metro coverage (8 cities + DC) undercounts real, specific locations on both
+   sources. Expanding the allowlist is a one-line, auditable fix per the original
+   design note in `metro.py` — worth revisiting once a metro-level cut is actually
+   needed for a downstream analysis.
+3. Carries forward, unchanged: disclosure-selection (parked from #1) and the seams
+   audit (flagged in #2) are both still open.
