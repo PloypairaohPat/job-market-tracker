@@ -40,7 +40,18 @@ DASHBOARDS_DIR = Path(__file__).resolve().parents[2] / "dashboards"
 # `{desktop:24,mobile:1}`). Re-check when bumping the pinned image.
 GRID_COLUMNS = 24
 
-DISPLAYS = {"table", "object", "bar", "row", "line", "area", "combo", "pie", "scalar", "smartscalar"}
+DISPLAYS = {
+    "table",
+    "object",
+    "bar",
+    "row",
+    "line",
+    "area",
+    "combo",
+    "pie",
+    "scalar",
+    "smartscalar",
+}
 
 SALARY_VIEW = "v_commercial_salary_clean"
 SKILL_VIEWS = {"v_skill_top_by_source", "v_skill_category_composition"}
