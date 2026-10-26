@@ -1,6 +1,7 @@
 """Load a DOL LCA disclosure file (.xlsx or .csv) into `lca_cases`.
 
 Run:  python -m src.visa.lca_loader --file data/lca/<file> --fiscal-year 2026 [--dry-run]
+      python -m src.visa.lca_loader --rekey   (recompute employer_key after alias edits)
 
 Judgment calls (see docs/data_dictionary.md, `lca_cases`):
 
@@ -36,6 +37,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from src.cleaning.company_normalizer import normalize_company_name
@@ -323,6 +325,22 @@ def _upsert(rows: list[dict[str, Any]], database_url: str | None) -> None:
             session.execute(stmt)
 
 
+def rekey_employers(database_url: str | None = None) -> int:
+    """Recompute employer_key for every stored case from employer_name.
+
+    Run after promoting pairs into company_aliases.json -- cheaper than
+    reloading every file, and keeps the key recomputable. Returns rows changed.
+    """
+    changed = 0
+    with session_scope(database_url) as session:
+        for case in session.execute(select(LcaCase)).scalars():
+            key = normalize_company_name(case.employer_name) if case.employer_name else None
+            if key != case.employer_key:
+                case.employer_key = key
+                changed += 1
+    return changed
+
+
 def summarize(result: LoadResult, dry_run: bool) -> str:
     lines = [
         f"rows read: {result.rows_read}",
@@ -345,10 +363,21 @@ def summarize(result: LoadResult, dry_run: bool) -> str:
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     argp = argparse.ArgumentParser(description="Load a DOL LCA disclosure file into lca_cases.")
-    argp.add_argument("--file", type=Path, required=True, help=".xlsx or .csv under data/lca/")
-    argp.add_argument("--fiscal-year", type=int, required=True, help="federal FY of the file")
+    argp.add_argument("--file", type=Path, help=".xlsx or .csv under data/lca/")
+    argp.add_argument("--fiscal-year", type=int, help="federal FY of the file")
     argp.add_argument("--dry-run", action="store_true", help="parse and count, write nothing")
+    argp.add_argument(
+        "--rekey",
+        action="store_true",
+        help="recompute employer_key for stored cases (after editing company_aliases.json)",
+    )
     args = argp.parse_args()
+
+    if args.rekey:
+        print(f"employer_key changed on {rekey_employers()} cases")
+        return
+    if args.file is None or args.fiscal_year is None:
+        argp.error("--file and --fiscal-year are required (or use --rekey)")
 
     result = load_file(args.file, args.fiscal_year, dry_run=args.dry_run)
     print(summarize(result, args.dry_run))

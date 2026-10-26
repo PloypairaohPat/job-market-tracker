@@ -21,6 +21,7 @@ from src.visa.lca_loader import (
     parse_flag,
     parse_int,
     parse_wage,
+    rekey_employers,
 )
 from tests.conftest import reset_schema
 
@@ -275,3 +276,16 @@ def test_dry_run_writes_nothing_and_missing_required_column_fails(tmp_path):
 def test_column_map_has_no_personal_data_columns():
     banned = ("POC", "ATTORNEY", "LAWFIRM", "PREPARER", "EMAIL", "PHONE")
     assert not [c for c in COLUMN_MAP if any(b in c for b in banned)]
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(not TEST_DB_URL, reason="TEST_DATABASE_URL not set")
+def test_rekey_recomputes_employer_key(db, tmp_path):
+    load_file(write_csv(tmp_path / "k.csv", [case("K-1")]), 2026, database_url=TEST_DB_URL)
+    with db.begin() as conn:
+        conn.execute(text("update lca_cases set employer_key = 'stale key'"))
+    assert rekey_employers(TEST_DB_URL) == 1
+    assert rekey_employers(TEST_DB_URL) == 0  # idempotent
+    with db.connect() as conn:
+        key = conn.execute(text("select employer_key from lca_cases")).scalar_one()
+    assert key == "fakeco analytics"
