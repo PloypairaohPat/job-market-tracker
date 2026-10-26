@@ -1,0 +1,121 @@
+{
+  "name": "Market overview",
+  "description": "Who is hiring analysts, where, and at what seniority. Mirrors v_market_jobs.",
+  "public": true,
+  "cards": [
+    {
+      "key": "market_intro",
+      "type": "text",
+      "text": "## Market overview\n**Source:** `v_market_jobs`, the analysis population: commercial = every Adzuna posting, federal = in-scope USAJobs postings only.\n\n**Mirrors:** the population used by v_field_completeness and the Phase 3 reports. Every group shows its n. Data window: see the card on the right.",
+      "position": {
+        "col": 0,
+        "row": 0
+      },
+      "size": {
+        "x": 16,
+        "y": 4
+      }
+    },
+    {
+      "key": "market_window",
+      "type": "question",
+      "title": "Data window",
+      "sql": "market_window.sql",
+      "display": "table",
+      "description": "First and last UTC snapshot date in the database and the n behind this dashboard (jobs in v_market_jobs).",
+      "position": {
+        "col": 16,
+        "row": 0
+      },
+      "size": {
+        "x": 8,
+        "y": 4
+      },
+      "visualization_settings": {}
+    },
+    {
+      "key": "market_jobs_by_market",
+      "type": "question",
+      "title": "Jobs by market",
+      "sql": "market_jobs_by_market.sql",
+      "display": "bar",
+      "description": "Postings in the analysis population per market. The two markets are reached through different search strategies, so compare shapes, not totals.",
+      "position": {
+        "col": 0,
+        "row": 4
+      },
+      "size": {
+        "x": 8,
+        "y": 6
+      },
+      "visualization_settings": {
+        "graph.dimensions": [
+          "market"
+        ],
+        "graph.metrics": [
+          "n_jobs"
+        ]
+      }
+    },
+    {
+      "key": "market_jobs_by_metro",
+      "type": "question",
+      "title": "Jobs by tracked metro (allowlist; instrument-limited)",
+      "sql": "market_jobs_by_metro.sql",
+      "display": "row",
+      "description": "metro_area is instrument-limited: a lookup against the tracked-metro allowlist (src/cleaning/metro.py), NOT all locations. '(not a tracked metro)' means the posting is outside the list or has no single parsable location. small_n flags groups under 10.",
+      "position": {
+        "col": 8,
+        "row": 4
+      },
+      "size": {
+        "x": 16,
+        "y": 6
+      },
+      "visualization_settings": {
+        "graph.dimensions": [
+          "metro",
+          "market"
+        ],
+        "graph.metrics": [
+          "n_jobs"
+        ],
+        "stackable.stack_type": "stacked"
+      }
+    },
+    {
+      "key": "market_seniority_mix",
+      "type": "question",
+      "title": "Seniority mix by market (title-only; instrument-limited)",
+      "sql": "market_seniority_mix.sql",
+      "display": "table",
+      "description": "seniority is instrument-limited: classified from the TITLE only. 'no title signal' is shown as its own group and is never folded into mid.",
+      "position": {
+        "col": 0,
+        "row": 10
+      },
+      "size": {
+        "x": 12,
+        "y": 7
+      },
+      "visualization_settings": {}
+    },
+    {
+      "key": "market_top_employers",
+      "type": "question",
+      "title": "Top employers by normalized name",
+      "sql": "market_top_employers.sql",
+      "display": "table",
+      "description": "Grouped by companies.normalized_name (the normalization layer's key); the display name is the most frequent raw name. Postings with no company are excluded and counted in n_jobs_without_company.",
+      "position": {
+        "col": 12,
+        "row": 10
+      },
+      "size": {
+        "x": 12,
+        "y": 7
+      },
+      "visualization_settings": {}
+    }
+  ]
+}

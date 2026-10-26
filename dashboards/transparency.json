@@ -1,0 +1,96 @@
+{
+  "name": "Transparency",
+  "description": "What postings actually disclose, per market. Mirrors v_field_completeness and Phase 3 #3.",
+  "public": true,
+  "cards": [
+    {
+      "key": "transparency_intro",
+      "type": "text",
+      "text": "## Transparency\n**Source:** `v_field_completeness`, one row per market, never pooled.\n\n**Mirrors:** Phase 3 #3 (docs/findings_field_completeness.md). Some columns measure our classifiers' reach, not what employers disclose: those are labelled instrument-limited. Data window: see the right.",
+      "position": {
+        "col": 0,
+        "row": 0
+      },
+      "size": {
+        "x": 16,
+        "y": 4
+      }
+    },
+    {
+      "key": "transparency_window",
+      "type": "question",
+      "title": "Data window",
+      "sql": "transparency_window.sql",
+      "display": "table",
+      "description": "First and last UTC snapshot date in the database and the n behind this dashboard (jobs per market).",
+      "position": {
+        "col": 16,
+        "row": 0
+      },
+      "size": {
+        "x": 8,
+        "y": 4
+      },
+      "visualization_settings": {}
+    },
+    {
+      "key": "transparency_salary",
+      "type": "question",
+      "title": "Salary: present vs employer-disclosed",
+      "sql": "transparency_salary.sql",
+      "display": "bar",
+      "description": "pct_salary_present counts any figure, including Adzuna's model estimate; pct_salary_disclosed counts employer-disclosed only. The gap between them is the headline.",
+      "position": {
+        "col": 0,
+        "row": 4
+      },
+      "size": {
+        "x": 12,
+        "y": 6
+      },
+      "visualization_settings": {
+        "graph.dimensions": [
+          "market"
+        ],
+        "graph.metrics": [
+          "pct_salary_present",
+          "pct_salary_disclosed"
+        ]
+      }
+    },
+    {
+      "key": "transparency_market_facts",
+      "type": "question",
+      "title": "Fields that are market facts",
+      "sql": "transparency_market_facts.sql",
+      "display": "table",
+      "description": "Completeness that reflects what postings contain. pct_skill_present is capped by commercial truncation (~500 characters).",
+      "position": {
+        "col": 12,
+        "row": 4
+      },
+      "size": {
+        "x": 12,
+        "y": 6
+      },
+      "visualization_settings": {}
+    },
+    {
+      "key": "transparency_instrument_limited",
+      "type": "question",
+      "title": "Instrument-limited fields (not market facts)",
+      "sql": "transparency_instrument_limited.sql",
+      "display": "table",
+      "description": "All three are instrument-limited. pct_seniority_present: the classifier reads titles only. pct_metro_present: an allowlist lookup, so NULL means 'not tracked', not 'no location'. pct_remote_true: instrument-limited for federal (telework text lives in description_full, which the remote step doesn't read); a market fact for commercial.",
+      "position": {
+        "col": 0,
+        "row": 10
+      },
+      "size": {
+        "x": 24,
+        "y": 5
+      },
+      "visualization_settings": {}
+    }
+  ]
+}

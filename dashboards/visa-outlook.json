@@ -1,0 +1,108 @@
+{
+  "name": "Visa outlook",
+  "description": "The owner's personal F-1 OPT / H-1B job-search view. Private: not shared publicly. Mirrors v_job_visa_outlook and python -m src.visa.scan.",
+  "public": false,
+  "cards": [
+    {
+      "key": "visa_intro",
+      "type": "text",
+      "text": "## Visa outlook (private)\n**Sources:** `v_job_visa_outlook` (posting signals + employer LCA history + cap-exempt hint) and `v_employer_sponsorship` (DOL LCA filings, last 3 loaded fiscal years).\n\n**Mirrors:** `python -m src.visa.scan` and src/visa/README.md. Buckets apply in order: closed > strong > possible > unknown. Data window: see the right.",
+      "position": {
+        "col": 0,
+        "row": 0
+      },
+      "size": {
+        "x": 16,
+        "y": 4
+      }
+    },
+    {
+      "key": "visa_window",
+      "type": "question",
+      "title": "Data window",
+      "sql": "visa_window.sql",
+      "display": "table",
+      "description": "First and last UTC snapshot date in the database and the n behind this dashboard (in-scope jobs classified, and how many matched an LCA employer).",
+      "position": {
+        "col": 16,
+        "row": 0
+      },
+      "size": {
+        "x": 8,
+        "y": 4
+      },
+      "visualization_settings": {}
+    },
+    {
+      "key": "visa_bucket_counts",
+      "type": "question",
+      "title": "Jobs per bucket",
+      "sql": "visa_bucket_counts.sql",
+      "display": "bar",
+      "description": "In-scope jobs per bucket. unknown is not 'no': on truncated text a sponsorship sentence may have been cut off, and many employers simply have no LCA match.",
+      "position": {
+        "col": 0,
+        "row": 4
+      },
+      "size": {
+        "x": 8,
+        "y": 6
+      },
+      "visualization_settings": {
+        "graph.dimensions": [
+          "bucket"
+        ],
+        "graph.metrics": [
+          "n_jobs"
+        ]
+      }
+    },
+    {
+      "key": "visa_strong_possible_jobs",
+      "type": "question",
+      "title": "Strong and possible jobs",
+      "sql": "visa_strong_possible_jobs.sql",
+      "display": "table",
+      "description": "Company, metro (the tracked-metro allowlist; instrument-limited), the rule that set the bucket, employer LCA counts and the posting URL. Read the full posting before applying.",
+      "position": {
+        "col": 8,
+        "row": 4
+      },
+      "size": {
+        "x": 16,
+        "y": 6
+      },
+      "visualization_settings": {}
+    },
+    {
+      "key": "visa_employer_sponsorship",
+      "type": "question",
+      "title": "Employer sponsorship history (last 3 FYs)",
+      "sql": "visa_employer_sponsorship.sql",
+      "display": "table",
+      "description": "Employer-level aggregates of LCA filings: certified H-1B, new employment, analytics SOC, wage-level mix, median offered wage. A filing is not an approval or a hire.",
+      "position": {
+        "col": 0,
+        "row": 10
+      },
+      "size": {
+        "x": 24,
+        "y": 7
+      },
+      "visualization_settings": {}
+    },
+    {
+      "key": "visa_caveats",
+      "type": "text",
+      "text": "**What this can't tell you** (src/visa/README.md)\n- An LCA is not an approval or a hire.\n- Counts favour large filers, staffing firms included.\n- Truncated text hides signals: none_found on truncated text means unknown, never 'sponsors'.\n- Cap-exempt is only a hint, from the company name alone.\n- E-Verify (required for STEM OPT) isn't covered.\n- Rules change: check with your school's DSO.",
+      "position": {
+        "col": 0,
+        "row": 17
+      },
+      "size": {
+        "x": 24,
+        "y": 4
+      }
+    }
+  ]
+}
