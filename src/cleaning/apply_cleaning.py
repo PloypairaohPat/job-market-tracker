@@ -10,6 +10,9 @@ Steps (all idempotent — the layer is recomputable at any time):
   companies   set companies.normalized_name; write fuzzy merge
               candidates to a CSV for MANUAL review (never auto-merged)
   scope       set jobs.in_scope / jobs.scope_reason (flag, never delete)
+  visa        rebuild job_visa_signals from posting text, company name and
+              (USAJobs) the raw response's KeyRequirements -- see
+              src/visa/posting_signals.py
 
 Everything here derives from stored raw values (titles, descriptions,
 cities) and can be rebuilt after any rule change — the raw-then-
@@ -21,9 +24,10 @@ from __future__ import annotations
 import argparse
 import csv
 import logging
+from dataclasses import asdict
 from pathlib import Path
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from src.cleaning.company_normalizer import find_merge_candidates, normalize_company_name
@@ -33,12 +37,13 @@ from src.cleaning.salary_quality import assess_salary_quality
 from src.cleaning.scope_classifier import classify_scope
 from src.cleaning.seniority import classify_seniority
 from src.cleaning.skill_extractor import SkillExtractor
-from src.models import Company, Job, Location
+from src.models import Company, Job, JobVisaSignal, Location, RawResponse
 from src.utils.db import session_scope
+from src.visa.posting_signals import classify_posting
 
 logger = logging.getLogger(__name__)
 
-ALL_STEPS = ("seniority", "salary", "remote", "metro", "companies", "scope")
+ALL_STEPS = ("seniority", "salary", "remote", "metro", "companies", "scope", "visa")
 DEFAULT_CANDIDATES_OUT = Path("data/company_merge_candidates.csv")
 
 
@@ -126,6 +131,54 @@ def apply_scope(session: Session) -> dict[str, int]:
     return dist
 
 
+def _usajobs_key_requirements(session: Session, job: Job, cache: dict) -> list[str] | None:
+    """KeyRequirements for a USAJobs job, read from the raw page it was last
+    parsed from (MatchedObjectId == external_id). None when absent."""
+    if job.source != "usajobs" or job.raw_response_id is None:
+        return None
+    if job.raw_response_id not in cache:
+        raw = session.get(RawResponse, job.raw_response_id)
+        items = (raw.response if raw else {}).get("SearchResult", {}).get("SearchResultItems", [])
+        cache[job.raw_response_id] = {
+            str(item.get("MatchedObjectId")): (
+                (item.get("MatchedObjectDescriptor") or {})
+                .get("UserArea", {})
+                .get("Details", {})
+                .get("KeyRequirements")
+            )
+            for item in items
+        }
+    return cache[job.raw_response_id].get(job.external_id) or None
+
+
+def apply_visa(session: Session) -> dict[str, int]:
+    """Rebuild job_visa_signals for every job (the view filters to in-scope)."""
+    session.execute(delete(JobVisaSignal))
+    raw_cache: dict = {}
+    dist: dict[str, int] = {}
+    rows = session.execute(
+        select(Job, Company.canonical_name).outerjoin(Company, Company.id == Job.company_id)
+    ).all()
+    for job, company_name in rows:
+        signals = classify_posting(
+            job.title,
+            job.description,
+            job.description_full,
+            company_name,
+            _usajobs_key_requirements(session, job, raw_cache),
+        )
+        session.add(JobVisaSignal(job_id=job.id, **asdict(signals)))
+        for key in (
+            f"restriction:{signals.restriction}",
+            f"stance:{signals.sponsorship_stance}",
+            f"coverage:{signals.text_coverage}",
+            f"cap_exempt:{signals.cap_exempt_hint}",
+        ):
+            dist[key] = dist.get(key, 0) + 1
+        dist["opt_mentioned"] = dist.get("opt_mentioned", 0) + int(signals.opt_mentioned)
+    return dict(sorted(dist.items()))
+
+
 def summarize_normalization_effect(session: Session) -> None:
     """Before/after view: top employers by raw vs normalized grouping."""
     top = session.execute(
@@ -162,6 +215,8 @@ def main() -> None:
             summarize_normalization_effect(session)
         if "scope" in steps:
             logger.info("scope: %s", apply_scope(session))
+        if "visa" in steps:
+            logger.info("visa: %s", apply_visa(session))
 
 
 if __name__ == "__main__":
