@@ -230,3 +230,15 @@ def test_config_defaults_from_env():
         "metabase_reader",
     )
     assert cfg.url == "http://localhost:3000" and not cfg.is_demo
+
+
+def test_public_links_use_the_site_url_when_set():
+    cfg = config()
+    cfg.site_url = "https://jobs.example.com"
+    result = Provisioner(cfg, session=FakeMetabase(), public_links=True).run()
+    assert result.public_urls and all(
+        url.startswith("https://jobs.example.com/public/dashboard/")
+        for url in result.public_urls.values()
+    )
+    env = {"METABASE_URL": "http://metabase:3000", "MB_SITE_URL": "https://jobs.example.com/"}
+    assert Config.from_env(env).site_url == "https://jobs.example.com"

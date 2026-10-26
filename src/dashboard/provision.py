@@ -75,6 +75,9 @@ class Config:
     db_name: str = ""
     db_user: str = "metabase_reader"
     site_name: str = "Job Market Tracker"
+    # The address viewers use (MB_SITE_URL), for printed public links; on the
+    # server METABASE_URL is the internal http://metabase:3000. Empty = url.
+    site_url: str = ""
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> Config:
@@ -91,6 +94,7 @@ class Config:
             db_port=int(env.get("METABASE_DB_PORT") or cls.db_port),
             db_name=db_name,
             db_user=env.get("METABASE_DB_USER") or cls.db_user,
+            site_url=(env.get("MB_SITE_URL") or "").rstrip("/"),
         )
 
     def missing(self) -> list[str]:
@@ -567,7 +571,8 @@ class Provisioner:
             uuid = (created or {}).get("uuid")
             self.result.created.append(f"dashboard {dash.slug} public link")
         if uuid:
-            self.result.public_urls[dash.slug] = f"{self.config.url}/public/dashboard/{uuid}"
+            base = self.config.site_url or self.config.url
+            self.result.public_urls[dash.slug] = f"{base}/public/dashboard/{uuid}"
 
     def prune(self, dashboards, existing_cards: dict, existing_dashboards: dict) -> None:
         """Delete marked items no longer in the spec, and duplicates of kept ones."""
