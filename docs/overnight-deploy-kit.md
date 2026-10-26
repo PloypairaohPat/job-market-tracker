@@ -14,12 +14,13 @@
   - A gate script that **exits on the first failure**: pytest, ruff check, ruff format, the alembic round trip, `make views` twice, and shellcheck on every added or changed shell script.
   - Versions: Python 3.13.17, SQLAlchemy 2.1.6, alembic 1.20.1, psycopg2-binary 2.9.13, pytest 9.1.1, ruff 0.17.2, shellcheck 0.11.0 (from `shellcheck-py`, not added to pyproject), Docker 29.9.2, Compose 5.6.1.
 - **Compare:** https://github.com/PloypairaohPat/job-market-tracker/compare/main...claude/deploy-kit?expand=1
+- **Afterwards:** the VM's prod stack was taken down with its volumes (`down -v`), and the throwaway root `.env` was deleted. Neither was ever committed.
 
 | Check | Baseline (clean main) | Final |
 |---|---|---|
 | `pytest` with `TEST_DATABASE_URL` | 447 passed, 0 failed, 1 skipped | **459 passed, 0 failed, 1 skipped** (+10 ping cases, +2 provisioner tests). The skip is the Metabase e2e test, which needs `METABASE_URL`. It was run separately against the prod stack and passed (below) |
 | `ruff check .` (0.17.2) | clean | clean |
-| `ruff format --check .` (0.17.2) | clean | clean, 106 files. ruff 0.17 counts Markdown files too, so the new `docs/deploy.md` raised the count by one |
+| `ruff format --check .` (0.17.2) | clean | clean, 107 files. ruff 0.17 counts Markdown files too, so the new `docs/deploy.md` and this report each raised the count by one |
 | alembic upgrade → downgrade → upgrade on a freshly recreated database | clean | clean (no migration in this milestone) |
 | `make views` on a fresh database, twice | 9 views | 9 views, twice |
 | Image build (`docker build`, `python:3.12.15-slim-trixie`) | — | **builds** (982 MB); `scripts/verify_image.sh` OK (details below) |
