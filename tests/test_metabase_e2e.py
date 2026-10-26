@@ -58,6 +58,8 @@ def test_provision_twice_then_every_card_runs():
         result = session.post(f"{config.url}/api/card/{card_id}/query", timeout=120).json()
         if result.get("status") != "completed" or result.get("error"):
             failures[key] = result.get("error") or result.get("status")
-        elif not result["data"]["rows"]:
+        elif config.is_demo and not result["data"]["rows"]:
+            # demo data fills every card; real data may legitimately be empty
+            # (e.g. visa cards before any LCA file is loaded)
             failures[key] = "no rows"
     assert failures == {}

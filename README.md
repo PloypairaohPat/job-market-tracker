@@ -83,6 +83,18 @@ uv run python -m src.pipeline.health     # is the clock running? exit 1 on any F
 
 On Windows, `scripts/windows/register_daily_task.ps1` registers it as a daily scheduled task; on Linux, `scripts/run_daily.sh` is the cron entry point. Setup, what each health check means, and the budget arithmetic: [`docs/daily-operation.md`](docs/daily-operation.md).
 
+## Dashboard
+
+Six Metabase dashboards (ingestion health, market overview, salary, skills, transparency, and a private visa outlook) are defined as files in `dashboards/`. They read only the `v_*` SQL views, through a read-only database role. Metabase runs in an opt-in compose profile:
+
+```bash
+uv run python -m src.dashboard.reader_role   # read-only role (make bi-grant)
+docker compose --profile bi up -d            # Metabase on http://localhost:3000 (make bi-up)
+uv run python -m src.dashboard.provision     # build/refresh every dashboard (make bi-provision)
+```
+
+Setup, what each dashboard shows and its caveats, and how to change a card: [`docs/dashboard.md`](docs/dashboard.md).
+
 ## Testing
 
 ```bash
@@ -112,13 +124,15 @@ The integration suite verifies the Phase 1 acceptance criteria directly: end-to-
 src/
   ingestion/     Adzuna + USAJobs clients, parsers, ingestion, run log, budget guard
   pipeline/      daily runner and health check
+  dashboard/     Metabase: read-only role, dashboard spec validator, provisioner, demo dataset
   cleaning/      Phase 2: normalization & skill extraction
   visa/          visa-sponsorship layer: DOL LCA loader, posting signals, outlook scan (see src/visa/README.md)
   models/        SQLAlchemy models (schema source of truth)
   utils/         config, database session management
 migrations/      Alembic (tested in both directions)
 notebooks/       numbered analysis notebooks
-sql/views/       Phase 3: SQL views as source of truth for metrics
+sql/views/       SQL views: the source of truth for every metric
+dashboards/      Metabase dashboards as files (JSON spec + one SQL file per card)
 tests/           unit + Postgres integration tests, fixtures
 scripts/         smoke test, demo seeder
 docs/            project guide, data dictionary, phase findings
@@ -140,5 +154,6 @@ docs/            project guide, data dictionary, phase findings
 - [`docs/PROJECT_GUIDE.md`](docs/PROJECT_GUIDE.md) — full project rationale, architecture, decisions
 - [`docs/data_dictionary.md`](docs/data_dictionary.md) — every table, every column, every judgment call
 - [`docs/daily-operation.md`](docs/daily-operation.md) — running the daily clock and reading its health check
+- [`docs/dashboard.md`](docs/dashboard.md) — the Metabase dashboards: setup, caveats, changing a card
 - [`docs/phase_1_findings.md`](docs/phase_1_findings.md) — what Phase 1 revealed about the data
 - [`docs/adzuna_sample_response.json`](docs/adzuna_sample_response.json) — API response shape reference

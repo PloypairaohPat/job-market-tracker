@@ -475,3 +475,79 @@ Judgment calls:
 | Progress (INFO) | unique jobs / 10,000; distinct snapshot days / 90; current streak (consecutive snapshot days ending today or yesterday) / 60; first snapshot date | targets from the project guide |
 
 The exit code is 1 only on a FAIL. A month with only `skipped_budget` Adzuna runs FAILs H1 for Adzuna after 26 hours, which is intended: no Adzuna data is arriving. H4 says why.
+
+---
+
+## Dashboards *(added with the Metabase dashboards)*
+
+Metabase dashboards are defined as files (`dashboards/<slug>.json` plus `dashboards/sql/<key>.sql`), validated by `src/dashboard/spec.py`, and built by `python -m src.dashboard.provision`. Operating guide: [`docs/dashboard.md`](dashboard.md).
+
+### `metabase_reader` — the read-only role
+
+A LOGIN role created by `python -m src.dashboard.reader_role` (password from `METABASE_READER_PASSWORD`).
+
+- **Grants:** CONNECT on the database, USAGE on schema `public`, and SELECT on every `public` view whose name starts with `v_`, enumerated from `pg_views` at run time.
+- **Revokes:** all table and sequence privileges, so it holds **nothing on any table**.
+- **Why it works:** views run with their owner's privileges, so the role reads every metric the views define, while `SELECT ... FROM jobs` fails with permission denied. This enforces "SQL views are the source of truth" at the database. Card SQL may filter, group and aggregate over views, but can't reimplement a metric from base tables.
+- **Re-run after adding views.** The role is cluster-wide, so tests use their own role name and drop it.
+
+### `v_ingestion_runs`
+
+The run log (`ingestion_runs`) as the dashboards see it, for the *runs by status* card:
+
+- `run_id`, `source`, `snapshot_date`, `status`, `started_at`, `finished_at`, `calls_made`, `pages_fetched`, `jobs_processed`, `jobs_new`.
+- **Omits `params` and `error`** on purpose: the Ingestion health dashboard is public, and even redacted errors are operational detail. Read errors as the owner.
+- Rows exist only from when the run log was added.
+
+### `v_market_jobs`
+
+One row per job in the **analysis population**, the same definition as `v_field_completeness` and the Phase 3 views:
+
+- `commercial` = every Adzuna posting
+- `federal` = USAJobs postings with `in_scope`
+
+Columns:
+
+| Column | Meaning |
+|---|---|
+| `job_id`, `market`, `source` | the job and its market |
+| `metro_area` | **instrument-limited**: tracked-metro allowlist lookup. NULL = not a tracked metro, not "no location" |
+| `seniority` | **instrument-limited**: title-only. NULL = no title signal, never folded into mid |
+| `employer_key` | `companies.normalized_name` (group by this) |
+| `employer_name` | display only |
+| `first_seen_at`, `last_seen_at` | |
+
+There are no salary columns: salary lives in `v_commercial_salary_clean`, where the predicted/disclosed split is explicit. Cards aggregate this view and show n beside every group.
+
+### Card rules (enforced by `src/dashboard/spec.py` tests)
+
+- Cards read only `v_*` relations.
+- Every question card has a description.
+- A card reading `v_commercial_salary_clean` filters `salary_is_predicted = false` or groups by `salary_is_predicted` **by name** (never one blended number).
+- Skills cards carry the ~500-character truncation caveat.
+- Cards using `pct_seniority_present`, `pct_metro_present`, `pct_remote_true`, `metro_area` or `seniority` say "instrument-limited".
+- Cards stay on Metabase v0.64.3.4's 24-column grid without overlapping.
+- SQL files exist, and keys are unique.
+- An integration test runs every card **as the reader role** on the full demo dataset: each must return at least one row, and every aggregate must return an `n`/`n_*` column.
+- Groups under 10 carry a `small_n` flag; nothing is hidden (parked threshold).
+
+### Demo dataset (`seed_demo_data.py --full`)
+
+**Demo data, not pipeline output.** It's built by `src/dashboard/demo_dataset.py` so every panel has something to show without the owner's real database. It **truncates** its target first, so it refuses anything but a local database whose name contains `demo` or `test`. It is deterministic (fixed seed and fixed time of day, so two runs on the same UTC day give identical tables) and idempotent.
+
+Through the real ingestion paths, with fixture-backed clients and no network:
+- the 600 Adzuna demo jobs (the default seed)
+- the 25 USAJobs fixture postings
+- 9 synthetic Adzuna-shaped postings at invented **FAKE** employers whose text carries sponsorship, citizenship and clearance wording
+
+Written directly with SQL, because `ingest_page` always stamps today's UTC date:
+- **Snapshot history:** 28 days ending today with **one missing day** (9 days ago). `first_seen_at` and `last_seen_at` are rewritten to match.
+- **Run log:** an `ingestion_runs` row per source per day, with no runs on the missing day. That includes one `failed` USAJobs run (15 days ago) and one `skipped_budget` Adzuna run (3 days ago); those days have no snapshots for that source.
+- **LCA filings:** `lca_cases` rows for FAKE employers only, so `v_job_visa_outlook` has every bucket.
+
+Limits, so nobody reads it as a finding:
+- **Real names, synthetic data.** The Adzuna fixture companies are real names (Capital One, Deloitte, Meta, MITRE…) with synthetic postings, and they **never** get LCA rows or sponsorship wording. Every synthetic employer that does contains "FAKE".
+- **Federal numbers are small.** The federal market is 5 in-scope postings, which is tiny.
+- **Visa outlook is derived from fixture text.** The USAJobs fixture's citizenship requirements are real announcement text, so those jobs land in `closed` through the normal rules.
+- **The patterns are artificial.** Salary and seniority patterns in the demo (e.g. junior medians above senior) mean nothing.
+- **Dashboards are labelled.** Provisioning against a `demo`/`test` database puts a "DEMO DATA: synthetic, not market findings" banner on every dashboard.
