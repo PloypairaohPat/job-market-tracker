@@ -1,0 +1,22 @@
+# Never in the image: secrets, local data, logs, dumps, tests, tooling.
+**/.env
+**/.env.*
+.env*
+data/
+logs/
+**/*.dump
+.venv/
+venv/
+.git/
+.github/
+notebooks/
+tests/
+docs/
+deploy/
+**/__pycache__/
+**/*.py[cod]
+**/*.egg-info/
+.pytest_cache/
+.ruff_cache/
+build/
+dist/
