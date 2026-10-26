@@ -1,4 +1,4 @@
-.PHONY: up db-migrate seed-demo ingest smoke test lint notebook
+.PHONY: up db-migrate seed-demo ingest smoke test lint notebook views
 
 up:              ## start Postgres
 	docker compose up -d
@@ -29,3 +29,6 @@ extract-skills:  ## sync taxonomy + extract job skills
 
 apply-cleaning:  ## seniority, salary quality, remote, metro, company normalization
 	python -m src.cleaning.apply_cleaning
+
+views:           ## apply every sql/views/*.sql (file-name order, one transaction)
+	python scripts/apply_views.py

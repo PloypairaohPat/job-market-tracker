@@ -78,9 +78,29 @@ def normalize_company_name(raw: str) -> str:
     return _aliases().get(s, s)
 
 
+DEFAULT_SIMILARITY_CUTOFF = 0.88
+
+
+def classify_pair(
+    a: str, b: str, similarity_cutoff: float = DEFAULT_SIMILARITY_CUTOFF
+) -> dict | None:
+    """The containment / fuzzy rule for one pair of distinct normalized names.
+
+    Returns {relation, similarity} or None. Shared by `find_merge_candidates`
+    and the cross-set sponsor matcher (src/visa/sponsor_match.py) so both
+    propose candidates by exactly the same rules and cutoff.
+    """
+    if b.startswith(a + " ") or a.startswith(b + " "):
+        return {"relation": "containment", "similarity": 1.0}
+    ratio = SequenceMatcher(None, a, b).ratio()
+    if ratio >= similarity_cutoff:
+        return {"relation": "fuzzy", "similarity": round(ratio, 3)}
+    return None
+
+
 def find_merge_candidates(
     names: list[str],
-    similarity_cutoff: float = 0.88,
+    similarity_cutoff: float = DEFAULT_SIMILARITY_CUTOFF,
 ) -> list[dict]:
     """Propose near-duplicate normalized names for MANUAL review.
 
@@ -100,14 +120,7 @@ def find_merge_candidates(
         for b in uniq[i + 1 :]:
             if b[0] != a[0]:
                 break  # sorted: no more shared-first-letter pairs for `a`
-            if b.startswith(a + " ") or a.startswith(b + " "):
-                candidates.append(
-                    {"name_a": a, "name_b": b, "relation": "containment", "similarity": 1.0}
-                )
-                continue
-            ratio = SequenceMatcher(None, a, b).ratio()
-            if ratio >= similarity_cutoff:
-                candidates.append(
-                    {"name_a": a, "name_b": b, "relation": "fuzzy", "similarity": round(ratio, 3)}
-                )
+            match = classify_pair(a, b, similarity_cutoff)
+            if match:
+                candidates.append({"name_a": a, "name_b": b, **match})
     return candidates
