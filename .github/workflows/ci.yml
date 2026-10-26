@@ -1,0 +1,69 @@
+# CI: lint, format, migration round trip and the full test suite (unit +
+# Postgres integration) on every push and pull request. Uses no secrets:
+# every test runs against fixtures and fakes, never a live API.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: jobmarket_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # 127.0.0.1 + a "test" database name: the only shape tests/conftest.py's
+      # reset_schema guard accepts. Driver named explicitly (SQLAlchemy 2.1
+      # defaults bare postgresql:// to psycopg 3, which isn't installed).
+      TEST_DATABASE_URL: postgresql+psycopg2://postgres:postgres@127.0.0.1:5432/jobmarket_test
+      DATABASE_URL: postgresql+psycopg2://postgres:postgres@127.0.0.1:5432/jobmarket_test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+          # pinned to the version the repo was formatted with; formatter
+          # output differs between ruff releases
+          pip install ruff==0.17.2
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Format
+        run: ruff format --check .
+
+      - name: Migration round trip
+        run: alembic upgrade head && alembic downgrade base && alembic upgrade head
+
+      - name: Tests
+        # The round trip left an alembic-built schema; integration tests
+        # reset the schema themselves, so they run cleanly on top of it.
+        run: pytest
