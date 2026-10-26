@@ -17,6 +17,7 @@ dump="$1" db="$2" force=0
 [ "${3:-}" = "--force" ] && force=1
 [ $# -le 3 ] || usage
 [ -f "$dump" ] || { echo "no such dump file: $dump" >&2; exit 2; }
+dump="$(cd "$(dirname "$dump")" && pwd)/$(basename "$dump")"  # absolute, before the cd below
 case "$db" in *[!a-z0-9_]* | '') echo "invalid database name: $db" >&2; exit 2 ;; esac
 
 cd "$(dirname "$0")/.."
