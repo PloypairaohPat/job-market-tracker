@@ -72,11 +72,16 @@ python -m src.ingestion.ingest_adzuna --help
   --dry-run           fetch and count, write nothing
 ```
 
-Run daily (cron for now; Prefect in Phase 6) to accumulate snapshots:
+## Daily operation
 
-```cron
-15 6 * * *  cd /path/to/job-market-tracker && /path/to/uv run python -m src.ingestion.ingest_adzuna >> logs/ingest.log 2>&1
+The portfolio targets (90+ days of snapshots, 60+ days of daily ingestion, 10,000+ jobs) only accumulate if ingestion fires every day, and a missed day can never be backfilled. One command runs the whole day, both sources, then cleaning, skills and a health check, with a dated log and the monthly Adzuna budget enforced:
+
+```bash
+uv run python -m src.pipeline.daily      # or: make daily
+uv run python -m src.pipeline.health     # is the clock running? exit 1 on any FAIL (make health)
 ```
+
+On Windows, `scripts/windows/register_daily_task.ps1` registers it as a daily scheduled task; on Linux, `scripts/run_daily.sh` is the cron entry point. Setup, what each health check means, and the budget arithmetic: [`docs/daily-operation.md`](docs/daily-operation.md).
 
 ## Testing
 
@@ -105,7 +110,8 @@ The integration suite verifies the Phase 1 acceptance criteria directly: end-to-
 
 ```
 src/
-  ingestion/     Adzuna client, parser (pure functions), ingestion pipeline
+  ingestion/     Adzuna + USAJobs clients, parsers, ingestion, run log, budget guard
+  pipeline/      daily runner and health check
   cleaning/      Phase 2: normalization & skill extraction
   visa/          visa-sponsorship layer: DOL LCA loader, posting signals, outlook scan (see src/visa/README.md)
   models/        SQLAlchemy models (schema source of truth)
@@ -133,5 +139,6 @@ docs/            project guide, data dictionary, phase findings
 
 - [`docs/PROJECT_GUIDE.md`](docs/PROJECT_GUIDE.md) — full project rationale, architecture, decisions
 - [`docs/data_dictionary.md`](docs/data_dictionary.md) — every table, every column, every judgment call
+- [`docs/daily-operation.md`](docs/daily-operation.md) — running the daily clock and reading its health check
 - [`docs/phase_1_findings.md`](docs/phase_1_findings.md) — what Phase 1 revealed about the data
 - [`docs/adzuna_sample_response.json`](docs/adzuna_sample_response.json) — API response shape reference

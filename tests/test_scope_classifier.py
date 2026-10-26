@@ -49,18 +49,14 @@ def test_ambiguous_category_passes_at_skill_density_threshold(extractor):
     """Empirically validated (docs/data_dictionary.md): >=2 distinct
     analytics-category skills -> in scope."""
     text = "Program Analyst (Informatics). Requires SQL and Python experience."
-    in_scope, reason = classify_scope(
-        "usajobs", "Management And Program Analysis", text, extractor
-    )
+    in_scope, reason = classify_scope("usajobs", "Management And Program Analysis", text, extractor)
     assert in_scope is True
     assert reason == "skill_density:Management And Program Analysis:2"
 
 
 def test_ambiguous_category_fails_below_skill_density_threshold(extractor):
     text = "Management Analyst. Responsible for forecasting and budget oversight."
-    in_scope, reason = classify_scope(
-        "usajobs", "Management And Program Analysis", text, extractor
-    )
+    in_scope, reason = classify_scope("usajobs", "Management And Program Analysis", text, extractor)
     assert in_scope is False
     assert reason.startswith("skill_density:Management And Program Analysis:")
     # 'Forecasting' alone is a single, weak signal -- below the threshold
@@ -105,8 +101,6 @@ def test_only_analytics_category_skills_count_toward_density(extractor):
     a real taxonomy entry with category='soft'; paired with one real
     'language' hit (SQL), the density should be 1, not 2."""
     text = "Program Analyst with strong stakeholder management skills and SQL experience."
-    in_scope, reason = classify_scope(
-        "usajobs", "Management And Program Analysis", text, extractor
-    )
+    in_scope, reason = classify_scope("usajobs", "Management And Program Analysis", text, extractor)
     assert in_scope is False
     assert reason == "skill_density:Management And Program Analysis:1"

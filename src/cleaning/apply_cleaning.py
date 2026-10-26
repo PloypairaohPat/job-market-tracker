@@ -193,6 +193,39 @@ def summarize_normalization_effect(session: Session) -> None:
         logger.info("  %-30s %d", name, n)
 
 
+def run_steps(
+    session: Session,
+    steps: tuple[str, ...] = ALL_STEPS,
+    candidates_out: Path = DEFAULT_CANDIDATES_OUT,
+) -> dict[str, dict]:
+    """Run the named steps in ALL_STEPS order; return {step: its counts}.
+    Shared by main() and the daily runner (src/pipeline/daily.py)."""
+    results: dict[str, dict] = {}
+    if "seniority" in steps:
+        results["seniority"] = apply_seniority(session)
+        logger.info("seniority: %s", results["seniority"])
+    if "salary" in steps:
+        results["salary"] = apply_salary_quality(session)
+        logger.info("salary_quality: %s", results["salary"])
+    if "remote" in steps:
+        results["remote"] = apply_remote(session)
+        logger.info("remote: %s", results["remote"])
+    if "metro" in steps:
+        results["metro"] = apply_metro(session)
+        logger.info("metro: %s", results["metro"])
+    if "companies" in steps:
+        results["companies"] = apply_companies(session, candidates_out)
+        logger.info("companies: %s", results["companies"])
+        summarize_normalization_effect(session)
+    if "scope" in steps:
+        results["scope"] = apply_scope(session)
+        logger.info("scope: %s", results["scope"])
+    if "visa" in steps:
+        results["visa"] = apply_visa(session)
+        logger.info("visa: %s", results["visa"])
+    return results
+
+
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     argp = argparse.ArgumentParser(description="Apply Phase 2 cleaning to the database.")
@@ -202,21 +235,7 @@ def main() -> None:
 
     steps = tuple(args.only) if args.only else ALL_STEPS
     with session_scope() as session:
-        if "seniority" in steps:
-            logger.info("seniority: %s", apply_seniority(session))
-        if "salary" in steps:
-            logger.info("salary_quality: %s", apply_salary_quality(session))
-        if "remote" in steps:
-            logger.info("remote: %s", apply_remote(session))
-        if "metro" in steps:
-            logger.info("metro: %s", apply_metro(session))
-        if "companies" in steps:
-            logger.info("companies: %s", apply_companies(session, args.candidates_out))
-            summarize_normalization_effect(session)
-        if "scope" in steps:
-            logger.info("scope: %s", apply_scope(session))
-        if "visa" in steps:
-            logger.info("visa: %s", apply_visa(session))
+        run_steps(session, steps, args.candidates_out)
 
 
 if __name__ == "__main__":

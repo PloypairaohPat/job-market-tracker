@@ -12,8 +12,10 @@ Same rules and cutoff as `find_merge_candidates` (via `classify_pair`),
 but cross-set: each company key is compared only with LCA employer keys
 that share its FIRST TOKEN (blocking), never all pairs -- LCA files hold
 tens of thousands of employers per year. Consequence: a typo in the
-first word is never proposed. Exact matches are skipped (they already
-join).
+first word is never proposed. The exact pair itself is skipped (it
+already joins), but a company with an exact match still gets its longer
+variants proposed ("fakeco" exact-matches "fakeco", and "fakeco holdings"
+is still offered for review).
 
 Never auto-merges. The CSV carries an empty `approved` column; the owner
 reviews it and promotes approved pairs into
@@ -58,9 +60,11 @@ def find_sponsor_match_candidates(
 
     candidates: list[dict] = []
     for company in sorted(set(company_keys)):
-        if not company or company in employers:
-            continue  # exact key already joins; nothing to review
+        if not company:
+            continue
         for employer in blocks.get(_first_token(company), ()):
+            if employer == company:
+                continue  # the exact pair already joins; nothing to review
             match = classify_pair(company, employer, similarity_cutoff)
             if match:
                 candidates.append({"company_key": company, "lca_employer_key": employer, **match})

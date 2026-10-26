@@ -146,7 +146,11 @@ def test_iter_search_respects_max_results():
 
 def test_iter_search_stops_on_empty_page():
     session = StubSession(
-        [StubResponse(200, {"SearchResult": {"SearchResultCountAll": 999, "SearchResultItems": []}})]
+        [
+            StubResponse(
+                200, {"SearchResult": {"SearchResultCountAll": 999, "SearchResultItems": []}}
+            )
+        ]
     )
     client = make_client(session)
     assert list(client.iter_search("q")) == []

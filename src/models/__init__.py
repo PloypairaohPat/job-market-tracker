@@ -2,6 +2,7 @@
 
 from src.models.base import Base
 from src.models.company import Company
+from src.models.ingestion_run import IngestionRun
 from src.models.job import Job
 from src.models.job_snapshot import JobSnapshot
 from src.models.job_visa_signal import JobVisaSignal
@@ -13,6 +14,7 @@ from src.models.skill import JobSkill, Skill
 __all__ = [
     "Base",
     "Company",
+    "IngestionRun",
     "Job",
     "JobSkill",
     "JobSnapshot",

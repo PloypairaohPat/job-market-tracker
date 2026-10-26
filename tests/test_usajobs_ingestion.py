@@ -32,7 +32,9 @@ class FixtureBackedClient(USAJobsClient):
     """USAJobsClient whose iter_search serves a local fixture page."""
 
     def __init__(self):
-        super().__init__(api_key="test", user_agent_email="test@example.com", min_request_interval=0.0)
+        super().__init__(
+            api_key="test", user_agent_email="test@example.com", min_request_interval=0.0
+        )
         self._page = json.loads((FIXTURES / "usajobs_sample_response.json").read_text())
 
     def iter_search(self, query, max_results=1000, results_per_page=25, **filters):
@@ -60,7 +62,9 @@ def counts(engine) -> dict:
 
 
 def test_ingestion_end_to_end(db):
-    result = run_ingestion(FixtureBackedClient(), queries=["data analyst"], database_url=TEST_DB_URL)
+    result = run_ingestion(
+        FixtureBackedClient(), queries=["data analyst"], database_url=TEST_DB_URL
+    )
     assert result["data analyst"] == 25
 
     n = counts(db)
@@ -96,7 +100,9 @@ class RecordingClient(USAJobsClient):
     builds the right search parameters, independent of real results."""
 
     def __init__(self):
-        super().__init__(api_key="test", user_agent_email="test@example.com", min_request_interval=0.0)
+        super().__init__(
+            api_key="test", user_agent_email="test@example.com", min_request_interval=0.0
+        )
         self.calls: list[tuple[str | None, dict]] = []
         self._page = {
             "SearchResult": {
@@ -126,9 +132,7 @@ def test_series_code_ingestion_is_opt_in(db):
 
 def test_series_code_ingestion_sends_job_category_code_not_keyword(db):
     client = RecordingClient()
-    counts = run_ingestion(
-        client, queries=[], series_codes=["1560"], database_url=TEST_DB_URL
-    )
+    counts = run_ingestion(client, queries=[], series_codes=["1560"], database_url=TEST_DB_URL)
     assert client.calls == [(None, {"JobCategoryCode": "1560"})]
     assert counts == {"series:1560": 1}
 

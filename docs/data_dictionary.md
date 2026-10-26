@@ -361,7 +361,7 @@ Judgment calls:
 
 ### Company ↔ LCA employer match review
 
-`python -m src.visa.sponsor_match` writes `data/sponsor_match_candidates.csv` (`company_key, lca_employer_key, relation, similarity, approved`). Cross-set version of `find_merge_candidates`: same containment / fuzzy (`SequenceMatcher ≥ 0.88`) rule via the shared `classify_pair`, but each company key is compared only with LCA keys sharing its **first token** (blocking). So a typo in the first word is never proposed, and a company whose key already exactly matches an LCA key is skipped. **Never auto-merged**: approved pairs are promoted by hand into `src/cleaning/data/company_aliases.json`, then `apply_cleaning --only companies` and `python -m src.visa.lca_loader --rekey` re-key both sides (no reload needed).
+`python -m src.visa.sponsor_match` writes `data/sponsor_match_candidates.csv` (`company_key, lca_employer_key, relation, similarity, approved`). Cross-set version of `find_merge_candidates`: same containment / fuzzy (`SequenceMatcher ≥ 0.88`) rule via the shared `classify_pair`, but each company key is compared only with LCA keys sharing its **first token** (blocking). So a typo in the first word is never proposed. The exact pair (company key = LCA key) is skipped because it already joins, but that company's longer variants in the same block ("fakeco holdings" for "fakeco") are still proposed. **Never auto-merged**: approved pairs are promoted by hand into `src/cleaning/data/company_aliases.json`, then `apply_cleaning --only companies` and `python -m src.visa.lca_loader --rekey` re-key both sides (no reload needed).
 
 ### `job_visa_signals` — what the posting itself says
 
@@ -404,3 +404,74 @@ Buckets, first match wins (thresholds *parked*):
 4. `unknown` — everything else, including no employer match and jobs the visa step hasn't classified yet
 
 `unknown` is not "no", and `strong` is not "yes": see "What this can't tell you" in `src/visa/README.md`.
+
+---
+
+## Daily clock *(added with the daily runner)*
+
+How the project proves ingestion runs every day. Operating guide: [`docs/daily-operation.md`](daily-operation.md).
+
+### `ingestion_runs` — one row per ingestion run per source
+
+Written by `src/ingestion/run_log.py`, used by both ingest CLIs and `python -m src.pipeline.daily`. A row is committed as `running` when the run starts and is **always** closed with a final status, including when the run raises. A row still `running` with no `finished_at` means the process was killed. Dry runs write no row.
+
+| Column | Type | Meaning / judgment calls |
+|---|---|---|
+| `id` | serial PK | |
+| `source` | text | `adzuna` \| `usajobs` |
+| `started_at` | timestamptz | when the run opened its row |
+| `finished_at` | timestamptz, null | NULL while running (or if the process died) |
+| `status` | text | `running`, then one of `ok` (finished normally), `partial` (the per-run call cap cut it short: `CallBudgetExceeded`), `failed` (an exception: API/network error, or credentials missing before a client could be built), `skipped_budget` (the monthly guard's cap was ≤ 0, so no call was made) |
+| `calls_made` | int | the client's `calls_made`: **every HTTP attempt, retries and failures included**. This is what the monthly budget bills against |
+| `pages_fetched` | int | pages persisted (successful, non-empty) |
+| `jobs_processed` | int | job rows upserted (counted once per page appearance, so it can exceed distinct jobs) |
+| `jobs_new` | int | jobs for the source after the run minus before it. Ingestion is single-writer (advisory lock), so this is the run's inserts |
+| `snapshot_date` | date, null | the UTC date at run start: the date its snapshots land on (a run straddling UTC midnight can write both dates) |
+| `params` | jsonb | what was asked for: `queries`, `series_codes` (USAJobs), `max_pages`, `max_calls` (the cap actually used), `requested_max_calls` (Adzuna, before the guard), `dry_run`. **Never credentials** |
+| `error` | text, null | why it failed or was skipped. Passed through `redact()` (Settings credentials and any `app_id=`/`app_key=` query value become `***`) and capped at 2,000 characters. Missing-credential errors name the variable, never a value |
+
+Index: `(source, started_at)`.
+
+**Redaction**: a `requests` network error's message contains the full URL, and Adzuna puts `app_id`/`app_key` in the query string. Both clients mask that text before logging or raising it, and the CLIs and the daily runner install `RedactingFilter` (`src/utils/redaction.py`) on their log handlers. USAJobs' key and user-agent email are treated as secrets too.
+
+### Monthly Adzuna budget (`src/ingestion/budget.py`)
+
+```
+used = max(SUM(ingestion_runs.calls_made) WHERE source='adzuna' AND started_at in this UTC month,
+           COUNT(raw_responses)          WHERE source='adzuna' AND fetched_at in this UTC month)
+cap  = min(--max-calls, (ADZUNA_MONTHLY_CALL_BUDGET - used - ADZUNA_MONTHLY_RESERVE) // days_left)
+```
+
+Judgment calls:
+- The billing month is the **UTC calendar month** (parked; Adzuna may count differently).
+- The larger of the two counts is used: raw_responses undercounts (successes only) but covers history from before the run log.
+- The reserve defaults to 25, for manual and smoke-test calls.
+- `days_left` includes today.
+- If the cap is ≤ 0, the guard builds no client and records `skipped_budget`, which is not an error.
+- An Adzuna dry run (`ingest_adzuna --dry-run`) still makes real calls, so it is capped too, but it records no row. Its calls are invisible to the guard except through the reserve.
+
+### `v_ingestion_daily`
+
+`sql/views/v_ingestion_daily.sql`. One row per (UTC `snapshot_date`, `source`), **built on `job_snapshots`** (joined to `jobs` for the source), so days from before the run log still appear. A missed day is a gap, not a zero row.
+
+| Column | Meaning |
+|---|---|
+| `snapshot_rows` | job_snapshots rows that day (equal to `distinct_jobs` by construction, since the PK is `(job_id, snapshot_date)`) |
+| `distinct_jobs` | distinct jobs observed that day |
+| `new_jobs` | jobs whose `first_seen_at` (UTC) is that date |
+| `n_runs`, `n_ok_runs` | ingestion_runs rows for that `snapshot_date` and source (0 before the run log) |
+| `calls_made`, `jobs_processed` | summed over those runs; **NULL** when no run row exists (unknown, not zero) |
+
+### Health thresholds (`src/pipeline/health.py`)
+
+| Check | Rule | Default (parked) |
+|---|---|---|
+| H1 run freshness, per source | latest `ok`/`partial` `finished_at` within N hours, else FAIL. No run rows for the source at all: WARN "no run log yet" | 26 h (a daily run plus slack for a late wake) |
+| H2 snapshot freshness | latest `snapshot_date` = today PASS, yesterday WARN, else FAIL | UTC dates |
+| H3 snapshot volume, per source | WARN if the latest day's distinct jobs fell more than X against the previous snapshot day | 50% |
+| H4 Adzuna budget | WARN at ≥ X of the month used, FAIL at ≥ 100% | 85% |
+| H5 cleaning freshness | WARN if any job has no `job_visa_signals` row | — |
+| H6 failed runs | WARN if any run in the last N days ended `failed` | 7 days |
+| Progress (INFO) | unique jobs / 10,000; distinct snapshot days / 90; current streak (consecutive snapshot days ending today or yesterday) / 60; first snapshot date | targets from the project guide |
+
+The exit code is 1 only on a FAIL. A month with only `skipped_budget` Adzuna runs FAILs H1 for Adzuna after 26 hours, which is intended: no Adzuna data is arriving. H4 says why.

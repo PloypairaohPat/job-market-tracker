@@ -31,10 +31,22 @@ def test_containment_found_and_unrelated_names_not():
     assert not any("zeta" in p[1] or p[0] == "fakebank" for p in pairs)
 
 
-def test_exact_keys_are_not_candidates():
-    # an exact key already joins in v_job_visa_outlook -- nothing to review
-    cands = find_sponsor_match_candidates(["fakeco"], ["fakeco", "fakeco analytics"])
-    assert cands == []
+def test_exact_pair_is_skipped_but_longer_variants_are_still_proposed():
+    # the exact pair already joins in v_job_visa_outlook -- nothing to review --
+    # but other LCA employers in the same block may be the same company
+    cands = find_sponsor_match_candidates(
+        ["fakeco"], ["fakeco", "fakeco holdings", "fakeco analytics", "fakecorp widgets"]
+    )
+    pairs = _pairs(cands)
+    assert ("fakeco", "fakeco", "fuzzy") not in pairs
+    assert not any(employer == "fakeco" for _, employer, _ in pairs)
+    assert ("fakeco", "fakeco holdings", "containment") in pairs
+    assert ("fakeco", "fakeco analytics", "containment") in pairs
+    assert not any(employer == "fakecorp widgets" for _, employer, _ in pairs)  # other block
+
+
+def test_exact_match_only_yields_nothing():
+    assert find_sponsor_match_candidates(["fakeco"], ["fakeco"]) == []
 
 
 def test_blocking_is_by_first_token():

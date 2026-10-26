@@ -21,6 +21,8 @@ from typing import Any
 
 import requests
 
+from src.utils.redaction import redact
+
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://api.adzuna.com/v1/api/jobs"
@@ -62,6 +64,10 @@ class AdzunaClient:
         self._session = session or requests.Session()
         self._last_request_at: float = 0.0
         self.calls_made: int = 0
+
+    def credential_values(self) -> list[str]:
+        """Secret values to mask in logs and stored errors (see src/utils/redaction.py)."""
+        return [self._app_id, self._app_key]
 
     # ------------------------------------------------------------------ #
 
@@ -136,9 +142,12 @@ class AdzunaClient:
             try:
                 resp = self._session.get(url, params=params, timeout=self.timeout)
             except requests.RequestException as exc:
-                logger.warning("Request error (attempt %d): %s", attempt, exc)
+                # requests puts the full URL, query string included, in the
+                # message -- for Adzuna that is the app_id/app_key. Mask it.
+                detail = redact(str(exc), self.credential_values())
+                logger.warning("Request error (attempt %d): %s", attempt, detail)
                 if attempt == self.max_retries:
-                    raise AdzunaError(f"Network error after {attempt} attempts: {exc}") from exc
+                    raise AdzunaError(f"Network error after {attempt} attempts: {detail}") from None
                 time.sleep(backoff)
                 backoff *= 2
                 continue
