@@ -38,6 +38,7 @@ class Settings:
     adzuna_app_key: str = field(repr=False, default="")
     adzuna_min_request_interval: float = 1.5
     adzuna_monthly_call_budget: int = 1000
+    adzuna_monthly_reserve: int = 25  # held back from the daily cap for manual/smoke calls
     usajobs_api_key: str = field(repr=False, default="")
     usajobs_user_agent_email: str = field(repr=False, default="")
     usajobs_min_request_interval: float = 1.0
@@ -62,6 +63,7 @@ def get_settings(require_adzuna: bool = False, require_usajobs: bool = False) ->
             os.environ.get("ADZUNA_MIN_REQUEST_INTERVAL_SECONDS", "1.5")
         ),
         adzuna_monthly_call_budget=int(os.environ.get("ADZUNA_MONTHLY_CALL_BUDGET", "1000")),
+        adzuna_monthly_reserve=int(os.environ.get("ADZUNA_MONTHLY_RESERVE", "25")),
         usajobs_api_key=(
             _require("USAJOBS_API_KEY")
             if require_usajobs

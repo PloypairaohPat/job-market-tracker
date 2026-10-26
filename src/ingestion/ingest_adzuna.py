@@ -29,7 +29,8 @@ from sqlalchemy.orm import Session
 
 from src.ingestion import adzuna_parser as parser
 from src.ingestion.adzuna_client import AdzunaClient, CallBudgetExceeded
-from src.ingestion.run_log import RunStats, recorded_run
+from src.ingestion.budget import BudgetDecision, plan_adzuna_run
+from src.ingestion.run_log import RunStats, record_terminal_run, recorded_run
 from src.models import Company, Job, JobSnapshot, Location, RawResponse
 from src.utils.config import Settings, get_settings
 from src.utils.db import session_scope
@@ -257,6 +258,7 @@ def run_logged(
     queries: list[str] | None = None,
     max_pages_per_query: int = 5,
     database_url: str | None = None,
+    extra_params: dict | None = None,
 ) -> tuple[dict[str, int], RunStats]:
     """run_ingestion wrapped in an ingestion_runs row (see run_log.py).
     Re-raises after recording a failure."""
@@ -265,6 +267,7 @@ def run_logged(
         "max_pages": max_pages_per_query,
         "max_calls": client.max_calls,
         "dry_run": False,
+        **(extra_params or {}),
     }
     with recorded_run(
         parser.SOURCE,
@@ -281,6 +284,67 @@ def run_logged(
             stats=stats,
         )
     return counts, stats
+
+
+def plan_budget(
+    settings: Settings, max_calls: int, database_url: str | None = None, now: datetime | None = None
+) -> BudgetDecision:
+    with session_scope(database_url) as session:
+        decision = plan_adzuna_run(
+            session,
+            now or datetime.now(UTC),
+            max_calls=max_calls,
+            budget=settings.adzuna_monthly_call_budget,
+            reserve=settings.adzuna_monthly_reserve,
+        )
+    logger.info("Adzuna budget: %s", decision.describe())
+    return decision
+
+
+def run_guarded(
+    settings: Settings,
+    max_calls: int,
+    queries: list[str] | None = None,
+    max_pages_per_query: int = 5,
+    database_url: str | None = None,
+    now: datetime | None = None,
+    client_factory=None,
+) -> tuple[str, dict[str, int], BudgetDecision]:
+    """Budget-guarded, run-logged Adzuna ingestion (src/ingestion/budget.py).
+
+    Returns (status, counts, decision). When the monthly cap for this run
+    is <= 0, no client is built and no call is made: a `skipped_budget`
+    run is recorded and a warning logged. Exceptions from the run itself
+    are recorded as `failed` and re-raised.
+    """
+    decision = plan_budget(settings, max_calls, database_url, now)
+    params = {
+        "queries": queries or TARGET_QUERIES,
+        "max_pages": max_pages_per_query,
+        "max_calls": decision.cap,
+        "requested_max_calls": max_calls,
+        "dry_run": False,
+    }
+    if decision.skip:
+        logger.warning("Skipping Adzuna run: monthly budget exhausted (%s)", decision.describe())
+        record_terminal_run(
+            parser.SOURCE,
+            "skipped_budget",
+            params,
+            f"skipped: {decision.describe()}",
+            database_url=database_url,
+        )
+        return "skipped_budget", {}, decision
+    client = (client_factory or build_client)(settings, decision.cap)
+    counts, stats = run_logged(
+        client,
+        queries=queries,
+        max_pages_per_query=max_pages_per_query,
+        database_url=database_url,
+        extra_params={"requested_max_calls": max_calls},
+    )
+    logger.info("API calls used this run: %d / %d", client.calls_made, decision.cap)
+    return ("partial" if stats.budget_cut else "ok"), counts, decision
 
 
 def summarize(database_url: str | None = None) -> None:
@@ -320,16 +384,26 @@ def main() -> None:
 
     settings = get_settings(require_adzuna=True)
     install_redaction(secrets_from_settings(settings))
-    client = build_client(settings, args.max_calls)
     if args.dry_run:
+        # A dry run still spends real API calls (it only skips the writes),
+        # so it is capped by the monthly budget too -- but records no run row.
+        decision = plan_budget(settings, args.max_calls)
+        if decision.skip:
+            logger.warning("Skipping dry run: monthly budget exhausted")
+            return
+        client = build_client(settings, decision.cap)
         counts = run_ingestion(
             client, queries=args.queries, max_pages_per_query=args.max_pages, dry_run=True
         )
+        logger.info("API calls used this run: %d / %d", client.calls_made, decision.cap)
     else:
-        counts, _ = run_logged(client, queries=args.queries, max_pages_per_query=args.max_pages)
+        status, counts, _ = run_guarded(
+            settings, args.max_calls, queries=args.queries, max_pages_per_query=args.max_pages
+        )
+        if status == "skipped_budget":
+            return
     for query, n in counts.items():
         logger.info("Query %r: %d jobs processed", query, n)
-    logger.info("API calls used this run: %d / %d", client.calls_made, args.max_calls)
     if not args.dry_run:
         summarize()
 
