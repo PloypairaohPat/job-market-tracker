@@ -26,3 +26,6 @@ notebooks/.ipynb_checkpoints/
 .idea/
 .vscode/
 scratch.py
+
+# Daily runner logs (logs/daily-YYYY-MM-DD.log)
+/logs/

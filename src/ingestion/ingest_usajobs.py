@@ -187,7 +187,9 @@ def run_ingestion(
     counts: dict[str, int] = {}
 
     searches: list[tuple[str, dict]] = [(q, {"query": q}) for q in queries]
-    searches += [(f"series:{code}", {"query": None, "JobCategoryCode": code}) for code in series_codes]
+    searches += [
+        (f"series:{code}", {"query": None, "JobCategoryCode": code}) for code in series_codes
+    ]
 
     for label, search_kwargs in searches:
         counts[label] = 0
