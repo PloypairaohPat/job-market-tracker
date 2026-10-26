@@ -99,6 +99,7 @@ def test_full_run(db, tmp_path):
         ("usajobs", "ok"),
         ("cleaning", "ok"),
         ("skills", "ok"),
+        ("health", "pass"),
     ]
     assert runs_by_source() == {"adzuna": ["ok"], "usajobs": ["ok"]}
     n_jobs = count(Job)
@@ -131,7 +132,13 @@ def test_one_source_failing_does_not_stop_the_rest(db, tmp_path):
     result = run(tmp_path, adzuna_client_factory=failing_adzuna)
     assert result.exit_code == 1
     statuses = {s.name: s.status for s in result.steps}
-    assert statuses == {"adzuna": "failed", "usajobs": "ok", "cleaning": "ok", "skills": "ok"}
+    assert statuses == {
+        "adzuna": "failed",
+        "usajobs": "ok",
+        "cleaning": "ok",
+        "skills": "ok",
+        "health": "fail",  # H1: adzuna has run rows but none ok
+    }
     assert runs_by_source() == {"adzuna": ["failed"], "usajobs": ["ok"]}
     assert count(JobVisaSignal) == count(Job) == 25  # cleaning still ran on the usajobs jobs
     with session_scope(TEST_DB_URL) as session:
@@ -174,12 +181,13 @@ def test_advisory_lock_blocks_a_concurrent_runner(db, tmp_path):
 
 
 def test_skip_and_dry_run(db, tmp_path):
-    result = run(tmp_path, skip=("adzuna", "skills"), dry_run=True)
+    result = run(tmp_path, skip=("adzuna", "skills", "health"), dry_run=True)
     assert result.exit_code == 0
     assert [(s.name, s.status) for s in result.steps] == [
         ("adzuna", "skipped"),
         ("usajobs", "planned"),
         ("cleaning", "planned"),
         ("skills", "skipped"),
+        ("health", "skipped"),
     ]
     assert runs_by_source() == {} and count(Job) == 0  # dry run: no calls, no writes

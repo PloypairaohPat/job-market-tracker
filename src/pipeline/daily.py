@@ -8,6 +8,7 @@ Steps, in order, called in-process (so tests inject fixture-backed clients):
   2. usajobs   run-logged, keyword queries + TARGET_SERIES_CODES
   3. cleaning  every apply_cleaning step (ALL_STEPS)
   4. skills    sync_taxonomy + extract_for_all_jobs
+  5. health    src/pipeline/health.py (read-only); fails the run on any FAIL
 
 Judgment calls (docs/daily-operation.md, docs/data_dictionary.md):
 - One source failing (missing credentials, API error) is recorded as a
@@ -46,6 +47,7 @@ from src.cleaning.apply_cleaning import ALL_STEPS, DEFAULT_CANDIDATES_OUT, run_s
 from src.cleaning.extract_skills import extract_for_all_jobs, sync_taxonomy
 from src.ingestion import ingest_adzuna, ingest_usajobs
 from src.ingestion.run_log import record_terminal_run
+from src.pipeline.health import FAIL, health
 from src.utils.config import Settings, get_settings
 from src.utils.db import session_scope
 from src.utils.redaction import install_redaction, secrets_from_settings
@@ -56,7 +58,7 @@ logger = logging.getLogger("src.pipeline.daily")
 # this one spells "JMTD" (Job Market Tracker Daily) in ASCII.
 DAILY_LOCK_KEY = 0x4A4D5444
 
-STEPS = ("adzuna", "usajobs", "cleaning", "skills")
+STEPS = ("adzuna", "usajobs", "cleaning", "skills", "health")
 SOURCE_MAX_CALLS = 60  # per-run cap, same default as the ingest CLIs
 LOG_DIR = Path("logs")
 LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
@@ -216,11 +218,21 @@ def step_skills(ctx: dict) -> StepResult:
     )
 
 
+def step_health(ctx: dict) -> StepResult:
+    report = health(ctx["database_url"], ctx["now"], ctx["settings"].adzuna_monthly_call_budget)
+    logger.info("health:\n%s", report.format())
+    problems = [f"{c.id} {c.status}" for c in report.checks if c.status != "PASS"]
+    detail = f"overall {report.worst}" + (f" ({', '.join(problems)})" if problems else "")
+    ok = not any(c.status == FAIL for c in report.checks)
+    return StepResult("health", ok, report.worst.lower(), detail=detail)
+
+
 STEP_FUNCS: dict[str, Callable[[dict], StepResult]] = {
     "adzuna": step_adzuna,
     "usajobs": step_usajobs,
     "cleaning": step_cleaning,
     "skills": step_skills,
+    "health": step_health,
 }
 
 
