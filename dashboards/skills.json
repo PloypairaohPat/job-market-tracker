@@ -13,7 +13,7 @@
       },
       "size": {
         "x": 16,
-        "y": 4
+        "y": 6
       }
     },
     {
@@ -21,7 +21,7 @@
       "type": "question",
       "title": "Data window",
       "sql": "skills_window.sql",
-      "display": "table",
+      "display": "object",
       "description": "First and last UTC snapshot date and the jobs per market behind the shares. Commercial (Adzuna) text is truncated at about 500 characters, so a skill's absence there is not evidence the role doesn't require it.",
       "position": {
         "col": 16,
@@ -29,7 +29,7 @@
       },
       "size": {
         "x": 8,
-        "y": 4
+        "y": 6
       },
       "visualization_settings": {}
     },
@@ -42,7 +42,7 @@
       "description": "Share of skill tags per taxonomy category within each market, with n_tags and the market's job count: composition, not magnitude. Commercial (Adzuna) text is truncated at about 500 characters, so a skill's absence there is not evidence the role doesn't require it.",
       "position": {
         "col": 0,
-        "row": 4
+        "row": 6
       },
       "size": {
         "x": 24,
@@ -67,11 +67,11 @@
       "description": "Rate with its count (n_jobs_tagged) and the market's job count. The Phase 3 write-up applies n >= 15 for commercial. Commercial (Adzuna) text is truncated at about 500 characters, so a skill's absence there is not evidence the role doesn't require it.",
       "position": {
         "col": 0,
-        "row": 11
+        "row": 13
       },
       "size": {
         "x": 12,
-        "y": 7
+        "y": 8
       },
       "visualization_settings": {}
     },
@@ -84,11 +84,11 @@
       "description": "Rate with its count (n_jobs_tagged) and the market's job count; the federal population is small, and the Phase 3 write-up applies n >= 5. Federal text is full-length. Commercial (Adzuna) text is truncated at about 500 characters, so a skill's absence there is not evidence the role doesn't require it.",
       "position": {
         "col": 12,
-        "row": 11
+        "row": 13
       },
       "size": {
         "x": 12,
-        "y": 7
+        "y": 8
       },
       "visualization_settings": {}
     }

@@ -13,7 +13,7 @@
       },
       "size": {
         "x": 16,
-        "y": 4
+        "y": 6
       }
     },
     {
@@ -21,7 +21,7 @@
       "type": "question",
       "title": "Data window",
       "sql": "transparency_window.sql",
-      "display": "table",
+      "display": "object",
       "description": "First and last UTC snapshot date in the database and the n behind this dashboard (jobs per market).",
       "position": {
         "col": 16,
@@ -29,7 +29,7 @@
       },
       "size": {
         "x": 8,
-        "y": 4
+        "y": 6
       },
       "visualization_settings": {}
     },
@@ -42,7 +42,7 @@
       "description": "pct_salary_present counts any figure, including Adzuna's model estimate; pct_salary_disclosed counts employer-disclosed only. The gap between them is the headline.",
       "position": {
         "col": 0,
-        "row": 4
+        "row": 6
       },
       "size": {
         "x": 12,
@@ -67,7 +67,7 @@
       "description": "Completeness that reflects what postings contain. pct_skill_present is capped by commercial truncation (~500 characters).",
       "position": {
         "col": 12,
-        "row": 4
+        "row": 6
       },
       "size": {
         "x": 12,
@@ -84,7 +84,7 @@
       "description": "All three are instrument-limited. pct_seniority_present: the classifier reads titles only. pct_metro_present: an allowlist lookup, so NULL means 'not tracked', not 'no location'. pct_remote_true: instrument-limited for federal (telework text lives in description_full, which the remote step doesn't read); a market fact for commercial.",
       "position": {
         "col": 0,
-        "row": 10
+        "row": 12
       },
       "size": {
         "x": 24,

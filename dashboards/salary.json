@@ -13,7 +13,7 @@
       },
       "size": {
         "x": 16,
-        "y": 4
+        "y": 6
       }
     },
     {
@@ -21,7 +21,7 @@
       "type": "question",
       "title": "Data window",
       "sql": "salary_window.sql",
-      "display": "table",
+      "display": "object",
       "description": "First and last UTC snapshot date in the database and the n behind this dashboard (disclosed and predicted rows counted separately).",
       "position": {
         "col": 16,
@@ -29,7 +29,7 @@
       },
       "size": {
         "x": 8,
-        "y": 4
+        "y": 6
       },
       "visualization_settings": {}
     },
@@ -42,11 +42,11 @@
       "description": "Employer-disclosed annual salary midpoints only (salary_is_predicted = false), with n per bin.",
       "position": {
         "col": 0,
-        "row": 4
+        "row": 6
       },
       "size": {
         "x": 12,
-        "y": 7
+        "y": 8
       },
       "visualization_settings": {
         "graph.dimensions": [
@@ -66,11 +66,11 @@
       "description": "Disclosed only. seniority is instrument-limited (title-only); 'no title signal' is its own group. p25/p75 beside the median; small_n flags groups under 10.",
       "position": {
         "col": 12,
-        "row": 4
+        "row": 6
       },
       "size": {
         "x": 12,
-        "y": 7
+        "y": 8
       },
       "visualization_settings": {}
     },
@@ -83,7 +83,7 @@
       "description": "Side by side, split by salary_is_predicted, never blended. Predicted figures are Adzuna's model estimates; use them only for this comparison, never as 'the' salary.",
       "position": {
         "col": 0,
-        "row": 11
+        "row": 14
       },
       "size": {
         "x": 24,

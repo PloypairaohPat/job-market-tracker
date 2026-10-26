@@ -13,7 +13,7 @@
       },
       "size": {
         "x": 16,
-        "y": 4
+        "y": 6
       }
     },
     {
@@ -21,7 +21,7 @@
       "type": "question",
       "title": "Data window",
       "sql": "market_window.sql",
-      "display": "table",
+      "display": "object",
       "description": "First and last UTC snapshot date in the database and the n behind this dashboard (jobs in v_market_jobs).",
       "position": {
         "col": 16,
@@ -29,7 +29,7 @@
       },
       "size": {
         "x": 8,
-        "y": 4
+        "y": 6
       },
       "visualization_settings": {}
     },
@@ -42,11 +42,11 @@
       "description": "Postings in the analysis population per market. The two markets are reached through different search strategies, so compare shapes, not totals.",
       "position": {
         "col": 0,
-        "row": 4
+        "row": 6
       },
       "size": {
         "x": 8,
-        "y": 6
+        "y": 7
       },
       "visualization_settings": {
         "graph.dimensions": [
@@ -66,11 +66,11 @@
       "description": "metro_area is instrument-limited: a lookup against the tracked-metro allowlist (src/cleaning/metro.py), NOT all locations. '(not a tracked metro)' means the posting is outside the list or has no single parsable location. small_n flags groups under 10.",
       "position": {
         "col": 8,
-        "row": 4
+        "row": 6
       },
       "size": {
         "x": 16,
-        "y": 6
+        "y": 7
       },
       "visualization_settings": {
         "graph.dimensions": [
@@ -92,11 +92,11 @@
       "description": "seniority is instrument-limited: classified from the TITLE only. 'no title signal' is shown as its own group and is never folded into mid.",
       "position": {
         "col": 0,
-        "row": 10
+        "row": 13
       },
       "size": {
         "x": 12,
-        "y": 7
+        "y": 8
       },
       "visualization_settings": {}
     },
@@ -109,11 +109,11 @@
       "description": "Grouped by companies.normalized_name (the normalization layer's key); the display name is the most frequent raw name. Postings with no company are excluded and counted in n_jobs_without_company.",
       "position": {
         "col": 12,
-        "row": 10
+        "row": 13
       },
       "size": {
         "x": 12,
-        "y": 7
+        "y": 8
       },
       "visualization_settings": {}
     }

@@ -13,7 +13,7 @@
       },
       "size": {
         "x": 16,
-        "y": 4
+        "y": 6
       }
     },
     {
@@ -21,7 +21,7 @@
       "type": "question",
       "title": "Data window",
       "sql": "visa_window.sql",
-      "display": "table",
+      "display": "object",
       "description": "First and last UTC snapshot date in the database and the n behind this dashboard (in-scope jobs classified, and how many matched an LCA employer).",
       "position": {
         "col": 16,
@@ -29,7 +29,7 @@
       },
       "size": {
         "x": 8,
-        "y": 4
+        "y": 6
       },
       "visualization_settings": {}
     },
@@ -42,11 +42,11 @@
       "description": "In-scope jobs per bucket. unknown is not 'no': on truncated text a sponsorship sentence may have been cut off, and many employers simply have no LCA match.",
       "position": {
         "col": 0,
-        "row": 4
+        "row": 6
       },
       "size": {
         "x": 8,
-        "y": 6
+        "y": 7
       },
       "visualization_settings": {
         "graph.dimensions": [
@@ -66,11 +66,11 @@
       "description": "Company, metro (the tracked-metro allowlist; instrument-limited), the rule that set the bucket, employer LCA counts and the posting URL. Read the full posting before applying.",
       "position": {
         "col": 8,
-        "row": 4
+        "row": 6
       },
       "size": {
         "x": 16,
-        "y": 6
+        "y": 7
       },
       "visualization_settings": {}
     },
@@ -83,11 +83,11 @@
       "description": "Employer-level aggregates of LCA filings: certified H-1B, new employment, analytics SOC, wage-level mix, median offered wage. A filing is not an approval or a hire.",
       "position": {
         "col": 0,
-        "row": 10
+        "row": 13
       },
       "size": {
         "x": 24,
-        "y": 7
+        "y": 8
       },
       "visualization_settings": {}
     },
@@ -97,11 +97,11 @@
       "text": "**What this can't tell you** (src/visa/README.md)\n- An LCA is not an approval or a hire.\n- Counts favour large filers, staffing firms included.\n- Truncated text hides signals: none_found on truncated text means unknown, never 'sponsors'.\n- Cap-exempt is only a hint, from the company name alone.\n- E-Verify (required for STEM OPT) isn't covered.\n- Rules change: check with your school's DSO.",
       "position": {
         "col": 0,
-        "row": 17
+        "row": 21
       },
       "size": {
         "x": 24,
-        "y": 4
+        "y": 6
       }
     }
   ]
