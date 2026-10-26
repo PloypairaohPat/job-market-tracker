@@ -12,10 +12,16 @@
 #             docker compose ... run --rm pipeline python -m src.pipeline.daily
 name: jobmarket
 
+# The long-running services rotate their container logs (Caddy writes its
+# access log to stdout): the local driver keeps 5 x 20 MB per container.
+x-logging: &logging
+  driver: local
+
 services:
   db:
     image: postgres:16
     restart: unless-stopped
+    logging: *logging
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
@@ -36,6 +42,7 @@ services:
   metabase:
     image: metabase/metabase:v0.64.3.4  # same pin as the laptop's docker-compose.yml
     restart: unless-stopped
+    logging: *logging
     depends_on:
       db:
         condition: service_healthy
@@ -62,6 +69,7 @@ services:
   caddy:
     image: caddy:2.11.7-alpine
     restart: unless-stopped
+    logging: *logging
     depends_on:
       - metabase
     environment:
