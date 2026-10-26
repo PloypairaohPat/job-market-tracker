@@ -23,7 +23,11 @@
 	}
 
 	# What a public dashboard link loads: the page, its API calls, the
-	# frontend bundle and assets, and the icon.
+	# frontend bundle and assets, and the icon. Verified with a browser on
+	# Metabase v0.64.3.4: every card renders. The page also requests
+	# /api/session/properties, which stays blocked on purpose (it exposes
+	# site settings and the version to anonymous callers); the public view
+	# renders fully without it.
 	@public path /public/dashboard/* /api/public/* /app/* /favicon.ico
 	handle @public {
 		reverse_proxy metabase:3000

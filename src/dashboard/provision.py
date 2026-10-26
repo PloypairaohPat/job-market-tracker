@@ -256,6 +256,7 @@ class Provisioner:
         self.reconnect = reconnect
         self.dashboards_dir = dashboards_dir
         self.result = Result()
+        self._public_sharing_checked = False
         self.api = Api(
             config.url, session or requests.Session(), config.secrets, dry_run, self.result
         )
@@ -562,10 +563,7 @@ class Provisioner:
             return
         if not self.public_links:
             return
-        setting = self.api.get("/api/setting/enable-public-sharing")
-        if setting not in (True, "true"):
-            self.api.put("/api/setting/enable-public-sharing", {"value": True})
-            self.result.updated.append("setting enable-public-sharing")
+        self.ensure_public_sharing()
         if not uuid:
             created = self.api.post(f"/api/dashboard/{current['id']}/public_link")
             uuid = (created or {}).get("uuid")
@@ -573,6 +571,18 @@ class Provisioner:
         if uuid:
             base = self.config.site_url or self.config.url
             self.result.public_urls[dash.slug] = f"{base}/public/dashboard/{uuid}"
+
+    def ensure_public_sharing(self) -> None:
+        """Turn public sharing on once per run, only if it's off. v0.64 answers
+        GET /api/setting/enable-public-sharing with an empty 204, so read the
+        effective value from /api/session/properties instead."""
+        if self._public_sharing_checked:
+            return
+        self._public_sharing_checked = True
+        props = self.api.get("/api/session/properties") or {}
+        if props.get("enable-public-sharing") is not True:
+            self.api.put("/api/setting/enable-public-sharing", {"value": True})
+            self.result.updated.append("setting enable-public-sharing")
 
     def prune(self, dashboards, existing_cards: dict, existing_dashboards: dict) -> None:
         """Delete marked items no longer in the spec, and duplicates of kept ones."""

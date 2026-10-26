@@ -85,7 +85,8 @@ services:
     env_file: ../.env
     environment:
       # these win over .env: inside the stack the database is host `db`
-      DATABASE_URL: postgresql+psycopg2://postgres:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/jobmarket
+      # JOBMARKET_DB: leave unset (jobmarket); a *_demo name is for testing the stack
+      DATABASE_URL: postgresql+psycopg2://postgres:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/${JOBMARKET_DB:-jobmarket}
       METABASE_URL: http://metabase:3000
       METABASE_DB_HOST: db
     volumes:

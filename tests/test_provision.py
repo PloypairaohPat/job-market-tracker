@@ -242,3 +242,13 @@ def test_public_links_use_the_site_url_when_set():
     )
     env = {"METABASE_URL": "http://metabase:3000", "MB_SITE_URL": "https://jobs.example.com/"}
     assert Config.from_env(env).site_url == "https://jobs.example.com"
+
+
+def test_public_links_second_run_changes_nothing():
+    fake = FakeMetabase()
+    run(fake, public_links=True)
+    fake.calls.clear()
+    second = run(fake, public_links=True)
+    assert fake.content_writes() == []
+    assert second.created == second.updated == second.deleted == []
+    assert len(second.public_urls) == 5
