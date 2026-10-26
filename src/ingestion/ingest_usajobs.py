@@ -36,10 +36,12 @@ from sqlalchemy.orm import Session
 
 from src.ingestion import usajobs_parser as parser
 from src.ingestion.ingest_adzuna import upsert_company, upsert_location, upsert_snapshot
+from src.ingestion.run_log import RunStats, recorded_run
 from src.ingestion.usajobs_client import CallBudgetExceeded, USAJobsClient
 from src.models import Company, Job, JobSnapshot, Location, RawResponse
-from src.utils.config import get_settings
+from src.utils.config import Settings, get_settings
 from src.utils.db import session_scope
+from src.utils.redaction import install_redaction, secrets_from_settings
 
 logger = logging.getLogger(__name__)
 
@@ -166,6 +168,7 @@ def run_ingestion(
     results_per_page: int = 25,
     dry_run: bool = False,
     database_url: str | None = None,
+    stats: RunStats | None = None,
 ) -> dict[str, int]:
     """Full ingestion across all target queries and (optionally) series codes.
 
@@ -210,9 +213,15 @@ def run_ingestion(
                     counts[label] += n
                     continue
                 with session_scope(database_url) as session:
-                    counts[label] += ingest_page(session, query_params, page, response)
+                    n = ingest_page(session, query_params, page, response)
+                counts[label] += n
+                if stats is not None:
+                    stats.pages_fetched += 1
+                    stats.jobs_processed += n
         except CallBudgetExceeded as exc:
             logger.error("Stopping: %s", exc)
+            if stats is not None:
+                stats.budget_cut = True
             break
     return counts
 
@@ -246,6 +255,50 @@ def backfill_from_raw_responses(session: Session) -> int:
             upsert_job(session, job_fields, company_id, location_id, raw_id, now)
             processed += 1
     return processed
+
+
+def build_client(settings: Settings, max_calls: int) -> USAJobsClient:
+    """A USAJobsClient from Settings (raises USAJobsError if credentials are empty)."""
+    return USAJobsClient(
+        api_key=settings.usajobs_api_key,
+        user_agent_email=settings.usajobs_user_agent_email,
+        min_request_interval=settings.usajobs_min_request_interval,
+        max_calls=max_calls,
+    )
+
+
+def run_logged(
+    client: USAJobsClient,
+    queries: list[str] | None = None,
+    series_codes: list[str] | None = None,
+    max_pages_per_query: int = 5,
+    database_url: str | None = None,
+) -> tuple[dict[str, int], RunStats]:
+    """run_ingestion wrapped in an ingestion_runs row (see run_log.py).
+    Re-raises after recording a failure."""
+    params = {
+        "queries": TARGET_QUERIES if queries is None else queries,
+        "series_codes": series_codes or [],
+        "max_pages": max_pages_per_query,
+        "max_calls": client.max_calls,
+        "dry_run": False,
+    }
+    with recorded_run(
+        parser.SOURCE,
+        params,
+        client=client,
+        secrets=client.credential_values(),
+        database_url=database_url,
+    ) as stats:
+        counts = run_ingestion(
+            client,
+            queries=queries,
+            series_codes=series_codes,
+            max_pages_per_query=max_pages_per_query,
+            database_url=database_url,
+            stats=stats,
+        )
+    return counts, stats
 
 
 def summarize(database_url: str | None = None) -> None:
@@ -315,19 +368,23 @@ def main() -> None:
         return
 
     settings = get_settings(require_usajobs=True)
-    client = USAJobsClient(
-        api_key=settings.usajobs_api_key,
-        user_agent_email=settings.usajobs_user_agent_email,
-        min_request_interval=settings.usajobs_min_request_interval,
-        max_calls=args.max_calls,
-    )
-    counts = run_ingestion(
-        client,
-        queries=args.queries,
-        series_codes=args.series_codes,
-        max_pages_per_query=args.max_pages,
-        dry_run=args.dry_run,
-    )
+    install_redaction(secrets_from_settings(settings))
+    client = build_client(settings, args.max_calls)
+    if args.dry_run:
+        counts = run_ingestion(
+            client,
+            queries=args.queries,
+            series_codes=args.series_codes,
+            max_pages_per_query=args.max_pages,
+            dry_run=True,
+        )
+    else:
+        counts, _ = run_logged(
+            client,
+            queries=args.queries,
+            series_codes=args.series_codes,
+            max_pages_per_query=args.max_pages,
+        )
     for query, n in counts.items():
         logger.info("Query %r: %d jobs processed", query, n)
     logger.info("API calls used this run: %d / %d", client.calls_made, args.max_calls)

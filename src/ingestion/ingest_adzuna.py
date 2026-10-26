@@ -29,9 +29,11 @@ from sqlalchemy.orm import Session
 
 from src.ingestion import adzuna_parser as parser
 from src.ingestion.adzuna_client import AdzunaClient, CallBudgetExceeded
+from src.ingestion.run_log import RunStats, recorded_run
 from src.models import Company, Job, JobSnapshot, Location, RawResponse
-from src.utils.config import get_settings
+from src.utils.config import Settings, get_settings
 from src.utils.db import session_scope
+from src.utils.redaction import install_redaction, secrets_from_settings
 
 logger = logging.getLogger(__name__)
 
@@ -208,6 +210,7 @@ def run_ingestion(
     results_per_page: int = 50,
     dry_run: bool = False,
     database_url: str | None = None,
+    stats: RunStats | None = None,
 ) -> dict[str, int]:
     """Full ingestion across all target queries. Returns per-query counts."""
     queries = queries or TARGET_QUERIES
@@ -226,11 +229,58 @@ def run_ingestion(
                     counts[query] += n
                     continue
                 with session_scope(database_url) as session:
-                    counts[query] += ingest_page(session, query, page, response)
+                    n = ingest_page(session, query, page, response)
+                counts[query] += n
+                if stats is not None:
+                    stats.pages_fetched += 1
+                    stats.jobs_processed += n
         except CallBudgetExceeded as exc:
             logger.error("Stopping: %s", exc)
+            if stats is not None:
+                stats.budget_cut = True
             break
     return counts
+
+
+def build_client(settings: Settings, max_calls: int) -> AdzunaClient:
+    """An AdzunaClient from Settings (raises AdzunaError if credentials are empty)."""
+    return AdzunaClient(
+        app_id=settings.adzuna_app_id,
+        app_key=settings.adzuna_app_key,
+        min_request_interval=settings.adzuna_min_request_interval,
+        max_calls=max_calls,
+    )
+
+
+def run_logged(
+    client: AdzunaClient,
+    queries: list[str] | None = None,
+    max_pages_per_query: int = 5,
+    database_url: str | None = None,
+) -> tuple[dict[str, int], RunStats]:
+    """run_ingestion wrapped in an ingestion_runs row (see run_log.py).
+    Re-raises after recording a failure."""
+    params = {
+        "queries": queries or TARGET_QUERIES,
+        "max_pages": max_pages_per_query,
+        "max_calls": client.max_calls,
+        "dry_run": False,
+    }
+    with recorded_run(
+        parser.SOURCE,
+        params,
+        client=client,
+        secrets=client.credential_values(),
+        database_url=database_url,
+    ) as stats:
+        counts = run_ingestion(
+            client,
+            queries=queries,
+            max_pages_per_query=max_pages_per_query,
+            database_url=database_url,
+            stats=stats,
+        )
+    return counts, stats
 
 
 def summarize(database_url: str | None = None) -> None:
@@ -269,18 +319,14 @@ def main() -> None:
     args = argp.parse_args()
 
     settings = get_settings(require_adzuna=True)
-    client = AdzunaClient(
-        app_id=settings.adzuna_app_id,
-        app_key=settings.adzuna_app_key,
-        min_request_interval=settings.adzuna_min_request_interval,
-        max_calls=args.max_calls,
-    )
-    counts = run_ingestion(
-        client,
-        queries=args.queries,
-        max_pages_per_query=args.max_pages,
-        dry_run=args.dry_run,
-    )
+    install_redaction(secrets_from_settings(settings))
+    client = build_client(settings, args.max_calls)
+    if args.dry_run:
+        counts = run_ingestion(
+            client, queries=args.queries, max_pages_per_query=args.max_pages, dry_run=True
+        )
+    else:
+        counts, _ = run_logged(client, queries=args.queries, max_pages_per_query=args.max_pages)
     for query, n in counts.items():
         logger.info("Query %r: %d jobs processed", query, n)
     logger.info("API calls used this run: %d / %d", client.calls_made, args.max_calls)
