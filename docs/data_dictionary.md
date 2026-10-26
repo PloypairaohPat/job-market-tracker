@@ -361,7 +361,7 @@ Judgment calls:
 
 ### Company ↔ LCA employer match review
 
-`python -m src.visa.sponsor_match` writes `data/sponsor_match_candidates.csv` (`company_key, lca_employer_key, relation, similarity, approved`). Cross-set version of `find_merge_candidates`: same containment / fuzzy (`SequenceMatcher ≥ 0.88`) rule via the shared `classify_pair`, but each company key is compared only with LCA keys sharing its **first token** (blocking). So a typo in the first word is never proposed, and a company whose key already exactly matches an LCA key is skipped. **Never auto-merged**: approved pairs are promoted by hand into `src/cleaning/data/company_aliases.json`, then `apply_cleaning --only companies` and `python -m src.visa.lca_loader --rekey` re-key both sides (no reload needed).
+`python -m src.visa.sponsor_match` writes `data/sponsor_match_candidates.csv` (`company_key, lca_employer_key, relation, similarity, approved`). Cross-set version of `find_merge_candidates`: same containment / fuzzy (`SequenceMatcher ≥ 0.88`) rule via the shared `classify_pair`, but each company key is compared only with LCA keys sharing its **first token** (blocking). So a typo in the first word is never proposed. The exact pair (company key = LCA key) is skipped because it already joins, but that company's longer variants in the same block ("fakeco holdings" for "fakeco") are still proposed. **Never auto-merged**: approved pairs are promoted by hand into `src/cleaning/data/company_aliases.json`, then `apply_cleaning --only companies` and `python -m src.visa.lca_loader --rekey` re-key both sides (no reload needed).
 
 ### `job_visa_signals` — what the posting itself says
 
