@@ -305,3 +305,102 @@ Phase 2 policy: title/location "remote" is a strong signal that wins over hybrid
 
 ### `companies.normalized_name`
 Lowercase **grouping key** from the three-tier normalization layer: deterministic rules (legal-suffix stripping, "The" prefix, punctuation) → curated aliases (`src/cleaning/data/company_aliases.json`, e.g. facebook→meta) → fuzzy candidates written to `data/company_merge_candidates.csv` for **manual review, never auto-merged**. Approved pairs get promoted into the alias file, making review output durable and versioned. Display names for reporting are chosen at query time (most frequent raw name per key); `canonical_name`/`raw_names` are never modified.
+
+---
+
+## Visa-sponsorship layer *(added with the visa layer)*
+
+How open each in-scope job is to someone on **F-1 OPT who will later need H-1B sponsorship**, with the evidence. Three independent signals: the employer's DOL LCA filing history, what the posting text says, and a name-only cap-exempt hint. How-to and caveats: [`src/visa/README.md`](../src/visa/README.md). Open product decisions: [`docs/overnight-visa-layer.md`](overnight-visa-layer.md).
+
+### `lca_cases` — DOL Labor Condition Applications
+
+Loaded by `python -m src.visa.lca_loader --file data/lca/<file> --fiscal-year <FY>` from the Office of Foreign Labor Certification's quarterly LCA disclosure files (.xlsx or .csv). **One row = one LCA filing, not one approved H-1B and not one hire.** The source files are never committed (`data/` is gitignored).
+
+| Column | Type | Meaning / judgment calls |
+|---|---|---|
+| `case_number` | text PK | `CASE_NUMBER`. Upsert key: files are cumulative within a fiscal year (Q3 contains Q1+Q2), so loading Q2 then Q3 converges instead of double counting. **The latest load wins** for every column — load files in chronological order. Duplicates within one file: last occurrence kept, counted. Rows without a case number: skipped, counted. |
+| `case_status` | text | `Certified` \| `Certified-Withdrawn` \| `Denied` \| `Withdrawn`, as given |
+| `received_date`, `decision_date`, `begin_date` | date, null | parsed from Excel dates, ISO or `m/d/Y`; unparseable → NULL, counted |
+| `visa_class` | text | `H-1B` \| `E-3 Australian` \| `H-1B1 Chile` \| `H-1B1 Singapore` |
+| `job_title`, `soc_code`, `soc_title` | text | as given. `soc_code` keeps its `.01`-style detail suffix; views match on `LEFT(soc_code, 7)` |
+| `full_time_position`, `h1b_dependent` (`H-1B_DEPENDENT`), `willful_violator` | bool, null | `Y`/`Yes`/`N`/`No` (any case); blank → NULL; anything else → NULL, counted |
+| `total_worker_positions`, `new_employment`, `continued_employment`, `change_employer` | int, null | non-integers → NULL, counted |
+| `employer_name`, `trade_name_dba`, `employer_city`, `employer_state`, `employer_fein`, `naics_code`, `worksite_city`, `worksite_state` | text | as given; numeric-looking Excel cells lose a spurious `.0` (`541511.0` → `541511`) |
+| `wage_rate_of_pay_from`, `wage_rate_of_pay_to`, `prevailing_wage` | numeric(14,2), null | `$` / `,` / spaces stripped; ranges, words or negatives → NULL, counted |
+| `wage_unit_of_pay`, `pw_unit_of_pay` | text | `Hour` \| `Week` \| `Bi-Weekly` \| `Month` \| `Year`, as given |
+| `pw_wage_level` | text, null | `I` \| `II` \| `III` \| `IV` \| `N/A`. Matters from FY2027: the H-1B cap lottery is weighted by OEWS level (IV = 4 entries … I = 1) |
+| `fiscal_year` | int | federal FY of the file (Oct–Sep), given on the command line — not inferred from dates |
+| `source_file` | text | basename of the file the row was last loaded from |
+| `loaded_at` | timestamptz | when that load ran |
+| `employer_key` | text, null | `normalize_company_name(employer_name)` — the same key as `companies.normalized_name`. Employer names are **not** deduplicated beyond that: "Amazon.com Services LLC" and "Amazon Web Services" stay separate employers |
+
+**Personal data never loaded.** The files also carry real people's names, emails and phone numbers (`EMPLOYER_POC_*`, `AGENT_ATTORNEY_*`, `LAWFIRM_*`, `PREPARER_*`). The loader streams rows through an explicit 30-column allowlist (`COLUMN_MAP` in `src/visa/lca_loader.py`); every other cell is dropped as its row is read. Tested on synthetic files carrying invented values in those columns. Allowlisted columns missing from a file load as NULL with a warning; a file missing `CASE_NUMBER`, `CASE_STATUS` or `EMPLOYER_NAME` is refused.
+
+### `v_employer_sponsorship` — employer-level sponsorship history
+
+`sql/views/v_employer_sponsorship.sql`. One row per `(employer_key, period)`: `period = 'FY<year>'` per loaded fiscal year, plus `period = 'last_3_fy'` for the latest loaded FY and the two before it (`window_start_fy`..`window_end_fy`).
+
+| Column | Meaning |
+|---|---|
+| `n_lcas_all_statuses` | every filing, any status or visa class (context only) |
+| `certified_h1b_lcas` | `case_status = 'Certified' AND visa_class = 'H-1B'` |
+| `certified_h1b_new_employment` | … of those, `new_employment > 0` |
+| `certified_h1b_analytics_soc` | … of those, in the analytics SOC list |
+| `certified_h1b_analytics_soc_new_employment` | both; drives the outlook's `strong` threshold |
+| `wage_level_i` … `wage_level_iv`, `wage_level_na_or_missing` | wage-level mix of certified H-1B filings |
+| `median_offered_annual_wage` | median of annualized `wage_rate_of_pay_from` over certified H-1B filings |
+| `n_wage_unit_unconvertible` | certified H-1B filings whose unit isn't one of the five (annual wage NULL) |
+| `latest_certified_decision_date` | most recent `decision_date` of a certified H-1B filing |
+| `any_h1b_dependent`, `any_willful_violator` | any filing in the period flagged (any status / visa class) |
+
+Judgment calls:
+- **Certified-Withdrawn is excluded** from "certified": the employer withdrew it. Denied and Withdrawn are excluded. E-3 and H-1B1 are excluded — treaty visas an F-1 holder can't switch into.
+- **The 3-FY window is data-relative** (anchored on `MAX(fiscal_year)` loaded), so the view is deterministic. It only reaches "now" once the newest FY's file is loaded. *(Parked.)*
+- **Analytics SOC list** (default, *parked*), matched on the first 7 characters of `soc_code`: 15-2051 Data Scientists (incl. .01 Business Intelligence Analysts), 15-2041 Statisticians, 15-2031 Operations Research Analysts, 13-1161 Market Research Analysts, 15-1211 Computer Systems Analysts, 13-1111 Management Analysts, 15-1243 Database Architects, 13-2051 Financial and Investment Analysts. Lives in ONE place: the view's `analytics_soc` CTE.
+- **Wage annualization**: Hour × 2080, Week × 52, Bi-Weekly × 26, Month × 12, Year × 1. Any other or missing unit → NULL and counted, never guessed. Uses the bottom of the offered range (`_from`); `_to` is often blank.
+
+### Company ↔ LCA employer match review
+
+`python -m src.visa.sponsor_match` writes `data/sponsor_match_candidates.csv` (`company_key, lca_employer_key, relation, similarity, approved`). Cross-set version of `find_merge_candidates`: same containment / fuzzy (`SequenceMatcher ≥ 0.88`) rule via the shared `classify_pair`, but each company key is compared only with LCA keys sharing its **first token** (blocking). So a typo in the first word is never proposed, and a company whose key already exactly matches an LCA key is skipped. **Never auto-merged**: approved pairs are promoted by hand into `src/cleaning/data/company_aliases.json`, then `apply_cleaning --only companies` and `python -m src.visa.lca_loader --rekey` re-key both sides (no reload needed).
+
+### `job_visa_signals` — what the posting itself says
+
+One row per job (all jobs; the outlook view filters to in-scope), rebuilt wholesale by `python -m src.cleaning.apply_cleaning --only visa`. Pure classifier: `src/visa/posting_signals.py`; table-driven trap tests: `tests/test_posting_signals.py`.
+
+| Column | Type | Meaning / judgment calls |
+|---|---|---|
+| `job_id` | int PK, FK → `jobs.id` | |
+| `restriction` | text | `citizenship` \| `clearance` \| `none_found` |
+| `restriction_reason` | text, null | the rule label and matched phrase, `usajobs KeyRequirements`, `ambiguous: <phrase>`, `negated: <phrase>`, or the Public Trust note |
+| `sponsorship_stance` | text | `will_not_sponsor` \| `will_sponsor` \| `none_found` |
+| `sponsorship_reason` | text, null | matched phrase, `ambiguous: <phrase>`, `ambiguous: conflicting …`, or the work-authorization note |
+| `opt_mentioned` | bool | OPT / STEM OPT / CPT / "optional/curricular practical training" named. Independent of stance: "OPT/CPT welcome but no H-1B sponsorship" is `opt_mentioned = true` AND `will_not_sponsor` |
+| `text_coverage` | text | `full` (description_full present) \| `truncated` (description only — Adzuna's ~500-char cap) \| `empty` |
+| `cap_exempt_hint` | text | `likely` \| `unknown` |
+| `cap_exempt_reason` | text, null | which name word matched, or which marker blocked it |
+| `classified_at` | timestamptz | when the step ran (the only column that changes on an identical re-run) |
+
+Judgment calls:
+- **Input text** = title + `description_full`, else title + `description`. **`none_found` on truncated text means unknown, never "sponsors".**
+- **"Authorized to work in the US" alone is NOT a restriction and NOT will_not_sponsor** — OPT is work authorization. It becomes `will_not_sponsor` only next to "without sponsorship", "now or in the future" or similar. Alone it is `none_found` with a reason saying so.
+- **"U.S. person"** (export-control / ITAR wording) → `citizenship` with its own reason (`us_person …`): it excludes F-1 holders.
+- **Clearances** (TS/SCI, "active Secret", "ability to obtain a clearance", "security clearance required") → `clearance`: a US clearance requires citizenship. Negated ("no security clearance required") → `none_found`, reason `negated: …`.
+- **"Public Trust" is not a restriction** *(parked)*; the mention is recorded as the reason.
+- **Citizenship needs a requirement verb** ("must be", "required", "only", "Who May Apply: US Citizens"). "U.S. citizenship preferred" and other unreadable mentions → `none_found`, reason `ambiguous: …`. EEO boilerplate ("without regard to … citizenship status") is ignored.
+- **Uppercase `US` only**: lowercase "us" is a pronoun ("help us persuade…"). Lowercase "must be a us citizen" therefore lands as `ambiguous`, not `citizenship` — precision over recall.
+- **Sponsorship words need visa context** for positives ("we sponsor H-1B", "visa sponsorship available"); "executive sponsor" and "we sponsor hackathons" are traps. A negated positive ("no visa sponsorship available") is a negative. A will-not AND a will in one posting → `none_found`, `ambiguous: conflicting …`. The application question "Will you now or in the future require sponsorship?" alone → `ambiguous`.
+- **OPT/CPT are case-sensitive** ("opt in" is not OPT); "CPT codes" / "CPT/ICD" (medical billing) are traps.
+- **USAJobs structured field beats text**: a `US Citizenship…` entry in the raw response's `UserArea.Details.KeyRequirements` (matched on `MatchedObjectId = external_id` in the job's `raw_response_id` page) → `citizenship`, reason `usajobs KeyRequirements`. When that field is absent or lists no citizenship entry, the text rules still run — it is filled in for only 1 of 25 fixture postings, while 10 of 25 state citizenship in the Requirements text.
+- **`cap_exempt_hint = likely`** only when the company name contains University, College, Community College or Institute of Technology AND no for-profit marker (legal-entity suffixes Inc/LLC/Corp/Ltd/PLC/LP/LLP/Holdings, "Education Group", "Credit Union", "Bank", "Bookstore"). Hospitals, medical centers, health systems and labs → `unknown` with a "parked" reason. Research nonprofits and government labs without those words → `unknown`. A hint, never a determination: the LCA data has no cap-exempt field, and for-profit colleges (which are not exempt) don't always say so in their name.
+
+### `v_job_visa_outlook` — one verdict per in-scope job
+
+`sql/views/v_job_visa_outlook.sql`; read by `python -m src.visa.scan`. In-scope jobs ⟕ `job_visa_signals` ⟕ `v_employer_sponsorship` (`period = 'last_3_fy'`, on `companies.normalized_name = employer_key`). Carries the posting signals, the employer aggregates (0 when unmatched), `employer_matched`, `bucket` and `bucket_reason`.
+
+Buckets, first match wins (thresholds *parked*):
+1. `closed` — restriction is citizenship or clearance, or stance is `will_not_sponsor` (a "no" in the posting beats any history)
+2. `strong` — `will_sponsor`, or ≥ 3 certified analytics-SOC H-1B LCAs with new employment in the last 3 FYs, or `cap_exempt_hint = likely`
+3. `possible` — any certified H-1B LCA in the last 3 FYs
+4. `unknown` — everything else, including no employer match and jobs the visa step hasn't classified yet
+
+`unknown` is not "no", and `strong` is not "yes": see "What this can't tell you" in `src/visa/README.md`.

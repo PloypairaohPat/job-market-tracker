@@ -107,6 +107,7 @@ The integration suite verifies the Phase 1 acceptance criteria directly: end-to-
 src/
   ingestion/     Adzuna client, parser (pure functions), ingestion pipeline
   cleaning/      Phase 2: normalization & skill extraction
+  visa/          visa-sponsorship layer: DOL LCA loader, posting signals, outlook scan (see src/visa/README.md)
   models/        SQLAlchemy models (schema source of truth)
   utils/         config, database session management
 migrations/      Alembic (tested in both directions)
