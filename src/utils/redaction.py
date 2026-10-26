@@ -1,7 +1,7 @@
 """Secret redaction for logs and stored errors.
 
 A `requests` network error's message contains the full URL, query string
-included, and Adzuna authenticates with `?app_id=...&app_key=...`. So a
+included, and Adzuna authenticates with app_id / app_key query parameters. So a
 network blip used to write the Adzuna key into logs (and into any stored
 error text). Two layers keep secrets out:
 
