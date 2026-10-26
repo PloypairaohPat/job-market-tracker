@@ -1,4 +1,4 @@
-.PHONY: up db-migrate seed-demo ingest smoke test lint notebook views
+.PHONY: up db-migrate seed-demo ingest smoke test lint notebook views daily
 
 up:              ## start Postgres
 	docker compose up -d
@@ -32,3 +32,6 @@ apply-cleaning:  ## seniority, salary quality, remote, metro, company normalizat
 
 views:           ## apply every sql/views/*.sql (file-name order, one transaction)
 	python scripts/apply_views.py
+
+daily:           ## the daily pipeline: adzuna (budget-guarded), usajobs, cleaning, skills
+	python -m src.pipeline.daily
