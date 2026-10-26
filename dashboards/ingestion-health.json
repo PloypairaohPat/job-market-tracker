@@ -1,0 +1,177 @@
+{
+  "name": "Ingestion health",
+  "description": "Is the daily ingestion clock running? Mirrors `python -m src.pipeline.health` and docs/daily-operation.md.",
+  "public": true,
+  "cards": [
+    {
+      "key": "health_intro",
+      "type": "text",
+      "text": "## Ingestion health\n**Sources:** `v_ingestion_daily` (built on job_snapshots, so days before the run log still show) and `v_ingestion_runs` (the run log).\n\n**Mirrors:** the health check, `python -m src.pipeline.health`, and docs/daily-operation.md. Built first, per the roadmap: if this dashboard is wrong, every other one is too. Data window: see the card on the right.",
+      "position": {
+        "col": 0,
+        "row": 0
+      },
+      "size": {
+        "x": 16,
+        "y": 6
+      }
+    },
+    {
+      "key": "health_window",
+      "type": "question",
+      "title": "Data window",
+      "sql": "health_window.sql",
+      "display": "object",
+      "description": "First and last UTC snapshot date in the database and the n behind this dashboard (n_jobs = jobs first seen inside the window).",
+      "position": {
+        "col": 16,
+        "row": 0
+      },
+      "size": {
+        "x": 8,
+        "y": 6
+      },
+      "visualization_settings": {}
+    },
+    {
+      "key": "health_distinct_jobs",
+      "type": "question",
+      "title": "Distinct jobs observed per day, by source",
+      "sql": "health_distinct_jobs.sql",
+      "display": "line",
+      "description": "Distinct jobs snapshotted per UTC day and source (v_ingestion_daily). A missing day is a gap in the line, never a zero.",
+      "position": {
+        "col": 0,
+        "row": 6
+      },
+      "size": {
+        "x": 12,
+        "y": 7
+      },
+      "visualization_settings": {
+        "graph.dimensions": [
+          "snapshot_date",
+          "source"
+        ],
+        "graph.metrics": [
+          "distinct_jobs"
+        ],
+        "line.missing": "none"
+      }
+    },
+    {
+      "key": "health_new_jobs",
+      "type": "question",
+      "title": "New jobs per day, by source",
+      "sql": "health_new_jobs.sql",
+      "display": "bar",
+      "description": "Jobs whose first_seen_at falls on each UTC day (v_ingestion_daily.new_jobs).",
+      "position": {
+        "col": 12,
+        "row": 6
+      },
+      "size": {
+        "x": 12,
+        "y": 7
+      },
+      "visualization_settings": {
+        "graph.dimensions": [
+          "snapshot_date",
+          "source"
+        ],
+        "graph.metrics": [
+          "new_jobs"
+        ],
+        "stackable.stack_type": "stacked"
+      }
+    },
+    {
+      "key": "health_adzuna_calls",
+      "type": "question",
+      "title": "Adzuna API calls per day",
+      "sql": "health_adzuna_calls.sql",
+      "display": "bar",
+      "description": "calls_made from the run log for source adzuna, retries included: the number billed against the 1,000-call monthly budget. Blank = no run row (before the run log existed).",
+      "position": {
+        "col": 0,
+        "row": 13
+      },
+      "size": {
+        "x": 10,
+        "y": 8
+      },
+      "visualization_settings": {
+        "graph.dimensions": [
+          "snapshot_date"
+        ],
+        "graph.metrics": [
+          "calls_made"
+        ]
+      }
+    },
+    {
+      "key": "health_runs_by_status",
+      "type": "question",
+      "title": "Runs by source and status",
+      "sql": "health_runs_by_status.sql",
+      "display": "table",
+      "description": "Every ingestion run by final status (v_ingestion_runs): ok, partial (per-run cap hit), failed, skipped_budget (monthly cap reached, no call made), running (killed process).",
+      "position": {
+        "col": 10,
+        "row": 13
+      },
+      "size": {
+        "x": 8,
+        "y": 8
+      },
+      "visualization_settings": {}
+    },
+    {
+      "key": "health_streak",
+      "type": "question",
+      "title": "Current streak vs 60-day target",
+      "sql": "health_streak.sql",
+      "display": "object",
+      "description": "Consecutive snapshot days ending today or yesterday (UTC), from v_ingestion_daily; n_snapshot_days counts every day with any snapshot.",
+      "position": {
+        "col": 18,
+        "row": 13
+      },
+      "size": {
+        "x": 6,
+        "y": 4
+      },
+      "visualization_settings": {}
+    },
+    {
+      "key": "health_missing_days",
+      "type": "question",
+      "title": "Missing days",
+      "sql": "health_missing_days.sql",
+      "display": "table",
+      "description": "UTC days between the first and last snapshot with no snapshot at all. They are lost for good: a snapshot records what the APIs showed that day.",
+      "position": {
+        "col": 18,
+        "row": 17
+      },
+      "size": {
+        "x": 6,
+        "y": 4
+      },
+      "visualization_settings": {}
+    },
+    {
+      "key": "health_gaps_note",
+      "type": "text",
+      "text": "**Reading gaps.** Snapshot dates are UTC dates. A missing day means no run succeeded for any source that day (laptop off, or every source failed) and cannot be backfilled. A dip for one source usually means a failed or budget-skipped run for that source: check *Runs by source and status*. Days before the run log existed show 0 runs and blank calls.",
+      "position": {
+        "col": 0,
+        "row": 21
+      },
+      "size": {
+        "x": 24,
+        "y": 4
+      }
+    }
+  ]
+}

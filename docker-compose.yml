@@ -15,5 +15,32 @@ services:
       timeout: 3s
       retries: 10
 
+  # Metabase dashboards (docs/dashboard.md). Opt-in: only started with
+  # `docker compose --profile bi up -d`; plain `docker compose up -d` still
+  # starts only db, so the daily task is unaffected.
+  metabase:
+    image: metabase/metabase:v0.64.3.4  # pinned; provision.py is written against this version
+    profiles: ["bi"]
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${METABASE_PORT:-3000}:3000"  # this machine only
+    environment:
+      # App database: H2 on a named volume. Disposable -- every dashboard is
+      # rebuilt from dashboards/ by `python -m src.dashboard.provision`.
+      MB_DB_TYPE: h2
+      MB_DB_FILE: /metabase-data/metabase.db
+      MB_ANON_TRACKING_ENABLED: "false"
+    volumes:
+      - metabase_app_data:/metabase-data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
 volumes:
   jobmarket_pg_data:
+  metabase_app_data:

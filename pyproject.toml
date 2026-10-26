@@ -36,4 +36,5 @@ ignore = ["E501"]  # long lines allowed in docstrings / SQL
 testpaths = ["tests"]
 markers = [
     "integration: tests that require a running Postgres (set TEST_DATABASE_URL)",
+    "metabase: end-to-end tests against a running Metabase (set METABASE_URL)",
 ]

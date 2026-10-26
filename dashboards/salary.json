@@ -1,0 +1,95 @@
+{
+  "name": "Salary",
+  "description": "Commercial salaries from employer disclosures, with Adzuna's predictions kept separate. Mirrors v_commercial_salary_clean and Phase 3 #1.",
+  "public": true,
+  "cards": [
+    {
+      "key": "salary_intro",
+      "type": "text",
+      "text": "## Salary\n**Source:** `v_commercial_salary_clean`: Adzuna postings with salary_quality = ok, USD, annual. Federal pay bands are disclosed by law and not shown here.\n\n**Mirrors:** Phase 3 #1 (docs/phase_3_findings.md). Headline numbers are **employer-disclosed only**; Adzuna-predicted salaries appear solely in the separate comparison card and are never blended into one number. Data window: see the right.",
+      "position": {
+        "col": 0,
+        "row": 0
+      },
+      "size": {
+        "x": 16,
+        "y": 6
+      }
+    },
+    {
+      "key": "salary_window",
+      "type": "question",
+      "title": "Data window",
+      "sql": "salary_window.sql",
+      "display": "object",
+      "description": "First and last UTC snapshot date in the database and the n behind this dashboard (disclosed and predicted rows counted separately).",
+      "position": {
+        "col": 16,
+        "row": 0
+      },
+      "size": {
+        "x": 8,
+        "y": 6
+      },
+      "visualization_settings": {}
+    },
+    {
+      "key": "salary_disclosed_distribution",
+      "type": "question",
+      "title": "Disclosed salary distribution ($10k bins)",
+      "sql": "salary_disclosed_distribution.sql",
+      "display": "bar",
+      "description": "Employer-disclosed annual salary midpoints only (salary_is_predicted = false), with n per bin.",
+      "position": {
+        "col": 0,
+        "row": 6
+      },
+      "size": {
+        "x": 12,
+        "y": 8
+      },
+      "visualization_settings": {
+        "graph.dimensions": [
+          "bin_start_usd"
+        ],
+        "graph.metrics": [
+          "n"
+        ]
+      }
+    },
+    {
+      "key": "salary_disclosed_by_seniority",
+      "type": "question",
+      "title": "Disclosed median salary by seniority, with n",
+      "sql": "salary_disclosed_by_seniority.sql",
+      "display": "table",
+      "description": "Disclosed only. seniority is instrument-limited (title-only); 'no title signal' is its own group. p25/p75 beside the median; small_n flags groups under 10.",
+      "position": {
+        "col": 12,
+        "row": 6
+      },
+      "size": {
+        "x": 12,
+        "y": 8
+      },
+      "visualization_settings": {}
+    },
+    {
+      "key": "salary_predicted_vs_disclosed",
+      "type": "question",
+      "title": "Comparison: Adzuna-predicted vs employer-disclosed",
+      "sql": "salary_predicted_vs_disclosed.sql",
+      "display": "table",
+      "description": "Side by side, split by salary_is_predicted, never blended. Predicted figures are Adzuna's model estimates; use them only for this comparison, never as 'the' salary.",
+      "position": {
+        "col": 0,
+        "row": 14
+      },
+      "size": {
+        "x": 24,
+        "y": 4
+      },
+      "visualization_settings": {}
+    }
+  ]
+}
