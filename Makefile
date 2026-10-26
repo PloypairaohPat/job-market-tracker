@@ -1,4 +1,4 @@
-.PHONY: up db-migrate seed-demo ingest smoke test lint notebook views daily health
+.PHONY: up db-migrate seed-demo ingest smoke test lint notebook views daily health bi-grant
 
 up:              ## start Postgres
 	docker compose up -d
@@ -38,3 +38,6 @@ daily:           ## the daily pipeline: adzuna (budget-guarded), usajobs, cleani
 
 health:          ## is the daily clock running? (read-only; exit 1 on any FAIL)
 	python -m src.pipeline.health
+
+bi-grant:        ## create/update the read-only metabase_reader role (SELECT on v_* views only)
+	python -m src.dashboard.reader_role
