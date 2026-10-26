@@ -1,0 +1,17 @@
+# Job Market Tracker: one daily pipeline run in the pipeline container
+# (ingestion, cleaning, skills, health; optional dead-man's-switch ping).
+# Installed by deploy/bootstrap.sh; started by jobmarket-daily.timer.
+# Paths assume the deploy user and /home/deploy/job-market-tracker.
+[Unit]
+Description=Job Market Tracker daily pipeline
+Wants=network-online.target
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=deploy
+Group=deploy
+WorkingDirectory=/home/deploy/job-market-tracker
+ExecStart=/usr/bin/docker compose -f deploy/docker-compose.prod.yml --env-file .env run --rm pipeline python -m src.pipeline.daily
+TimeoutStartSec=1h

@@ -1,0 +1,13 @@
+# Nightly at 03:30 UTC: hours away from the 11:15 UTC daily run, so a
+# backup never overlaps ingestion. Persistent=true catches up once after
+# downtime.
+[Unit]
+Description=Back up the Job Market Tracker databases nightly at 03:30 UTC
+
+[Timer]
+OnCalendar=*-*-* 03:30:00 UTC
+Persistent=true
+Unit=jobmarket-backup.service
+
+[Install]
+WantedBy=timers.target

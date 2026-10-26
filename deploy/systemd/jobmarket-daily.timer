@@ -1,0 +1,14 @@
+# Daily at 11:15 UTC = 07:15 US Eastern in summer (06:15 in winter):
+# far from UTC midnight, so one run always lands on one UTC snapshot date.
+# Persistent=true: if the server was down at 11:15, run once when it's back.
+# Enabled at cut-over (docs/deploy.md), never by bootstrap.sh.
+[Unit]
+Description=Run the Job Market Tracker daily pipeline at 11:15 UTC
+
+[Timer]
+OnCalendar=*-*-* 11:15:00 UTC
+Persistent=true
+Unit=jobmarket-daily.service
+
+[Install]
+WantedBy=timers.target
