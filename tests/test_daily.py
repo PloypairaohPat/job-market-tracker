@@ -191,3 +191,9 @@ def test_skip_and_dry_run(db, tmp_path):
         ("health", "skipped"),
     ]
     assert runs_by_source() == {} and count(Job) == 0  # dry run: no calls, no writes
+
+
+def test_dry_run_with_missing_credentials_writes_nothing(db, tmp_path):
+    result = run(tmp_path, settings=settings(adzuna_app_id=""), dry_run=True, skip=("health",))
+    assert result.exit_code == 1  # still reported
+    assert runs_by_source() == {}

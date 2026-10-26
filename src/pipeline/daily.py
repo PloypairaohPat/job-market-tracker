@@ -147,7 +147,8 @@ def step_adzuna(ctx: dict) -> StepResult:
     )
     if missing:
         error = f"Missing required environment variable(s): {', '.join(missing)}"
-        record_terminal_run("adzuna", "failed", {}, error, database_url=ctx["database_url"])
+        if not ctx["dry_run"]:  # a dry run writes nothing, run rows included
+            record_terminal_run("adzuna", "failed", {}, error, database_url=ctx["database_url"])
         return StepResult("adzuna", False, "failed", detail=error)
     if ctx["dry_run"]:
         decision = ingest_adzuna.plan_budget(
@@ -180,7 +181,8 @@ def step_usajobs(ctx: dict) -> StepResult:
     )
     if missing:
         error = f"Missing required environment variable(s): {', '.join(missing)}"
-        record_terminal_run("usajobs", "failed", {}, error, database_url=ctx["database_url"])
+        if not ctx["dry_run"]:  # a dry run writes nothing, run rows included
+            record_terminal_run("usajobs", "failed", {}, error, database_url=ctx["database_url"])
         return StepResult("usajobs", False, "failed", detail=error)
     if ctx["dry_run"]:
         return StepResult("usajobs", True, "planned", detail="would run keyword + series searches")
