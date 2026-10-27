@@ -21,7 +21,7 @@
 |---|---|---|
 | `pytest` with `TEST_DATABASE_URL` | 518 passed, 0 failed, 1 skipped | **553 passed, 0 failed, 1 skipped** (+35: LCA guardrails 20, new views 7, report 3 8). The skip is the Metabase e2e test, which needs `METABASE_URL` |
 | `ruff check .` (0.17.2) | clean | clean |
-| `ruff format --check .` (0.17.2) | clean | clean, 132 files |
+| `ruff format --check .` (0.17.2) | clean | clean, 133 files (ruff 0.17 counts Markdown too, this report included) |
 | alembic upgrade → downgrade → upgrade on a recreated database | clean | clean (no migration in this milestone) |
 | `make views` on a fresh database, twice | 12 views | **16 views**, twice |
 | Golden file (report 3 from hand-built frames, FAKE names, invented numbers) | — | matches `tests/fixtures/reports/employers-and-sponsorship.md` |
