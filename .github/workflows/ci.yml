@@ -40,9 +40,9 @@ jobs:
       DATABASE_URL: postgresql+psycopg2://postgres:postgres@127.0.0.1:5432/jobmarket_test
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -67,3 +67,16 @@ jobs:
         # The round trip left an alembic-built schema; integration tests
         # reset the schema themselves, so they run cleanly on top of it.
         run: pytest
+
+  image:
+    # Builds the pipeline image and checks its contents. No push, no
+    # registry login: the server builds its own image (docs/deploy.md).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Build
+        run: docker build -t job-market-tracker:ci .
+
+      - name: Verify contents
+        run: scripts/verify_image.sh job-market-tracker:ci

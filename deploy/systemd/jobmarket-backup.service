@@ -1,0 +1,14 @@
+# Nightly pg_dump of jobmarket and metabase_app (deploy/backup.sh).
+# Installed by deploy/bootstrap.sh; started by jobmarket-backup.timer.
+[Unit]
+Description=Job Market Tracker nightly database backup
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=deploy
+Group=deploy
+WorkingDirectory=/home/deploy/job-market-tracker
+ExecStart=/home/deploy/job-market-tracker/deploy/backup.sh
+TimeoutStartSec=30min

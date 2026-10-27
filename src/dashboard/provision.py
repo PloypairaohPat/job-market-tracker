@@ -75,6 +75,9 @@ class Config:
     db_name: str = ""
     db_user: str = "metabase_reader"
     site_name: str = "Job Market Tracker"
+    # The address viewers use (MB_SITE_URL), for printed public links; on the
+    # server METABASE_URL is the internal http://metabase:3000. Empty = url.
+    site_url: str = ""
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> Config:
@@ -91,6 +94,7 @@ class Config:
             db_port=int(env.get("METABASE_DB_PORT") or cls.db_port),
             db_name=db_name,
             db_user=env.get("METABASE_DB_USER") or cls.db_user,
+            site_url=(env.get("MB_SITE_URL") or "").rstrip("/"),
         )
 
     def missing(self) -> list[str]:
@@ -252,6 +256,7 @@ class Provisioner:
         self.reconnect = reconnect
         self.dashboards_dir = dashboards_dir
         self.result = Result()
+        self._public_sharing_checked = False
         self.api = Api(
             config.url, session or requests.Session(), config.secrets, dry_run, self.result
         )
@@ -558,16 +563,26 @@ class Provisioner:
             return
         if not self.public_links:
             return
-        setting = self.api.get("/api/setting/enable-public-sharing")
-        if setting not in (True, "true"):
-            self.api.put("/api/setting/enable-public-sharing", {"value": True})
-            self.result.updated.append("setting enable-public-sharing")
+        self.ensure_public_sharing()
         if not uuid:
             created = self.api.post(f"/api/dashboard/{current['id']}/public_link")
             uuid = (created or {}).get("uuid")
             self.result.created.append(f"dashboard {dash.slug} public link")
         if uuid:
-            self.result.public_urls[dash.slug] = f"{self.config.url}/public/dashboard/{uuid}"
+            base = self.config.site_url or self.config.url
+            self.result.public_urls[dash.slug] = f"{base}/public/dashboard/{uuid}"
+
+    def ensure_public_sharing(self) -> None:
+        """Turn public sharing on once per run, only if it's off. v0.64 answers
+        GET /api/setting/enable-public-sharing with an empty 204, so read the
+        effective value from /api/session/properties instead."""
+        if self._public_sharing_checked:
+            return
+        self._public_sharing_checked = True
+        props = self.api.get("/api/session/properties") or {}
+        if props.get("enable-public-sharing") is not True:
+            self.api.put("/api/setting/enable-public-sharing", {"value": True})
+            self.result.updated.append("setting enable-public-sharing")
 
     def prune(self, dashboards, existing_cards: dict, existing_dashboards: dict) -> None:
         """Delete marked items no longer in the spec, and duplicates of kept ones."""

@@ -42,6 +42,9 @@ class Settings:
     usajobs_api_key: str = field(repr=False, default="")
     usajobs_user_agent_email: str = field(repr=False, default="")
     usajobs_min_request_interval: float = 1.0
+    # optional dead-man's switch, pinged after each daily run; it embeds the
+    # check's secret token, so it's masked in logs like the API keys
+    healthcheck_ping_url: str = field(repr=False, default="")
 
 
 def get_settings(require_adzuna: bool = False, require_usajobs: bool = False) -> Settings:
@@ -77,4 +80,5 @@ def get_settings(require_adzuna: bool = False, require_usajobs: bool = False) ->
         usajobs_min_request_interval=float(
             os.environ.get("USAJOBS_MIN_REQUEST_INTERVAL_SECONDS", "1.0")
         ),
+        healthcheck_ping_url=os.environ.get("HEALTHCHECK_PING_URL", "").strip(),
     )

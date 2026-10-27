@@ -115,7 +115,7 @@ The provisioner can share the public dashboards (all but Visa outlook) with `--p
 - Metabase listens on 127.0.0.1 only, so a public link wouldn't work from anywhere else anyway.
 - Exposing the laptop to the internet isn't worth the risk.
 
-Public links belong on the always-on Hetzner box (Milestone D), behind HTTPS, with Postgres as Metabase's app database. Visa outlook is `public: false` and never gets a link: the provisioner removes one if it finds it.
+Public links belong on the always-on server (Milestone D, [docs/deploy.md](deploy.md)), behind HTTPS, with Postgres as Metabase's app database. They're the last step of its cut-over. Visa outlook is `public: false` and never gets a link: the provisioner removes one if it finds it.
 
 ## Metabase version
 

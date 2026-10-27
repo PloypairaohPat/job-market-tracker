@@ -1,0 +1,39 @@
+# Public face of the stack (docs/deploy.md). Caddy forwards ONLY the paths a
+# public dashboard link needs; everything else -- the Metabase login, admin
+# pages and the authenticated API -- gets 404. Admin access is only through
+# an SSH tunnel to 127.0.0.1:3000 on the server, never through Caddy.
+#
+# SITE_ADDRESS (from .env): a domain like jobs.example.com gets automatic
+# HTTPS; ":80" serves plain HTTP (testing only).
+
+{$SITE_ADDRESS} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+
+	log {
+		output stdout
+		format json
+	}
+
+	# What a public dashboard link loads: the page, its API calls, the
+	# frontend bundle and assets, and the icon. Verified with a browser on
+	# Metabase v0.64.3.4: every card renders. The page also requests
+	# /api/session/properties, which stays blocked on purpose (it exposes
+	# site settings and the version to anonymous callers); the public view
+	# renders fully without it.
+	@public path /public/dashboard/* /api/public/* /app/* /favicon.ico
+	handle @public {
+		reverse_proxy metabase:3000
+	}
+
+	handle {
+		respond 404
+	}
+}

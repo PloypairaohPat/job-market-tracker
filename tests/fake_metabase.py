@@ -80,7 +80,12 @@ class FakeMetabase:
 
         if path == "/api/session/properties" and method == "GET":
             return FakeResponse(
-                200, {"has-user-setup": self.setup_done, "setup-token": "fake-token"}
+                200,
+                {
+                    "has-user-setup": self.setup_done,
+                    "setup-token": "fake-token",
+                    "enable-public-sharing": self.settings["enable-public-sharing"],
+                },
             )
         if path == "/api/setup" and method == "POST":
             if self.setup_error_body is not None:
@@ -101,7 +106,7 @@ class FakeMetabase:
             if method == "PUT":
                 self.settings["enable-public-sharing"] = json["value"]
                 return FakeResponse(204)
-            return FakeResponse(200, self.settings["enable-public-sharing"])
+            return FakeResponse(204)  # like v0.64: the value is in /api/session/properties
         if not m:
             return FakeResponse(404, "API endpoint does not exist.")
         kind, ident, rest = m.group(1), m.group(2), m.group(3)

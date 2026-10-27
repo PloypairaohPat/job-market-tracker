@@ -23,6 +23,11 @@ Judgment calls (docs/daily-operation.md, docs/data_dictionary.md):
   appended), through the secret-redaction filter. No rotation.
 - Exit 0 when every step that ran succeeded (`skipped_budget` and
   `partial` count as success: the guard did its job); 1 otherwise.
+- Optional dead-man's switch: when HEALTHCHECK_PING_URL is set, the run
+  ends with a GET to that URL (success) or `<URL>/fail` (failure) -- the
+  healthchecks.io convention -- with a short timeout. A failed ping is
+  logged and never changes the exit code; the URL is masked in logs. No
+  ping on a dry run or when another run holds the lock. Unset = nothing sent.
 - `--dry-run` is a PLAN only: it logs the budget decision and the steps
   that would run, and makes no API call and no write. (The ingest CLIs'
   --dry-run fetches without writing; here that would spend budget the
@@ -41,6 +46,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
+import requests
 from sqlalchemy import create_engine, text
 
 from src.cleaning.apply_cleaning import ALL_STEPS, DEFAULT_CANDIDATES_OUT, run_steps
@@ -62,6 +68,7 @@ STEPS = ("adzuna", "usajobs", "cleaning", "skills", "health")
 SOURCE_MAX_CALLS = 60  # per-run cap, same default as the ingest CLIs
 LOG_DIR = Path("logs")
 LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
+PING_TIMEOUT_SECONDS = 10
 
 
 @dataclass
@@ -256,6 +263,23 @@ def _run_step(name: str, ctx: dict) -> StepResult:
 # --------------------------------------------------------------------- #
 
 
+def send_ping(url: str, ok: bool, session=None) -> bool:
+    """Tell the dead-man's switch how the run went. Never raises; the URL is
+    never logged (and the log filter masks it anyway)."""
+    target = url.rstrip("/") + ("" if ok else "/fail")
+    outcome = "success" if ok else "fail"
+    try:
+        resp = (session or requests).get(target, timeout=PING_TIMEOUT_SECONDS)
+    except requests.RequestException as exc:
+        logger.warning("dead-man's-switch ping (%s) failed: %s", outcome, exc)
+        return False
+    if resp.status_code >= 400:
+        logger.warning("dead-man's-switch ping (%s) got HTTP %d", outcome, resp.status_code)
+        return False
+    logger.info("dead-man's-switch ping sent (%s)", outcome)
+    return True
+
+
 def format_summary(result: DailyResult) -> str:
     lines = ["", "=" * 72, "Daily run summary"]
     for s in result.steps:
@@ -277,6 +301,7 @@ def run_daily(
     candidates_out: Path = DEFAULT_CANDIDATES_OUT,
     adzuna_client_factory=None,
     usajobs_client_factory=None,
+    ping_session=None,
 ) -> DailyResult:
     settings = settings or get_settings()
     database_url = database_url or settings.database_url
@@ -307,6 +332,8 @@ def run_daily(
                 result.steps.append(_run_step(name, ctx))
         result.exit_code = 0 if all(s.ok for s in result.steps) else 1
         logger.info(format_summary(result))
+        if settings.healthcheck_ping_url and not dry_run:
+            send_ping(settings.healthcheck_ping_url, result.exit_code == 0, ping_session)
         return result
 
 

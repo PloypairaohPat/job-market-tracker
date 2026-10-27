@@ -13,7 +13,8 @@ error text). Two layers keep secrets out:
   message and traceback.
 
 Secrets are the credential values in Settings: Adzuna app_id and app_key,
-USAJobs key and user-agent email (treated as secret too).
+USAJobs key and user-agent email (treated as secret too), and the
+dead-man's-switch ping URL (it embeds the check's token).
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import Iterable
+from urllib.parse import urlsplit
 
 from src.utils.config import Settings
 
@@ -37,12 +39,22 @@ def redact(text: str | None, secrets: Iterable[str] = ()) -> str | None:
     return _QUERY_SECRET.sub(rf"\g<1>{MASK}", text)
 
 
+def url_secrets(url: str) -> list[str]:
+    """A URL and its path: requests errors print host and path apart
+    ("host='...' ... url: /<token>/fail"), so the path is masked on its own."""
+    if not url:
+        return []
+    path = urlsplit(url).path.strip("/")
+    return [url, path] if path else [url]
+
+
 def secrets_from_settings(settings: Settings) -> list[str]:
     return [
         settings.adzuna_app_id,
         settings.adzuna_app_key,
         settings.usajobs_api_key,
         settings.usajobs_user_agent_email,
+        *url_secrets(settings.healthcheck_ping_url),
     ]
 
 

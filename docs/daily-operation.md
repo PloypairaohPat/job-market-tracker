@@ -82,12 +82,7 @@ Snapshot dates are **UTC** dates. If a run lands near UTC midnight (about 7–9 
 - **Asleep** at 07:15: the task runs once when the laptop wakes ("start when available"). That's fine.
 - **Off or away** all day: that day is lost for good. The health check will show it (H2 WARN/FAIL and a reset streak), but nothing can recover it.
 
-The durable fix is running the same pipeline on an always-on box: **Milestone D (Hetzner)**, using `scripts/run_daily.sh` from cron:
-
-```cron
-# 07:15 server-local time; set the server's TZ, or pick an hour far from 00:00 UTC
-15 7 * * *  /path/to/job-market-tracker/scripts/run_daily.sh
-```
+The durable fix is running the same pipeline on an always-on server: **Milestone D**. [docs/deploy.md](deploy.md) sets it up with a systemd timer at 11:15 UTC, and its cut-over makes sure the laptop and the server never both ingest on the same UTC day. Don't add a cron job as well.
 
 ## The Adzuna budget
 
