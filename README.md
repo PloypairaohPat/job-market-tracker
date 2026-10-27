@@ -4,7 +4,7 @@ A self-hosted analytics platform that ingests live job posting data, extracts sk
 
 **Why it exists**: job seekers in analytics face information asymmetry — hidden salary bands, inconsistent skill descriptions, no visibility into market shape. This project builds a transparent, queryable view of that market, and in doing so demonstrates the full analyst workflow: **ingestion → cleaning → modeling → analysis → visualization → storytelling**.
 
-> **Status:** two sources (Adzuna and USAJobs) ingested by a daily runner with a budget guard and a health check; a cleaning layer, skill tagging and a visa-sponsorship layer; nine SQL views with three investigations written up; six Metabase dashboards defined as code. A deploy kit for an always-on server is ready but not yet used. Written reports come next. See the [roadmap](#roadmap).
+> **Status:** two sources (Adzuna and USAJobs) ingested by a daily runner with a budget guard and a health check; a cleaning layer, skill tagging and a visa-sponsorship layer; eleven SQL views with three investigations written up; six Metabase dashboards defined as code. A deploy kit for an always-on server is ready but not yet used. A report kit renders the first written report's tables, charts and methods from the views; its narrative comes next. See the [roadmap](#roadmap).
 
 ## In three minutes
 
@@ -197,6 +197,7 @@ src/
   ingestion/     Adzuna + USAJobs clients, parsers, ingestion, run log, budget guard
   pipeline/      daily runner and health check
   dashboard/     Metabase: read-only role, dashboard spec validator, provisioner, demo dataset
+  reports/       Phase 5 report kit: views in, Markdown + PNG charts out, guardrails as code
   cleaning/      Phase 2: normalization & skill extraction
   visa/          visa-sponsorship layer: DOL LCA loader, posting signals, outlook scan (see src/visa/README.md)
   models/        SQLAlchemy models (schema source of truth)
@@ -218,13 +219,13 @@ docs/            project guide, data dictionary, findings, runbooks
 |---|---|---|
 | 1 | Foundation, schema, Adzuna ingestion, first exploration | ✅ done |
 | 2 | Cleaning: company normalization, salary quality, seniority, remote, metro; skill taxonomy and extractor | ✅ done (the extractor matches a curated taxonomy; a spaCy layer is deferred) |
-| 3 | Analytics layer: SQL views, investigations | in progress: nine views and three investigations ([findings](docs/phase_3_findings.md)); the skill salary premium is deferred; investigation notebooks to come |
+| 3 | Analytics layer: SQL views, investigations | in progress: SQL views and three investigations ([findings](docs/phase_3_findings.md)); the skill salary premium is deferred; investigation notebooks to come |
 | — | Second source: USAJobs (federal postings) | ✅ done |
 | — | Visa-sponsorship layer: DOL LCA data, posting signals, sponsor matching | ✅ done |
 | — | Daily clock: daily runner, run log, Adzuna budget guard, health check, CI | ✅ done (Task Scheduler on the laptop until the server cut-over) |
 | 4 | Metabase dashboards | ✅ six dashboards defined as code; public links after the server cut-over |
 | 6 | Productionize: scheduling, monitoring, deployment | deploy kit ready ([`docs/deploy.md`](docs/deploy.md)), not yet deployed; scheduling is the daily runner plus a timer, not Prefect |
-| 5 | Written reports: the portfolio centerpiece | next |
+| 5 | Written reports: the portfolio centerpiece | report kit ready ([`docs/reports.md`](docs/reports.md)): report 1, commercial vs federal skill demand, renders its tables, charts and methods from the views with one command; the narrative is next, written on real data |
 
 ## Documentation
 
@@ -233,5 +234,6 @@ docs/            project guide, data dictionary, findings, runbooks
 - [`docs/daily-operation.md`](docs/daily-operation.md) — running the daily clock and reading its health check
 - [`docs/dashboard.md`](docs/dashboard.md) — the Metabase dashboards: setup, caveats, changing a card
 - [`docs/deploy.md`](docs/deploy.md) — running on a server: bootstrap, cut-over, backups, updating
+- [`docs/reports.md`](docs/reports.md) — the written reports: rendering one from the views, the guardrails, writing the narrative
 - [`docs/phase_1_findings.md`](docs/phase_1_findings.md) — what Phase 1 revealed about the data
 - [`docs/adzuna_sample_response.json`](docs/adzuna_sample_response.json) — API response shape reference

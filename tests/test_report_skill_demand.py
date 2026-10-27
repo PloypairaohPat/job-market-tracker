@@ -238,3 +238,15 @@ def test_end_to_end_on_the_demo_seed(tmp_path, monkeypatch, capsys):
 def test_the_cli_lists_reports(capsys):
     assert main(["--list"]) == 0
     assert skill_demand.SLUG in capsys.readouterr().out
+
+
+def test_an_unwritable_output_directory_is_a_clean_error(monkeypatch, capsys):
+    import src.reports.__main__ as cli
+
+    def refuse(*args, **kwargs):
+        raise PermissionError(13, "Permission denied", "/reports/x")
+
+    monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg2://u:p@127.0.0.1:5432/jobmarket_test")
+    monkeypatch.setattr(cli, "generate", refuse)
+    assert cli.main([skill_demand.SLUG, "--out", "/reports"]) == 1
+    assert "report not written to /reports" in capsys.readouterr().err

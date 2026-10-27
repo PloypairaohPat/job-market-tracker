@@ -44,6 +44,9 @@ def main(argv: list[str] | None = None) -> int:
     except GuardrailError as exc:
         print(f"report not rendered: {exc}", file=sys.stderr)
         return 1
+    except OSError as exc:  # e.g. --out not writable by this user
+        print(f"report not written to {args.out}: {exc}", file=sys.stderr)
+        return 1
     finally:
         engine.dispose()
     charts = sorted(p.name for p in path.parent.glob("*.png"))
