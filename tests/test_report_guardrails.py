@@ -60,9 +60,14 @@ def test_a_zero_denominator_renders_as_not_applicable():
 
 def test_counts_ratios_and_stats_render_with_their_n():
     assert Count(1483).render() == "1,483"
-    assert Ratio(1353, 609, terms="tags / jobs").render() == "2.22 (1,353 / 609 tags / jobs)"
+    assert (
+        Ratio(1353, 609, num_unit="tags", den_unit="jobs").render()
+        == "2.22 (1,353 tags / 609 jobs)"
+    )
     assert Ratio(7, 2, places=1, suffix="x").render() == "3.5x (7 / 2)"
     assert Stat(5739.0, 5, fmt="{:,.0f} chars").render() == "5,739 chars (n=5)"
+    assert Stat(235.0, 609, iqr=(224.0, 244.0)).render() == "235 (IQR 224–244; n=609)"
+    assert Ratio(1353.0, 609).render() == "2.22 (1,353 / 609)"
     assert Stat(None, 0).render() == "n/a (n=0)"
     with pytest.raises(GuardrailError):
         Stat(float("nan"), 5)

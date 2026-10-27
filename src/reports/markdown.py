@@ -33,13 +33,20 @@ _GUARDED = (Count, Rate, Ratio, Stat, Gap, SalarySummary)
 _BARE_NUMBER = re.compile(r"^\s*[-+]?\$?\d[\d,]*(?:\.\d+)?\s*(?:%|pp|x)?\s*$")
 
 
-def render_cell(cell) -> str:
+def render_cell(cell, row: list | None = None) -> str:
+    """One cell. `row` is the table row it sits in (needed for a compact Gap)."""
     if cell is None:
         return "—"
     if isinstance(cell, bool):
         raise GuardrailError(f"boolean {cell!r} in a table: render it as a label")
     if isinstance(cell, numbers.Integral):
         return Count(cell).render()
+    if isinstance(cell, Gap) and cell.compact:
+        if row is None or not any(c is cell.a or c == cell.a for c in row if isinstance(c, Rate)):
+            raise GuardrailError("a compact gap must sit in a table row that shows both its rates")
+        if not any(c is cell.b or c == cell.b for c in row if isinstance(c, Rate)):
+            raise GuardrailError("a compact gap must sit in a table row that shows both its rates")
+        return cell.render()
     if isinstance(cell, _GUARDED):
         return cell.render()
     if isinstance(cell, numbers.Real):
@@ -100,7 +107,7 @@ class Doc:
         lines.append("| " + " | ".join(headers) + " |")
         lines.append("|" + "|".join("---" for _ in headers) + "|")
         for row in rows:
-            lines.append("| " + " | ".join(render_cell(c) for c in row) + " |")
+            lines.append("| " + " | ".join(render_cell(c, row) for c in row) + " |")
         self.blocks.append("\n".join(lines))
 
     def image(self, filename: str, alt: str) -> None:

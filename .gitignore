@@ -30,3 +30,6 @@ scratch.py
 
 # Daily runner logs (logs/daily-YYYY-MM-DD.log)
 /logs/
+
+# Rendered reports (python -m src.reports): real numbers, regenerated, never committed
+/reports/

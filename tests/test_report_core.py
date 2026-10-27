@@ -9,7 +9,7 @@ from sqlalchemy import create_engine, text
 from scripts.apply_views import apply_views
 from src.reports import provenance as prov
 from src.reports.charts import grouped_barh
-from src.reports.guardrails import GuardrailError, Rate, Stat, skill_rate
+from src.reports.guardrails import Gap, GuardrailError, Rate, Stat, skill_rate
 from src.reports.markdown import PLACEHOLDER_MARK, Doc, render_cell
 from src.reports.provenance import DEMO_BANNER, Provenance, is_demo_database
 from src.reports.views import ViewReader, repo_views
@@ -52,6 +52,23 @@ def test_a_table_of_commercial_skill_rates_must_say_truncation_floored():
     doc.table(["Skill", "Share"], [["SPSS", skill_rate(5, 70, "federal")]])
     with pytest.raises(GuardrailError, match="length"):
         doc.table(["a", "b"], [["only one"]])
+
+
+def test_a_compact_gap_only_renders_beside_both_of_its_rates():
+    a, b = Rate(180, 533, unit="tags"), Rate(26, 236, unit="tags")
+    gap = Gap(a, b, compact=True)
+    doc = Doc("t", stamp(), "slug")
+    doc.table(["Category", "Commercial", "Federal", "Gap"], [["workflow", a, b, gap]])
+    assert doc.blocks[-1].endswith(
+        "| workflow | 33.8% (180 of 533 tags) | 11.0% (26 of 236 tags) | +22.8 pp |"
+    )
+    with pytest.raises(GuardrailError, match="both its rates"):
+        doc.table(["Category", "Gap"], [["workflow", gap]])
+    with pytest.raises(GuardrailError, match="both its rates"):
+        doc.table(["Category", "Commercial", "Gap"], [["workflow", a, gap]])
+    with pytest.raises(GuardrailError, match="both its rates"):
+        doc.bullets([("Gap", gap)])  # outside a table it needs its rates inline
+    assert render_cell(Gap(a, b)).startswith("+22.8 pp (33.8%")
 
 
 def test_render_stamps_provenance_and_the_demo_banner():

@@ -168,13 +168,15 @@ class Rate:
 
 @dataclass(frozen=True)
 class Ratio:
-    """numerator / denominator, rendered with both terms beside it."""
+    """numerator / denominator, rendered with both terms beside it:
+    "2.22 (1,353 tags / 609 jobs)", "3.5x (7 / 2)"."""
 
     numerator: float
     denominator: int
     places: int = 2
     suffix: str = ""
-    terms: str = ""  # e.g. "tags / jobs"
+    num_unit: str = ""
+    den_unit: str = ""
 
     def __post_init__(self) -> None:
         if self.numerator is None or (
@@ -184,26 +186,29 @@ class Ratio:
         object.__setattr__(self, "denominator", _count(self.denominator, "ratio denominator"))
 
     def render(self) -> str:
-        terms = f" {self.terms}" if self.terms else ""
         num = (
-            f"{self.numerator:,}"
+            f"{int(self.numerator):,}"
             if float(self.numerator).is_integer()
             else f"{self.numerator:,.{self.places}f}"
         )
+        num += f" {self.num_unit}" if self.num_unit else ""
+        den = f"{self.denominator:,}" + (f" {self.den_unit}" if self.den_unit else "")
         if self.denominator == 0:
-            return f"n/a ({num} / 0{terms})"
+            return f"n/a ({num} / {den})"
         value = self.numerator / self.denominator
-        return f"{value:,.{self.places}f}{self.suffix} ({num} / {self.denominator:,}{terms})"
+        return f"{value:,.{self.places}f}{self.suffix} ({num} / {den})"
 
 
 @dataclass(frozen=True)
 class Stat:
-    """A grouped number other than a count or rate (a median, a length): with its n."""
+    """A grouped number other than a count or rate (a median, a length): with its n,
+    and its interquartile range when `iqr` is given."""
 
     value: float
     n: int
     fmt: str = "{:,.0f}"
     prefix: str = ""
+    iqr: tuple[float, float] | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "n", _count(self.n, "n behind a grouped number"))
@@ -214,15 +219,24 @@ class Stat:
     def render(self) -> str:
         if self.n == 0 or self.value is None:
             return "n/a (n=0)"
-        return f"{self.prefix}{self.fmt.format(self.value)} (n={self.n:,})"
+        spread = ""
+        if self.iqr is not None:
+            low, high = (self.fmt.format(v) for v in self.iqr)
+            spread = f"IQR {self.prefix}{low}–{self.prefix}{high}; "
+        return f"{self.prefix}{self.fmt.format(self.value)} ({spread}n={self.n:,})"
 
 
 @dataclass(frozen=True)
 class Gap:
-    """Percentage-point difference a - b, shown with both rates."""
+    """Percentage-point difference a - b, shown with both rates.
+
+    `compact=True` renders just "+9.1 pp". Only a Markdown table accepts a
+    compact gap, and only in a row that also shows both rates.
+    """
 
     a: Rate
     b: Rate
+    compact: bool = False
 
     def __post_init__(self) -> None:
         if not isinstance(self.a, Rate) or not isinstance(self.b, Rate):
@@ -236,7 +250,9 @@ class Gap:
 
     def render(self) -> str:
         if self.points is None:
-            return f"n/a ({self.a.render()} vs {self.b.render()})"
+            return "n/a" if self.compact else f"n/a ({self.a.render()} vs {self.b.render()})"
+        if self.compact:
+            return f"{self.points:+.1f} pp"
         return f"{self.points:+.1f} pp ({self.a.render()} vs {self.b.render()})"
 
     @property
