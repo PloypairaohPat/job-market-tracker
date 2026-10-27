@@ -86,6 +86,7 @@ def grouped_barh(
     ax.invert_yaxis()
     ax.set_xlim(0, max(peak, 1.0) * 1.55)
     ax.set_xlabel(xlabel, color=INK_SECONDARY, fontsize=8.5)
+    ax.set_xticks([t for t in ax.get_xticks() if 0 <= t <= 100])  # percentages: no tick past 100
     ax.tick_params(axis="x", colors=INK_SECONDARY, labelsize=8)
     ax.tick_params(axis="y", length=0)
     ax.grid(axis="x", color=GRID, linewidth=0.8, zorder=0)
@@ -95,7 +96,15 @@ def grouped_barh(
     full_title = f"{DEMO_BANNER}\n{title}" if demo else title
     ax.set_title(full_title, loc="left", color=INK, fontsize=10.5, pad=12)
     if n_series > 1:
-        ax.legend(frameon=False, fontsize=8.5, loc="lower right", labelcolor=INK)
+        # above the plot, right-aligned: clear of every bar label
+        ax.legend(
+            frameon=False,
+            fontsize=8.5,
+            loc="lower right",
+            bbox_to_anchor=(1.0, 1.0),
+            ncol=n_series,
+            labelcolor=INK,
+        )
     fig.tight_layout()
     fig.savefig(path, facecolor=SURFACE, metadata={"Software": None})
     plt.close(fig)

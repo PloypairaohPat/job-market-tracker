@@ -4,7 +4,7 @@ A self-hosted analytics platform that ingests live job posting data, extracts sk
 
 **Why it exists**: job seekers in analytics face information asymmetry — hidden salary bands, inconsistent skill descriptions, no visibility into market shape. This project builds a transparent, queryable view of that market, and in doing so demonstrates the full analyst workflow: **ingestion → cleaning → modeling → analysis → visualization → storytelling**.
 
-> **Status:** two sources (Adzuna and USAJobs) ingested by a daily runner with a budget guard and a health check; a cleaning layer, skill tagging and a visa-sponsorship layer; eleven SQL views with three investigations written up; six Metabase dashboards defined as code. A deploy kit for an always-on server is ready but not yet used. A report kit renders the first written report's tables, charts and methods from the views; its narrative comes next. See the [roadmap](#roadmap).
+> **Status:** two sources (Adzuna and USAJobs) ingested by a daily runner with a budget guard and a health check; a cleaning layer, skill tagging and a visa-sponsorship layer; twelve SQL views with three investigations written up; six Metabase dashboards defined as code. A deploy kit for an always-on server is ready but not yet used. A report kit renders the first two written reports' tables, charts and methods from the views; their narrative comes next. See the [roadmap](#roadmap).
 
 ## In three minutes
 
@@ -225,7 +225,7 @@ docs/            project guide, data dictionary, findings, runbooks
 | — | Daily clock: daily runner, run log, Adzuna budget guard, health check, CI | ✅ done (Task Scheduler on the laptop until the server cut-over) |
 | 4 | Metabase dashboards | ✅ six dashboards defined as code; public links after the server cut-over |
 | 6 | Productionize: scheduling, monitoring, deployment | deploy kit ready ([`docs/deploy.md`](docs/deploy.md)), not yet deployed; scheduling is the daily runner plus a timer, not Prefect |
-| 5 | Written reports: the portfolio centerpiece | report kit ready ([`docs/reports.md`](docs/reports.md)): report 1, commercial vs federal skill demand, renders its tables, charts and methods from the views with one command; the narrative is next, written on real data |
+| 5 | Written reports: the portfolio centerpiece | report kit ready ([`docs/reports.md`](docs/reports.md)): two reports (commercial vs federal skill demand; how much employers disclose) render their tables, charts and methods from the views with one command; the narrative is next, written on real data |
 
 ## Documentation
 

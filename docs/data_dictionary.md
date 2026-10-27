@@ -554,7 +554,7 @@ Limits, so nobody reads it as a finding:
 
 ## Reports *(added with the report kit)*
 
-The Phase 5 reports (`docs/reports.md`) read only `v_*` views. Two views were added so that report 1 never has to read a base table.
+The Phase 5 reports (`docs/reports.md`) read only `v_*` views. Three views were added so that no report has to read a base table.
 
 ### `v_skill_text_basis`
 
@@ -578,3 +578,11 @@ Federal in-scope skill tag rates by **admission route** (`jobs.scope_reason`, wi
 - One row per (route, skill) for every skill tagged on any federal in-scope job, **zero counts included**. If no federal job carries a tag, each route still has one row with `name` NULL.
 - It regenerates the Statistics-tag circularity check in `docs/findings_commercial_vs_federal_skills.md`.
 - No minimum-n floor; `route_n_jobs` is on every row.
+
+### `v_field_completeness_counts`
+
+The counts behind `v_field_completeness`'s percentages, one row per market, with the same populations and field definitions: `n_jobs` (the denominator) and `n_<field>` for each `pct_<field>`, plus `n_salary_predicted` (salary present and `salary_is_predicted = true`: Adzuna's model estimate), which `v_field_completeness` has no column for.
+
+- Report 2 rebuilds every rate from these counts and checks that `100 * n_<field> / n_jobs` reproduces `pct_<field>`, so the two views can't drift apart silently.
+- The market-fact vs instrument-limited labels in `v_field_completeness.sql`'s header apply unchanged.
+- `n_skill_present` counts a tag at any confidence, as `v_field_completeness` does.

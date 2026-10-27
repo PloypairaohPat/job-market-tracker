@@ -9,6 +9,7 @@ Laptop commands below are for Windows PowerShell with `uv`, run from the repo ro
 | Slug | Report | Regenerates | Views read |
 |---|---|---|---|
 | `commercial-vs-federal-skills` | Commercial vs federal skill demand | Phase 3 Investigation #2 | `v_skill_category_composition`, `v_skill_text_basis`, `v_skill_top_by_source`, `v_federal_skill_by_admission` |
+| `how-much-employers-disclose` | How much employers disclose | Phase 3 Investigation #3 | `v_field_completeness`, `v_field_completeness_counts` |
 
 `uv run python -m src.reports --list` prints the current list.
 
@@ -17,7 +18,7 @@ Laptop commands below are for Windows PowerShell with `uv`, run from the repo ro
 ### On the laptop
 
 ```powershell
-uv run python scripts/apply_views.py                          # once after pulling: the kit added two views
+uv run python scripts/apply_views.py                          # once after pulling: the kit added three views
 uv run python -m src.reports commercial-vs-federal-skills     # or: make report REPORT=commercial-vs-federal-skills
 ```
 
@@ -35,7 +36,7 @@ After the cut-over the data lives on the server ([`docs/deploy.md`](deploy.md)).
 cd ~/job-market-tracker
 git pull
 make prod-build                                   # the image must contain the report code
-make prod-views                                   # the two views the kit added
+make prod-views                                   # the three views the kit added
 make prod-report REPORT=commercial-vs-federal-skills
 ```
 
@@ -85,6 +86,7 @@ A report can't print a number except through `src/reports/guardrails.py`, and th
 | Salary | Only `salary_quality = 'ok'`, USD, `period = year` (`v_commercial_salary_clean`, or rows that prove it). Median and IQR, never the mean. Employer-disclosed and Adzuna-predicted are summarized separately; there is no pooled option. |
 | Small groups | Skill drill-downs keep only n ≥ 15 (commercial) and n ≥ 5 (federal), and say how many rows were suppressed. Composition categories below those floors are shown but marked ‡. |
 | Truncation | Commercial (Adzuna) skill rates are marked truncation-floored, and a table or chart showing one must say "truncation-floored". |
+| Instrument-limited fields | In report 2, seniority, metro and remote get their own section with the mechanism that limits each, and can't be charted beside the measured fields. Federal remote is "not measurable", never a 0% rate. |
 | Views only | `ViewReader` reads whole `v_*` views defined in `sql/views/`. Base tables and hand-written SQL are refused, and a test checks that no report module talks to the database another way. |
 
 If a report stops with a guardrail error, the message names the rule. It almost always means the data or a view changed shape. Fix the view or the report; don't work around the rule.
