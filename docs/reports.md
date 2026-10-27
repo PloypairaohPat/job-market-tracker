@@ -10,6 +10,7 @@ Laptop commands below are for Windows PowerShell with `uv`, run from the repo ro
 |---|---|---|---|
 | `commercial-vs-federal-skills` | Commercial vs federal skill demand | Phase 3 Investigation #2 | `v_skill_category_composition`, `v_skill_text_basis`, `v_skill_top_by_source`, `v_federal_skill_by_admission` |
 | `how-much-employers-disclose` | How much employers disclose | Phase 3 Investigation #3 | `v_field_completeness`, `v_field_completeness_counts` |
+| `employers-and-sponsorship` | Who hires data analysts, and who has filed to sponsor them | new: hiring concentration and the employers' LCA filing record (visa layer) | `v_employer_postings`, `v_employer_sponsorship_match`, `v_visa_outlook_summary`, `v_matched_employer_lca_wages` |
 
 `uv run python -m src.reports --list` prints the current list.
 
@@ -18,7 +19,7 @@ Laptop commands below are for Windows PowerShell with `uv`, run from the repo ro
 ### On the laptop
 
 ```powershell
-uv run python scripts/apply_views.py                          # once after pulling: the kit added three views
+uv run python scripts/apply_views.py                          # once after pulling: reports add views
 uv run python -m src.reports commercial-vs-federal-skills     # or: make report REPORT=commercial-vs-federal-skills
 ```
 
@@ -36,7 +37,7 @@ After the cut-over the data lives on the server ([`docs/deploy.md`](deploy.md)).
 cd ~/job-market-tracker
 git pull
 make prod-build                                   # the image must contain the report code
-make prod-views                                   # the three views the kit added
+make prod-views                                   # the views the reports added
 make prod-report REPORT=commercial-vs-federal-skills
 ```
 
@@ -87,6 +88,7 @@ A report can't print a number except through `src/reports/guardrails.py`, and th
 | Small groups | Skill drill-downs keep only n ≥ 15 (commercial) and n ≥ 5 (federal), and say how many rows were suppressed. Composition categories below those floors are shown but marked ‡. |
 | Truncation | Commercial (Adzuna) skill rates are marked truncation-floored, and a table or chart showing one must say "truncation-floored". |
 | Instrument-limited fields | In report 2, seniority, metro and remote get their own section with the mechanism that limits each, and can't be charted beside the measured fields. Federal remote is "not measurable", never a 0% rate. |
+| LCA filings (report 3) | `src/reports/lca_guardrails.py`: a filing count must say it counts LCA filings and can't be called hires or approvals; the offered wage is "on LCA filings", never what postings pay. Unmatched employers are "no match found", "unknown" is never "no", and text claiming an employer doesn't sponsor is refused. Methods must print the caveats from `src/visa/README.md`. Views and frames must be aggregate (no job ids, titles, URLs or case numbers), so the private Visa outlook dashboard isn't recreated. Without LCA data the sponsorship sections say "LCA data not loaded". |
 | Views only | `ViewReader` reads whole `v_*` views defined in `sql/views/`. Base tables and hand-written SQL are refused, and a test checks that no report module talks to the database another way. |
 
 If a report stops with a guardrail error, the message names the rule. It almost always means the data or a view changed shape. Fix the view or the report; don't work around the rule.

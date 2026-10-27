@@ -26,10 +26,11 @@ from src.reports.guardrails import (
     SalarySummary,
     Stat,
 )
+from src.reports.lca_guardrails import FilingCount, FilingWage
 from src.reports.provenance import DEMO_BANNER, Provenance
 
 PLACEHOLDER_MARK = "TO WRITE"
-_GUARDED = (Count, Rate, Ratio, Stat, Gap, SalarySummary)
+_GUARDED = (Count, Rate, Ratio, Stat, Gap, SalarySummary, FilingCount, FilingWage)
 _BARE_NUMBER = re.compile(r"^\s*[-+]?\$?\d[\d,]*(?:\.\d+)?\s*(?:%|pp|x)?\s*$")
 
 
