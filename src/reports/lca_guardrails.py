@@ -37,7 +37,7 @@ LCA_CAVEATS = {
     "large_filers": (
         "**Counts favour large filers, staffing firms included.** Big employers and IT staffing or "
         "outsourcing firms file thousands, so a high count says little about one role, and pooled "
-        "filing figures (such as the wage below) are dominated by the biggest filers."
+        "filing figures (such as a pooled offered wage) are dominated by the biggest filers."
     ),
     "unknown_not_no": (
         '**"Unknown" is never "no".** An employer with no LCA match is "no match found": the '

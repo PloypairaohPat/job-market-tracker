@@ -10,11 +10,11 @@ from __future__ import annotations
 from pathlib import Path
 from types import ModuleType
 
-from src.reports import disclosure, skill_demand
+from src.reports import disclosure, employers, skill_demand
 from src.reports.provenance import Provenance
 from src.reports.views import ViewReader
 
-REPORTS: dict[str, ModuleType] = {m.SLUG: m for m in (skill_demand, disclosure)}
+REPORTS: dict[str, ModuleType] = {m.SLUG: m for m in (skill_demand, disclosure, employers)}
 
 
 def generate(slug: str, reader: ViewReader, out_dir: Path) -> Path:

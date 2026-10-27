@@ -31,6 +31,9 @@
 --   n_filings_with_wage    of those, with a wage unit that annualizes
 --   n_employers            employers behind n_filings
 --   n_employers_with_wage  employers behind n_filings_with_wage
+--   largest_employer_n_filings  the most n_filings any one employer accounts
+--                          for: how far a single large filer drives the pool
+--                          (a count only; the employer isn't named)
 --   p25 / median / p75_offered_annual_wage  over n_filings_with_wage
 -- Aggregate only: no filing-level columns.
 
@@ -79,6 +82,16 @@ matched AS (
     SELECT e.market, f.employer_key, f.offered_annual_wage
     FROM employers e
     JOIN filings f ON f.employer_key = e.employer_key
+),
+per_employer AS (
+    SELECT market, employer_key, COUNT(*) AS n
+    FROM matched
+    GROUP BY market, employer_key
+),
+largest AS (
+    SELECT market, MAX(n) AS largest_employer_n_filings
+    FROM per_employer
+    GROUP BY market
 )
 SELECT
     m.market,
@@ -89,8 +102,10 @@ SELECT
         AS n_employers_with_wage,
     percentile_cont(0.25) WITHIN GROUP (ORDER BY x.offered_annual_wage) AS p25_offered_annual_wage,
     percentile_cont(0.5) WITHIN GROUP (ORDER BY x.offered_annual_wage) AS median_offered_annual_wage,
-    percentile_cont(0.75) WITHIN GROUP (ORDER BY x.offered_annual_wage) AS p75_offered_annual_wage
+    percentile_cont(0.75) WITHIN GROUP (ORDER BY x.offered_annual_wage) AS p75_offered_annual_wage,
+    COALESCE(MAX(lg.largest_employer_n_filings), 0) AS largest_employer_n_filings
 FROM markets m
 LEFT JOIN matched x ON x.market = m.market
+LEFT JOIN largest lg ON lg.market = m.market
 GROUP BY m.market
 ORDER BY m.market;

@@ -164,6 +164,9 @@ def test_wages_pool_matched_employers_analytics_filings(small):
     assert (commercial["n_filings"], commercial["n_filings_with_wage"]) == (2, 2)
     assert (commercial["n_employers"], commercial["n_employers_with_wage"]) == (1, 1)
     assert (
+        commercial["largest_employer_n_filings"] == 2 and federal["largest_employer_n_filings"] == 0
+    )
+    assert (
         commercial["p25_offered_annual_wage"],
         commercial["median_offered_annual_wage"],
         commercial["p75_offered_annual_wage"],
