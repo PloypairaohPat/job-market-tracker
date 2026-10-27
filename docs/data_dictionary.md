@@ -551,3 +551,38 @@ Limits, so nobody reads it as a finding:
 - **Visa outlook is derived from fixture text.** The USAJobs fixture's citizenship requirements are real announcement text, so those jobs land in `closed` through the normal rules.
 - **The patterns are artificial.** Salary and seniority patterns in the demo (e.g. junior medians above senior) mean nothing.
 - **Dashboards are labelled.** Provisioning against a `demo`/`test` database puts a "DEMO DATA: synthetic, not market findings" banner on every dashboard.
+
+## Reports *(added with the report kit)*
+
+The Phase 5 reports (`docs/reports.md`) read only `v_*` views. Three views were added so that no report has to read a base table.
+
+### `v_skill_text_basis`
+
+One row per market (`commercial` | `federal`, the same populations and the same `confidence >= 0.8` as `v_skill_category_composition`): what text the skill extractor read, and how many tags it found there.
+
+| Column | Meaning |
+|---|---|
+| `n_jobs` | jobs in the market |
+| `n_full_text` | jobs read from `description_full` (federal; Adzuna never has it) |
+| `n_near_cap` | jobs read from `description` only whose text is ≥ 480 characters: at or near Adzuna's ~500-character cap (parked threshold) |
+| `p25_text_chars`, `median_text_chars`, `p75_text_chars` | length of the description text the extractor read (title excluded) |
+| `n_jobs_tagged` | jobs with ≥ 1 skill tag at `confidence >= 0.8` |
+| `n_tags` | skill tags at `confidence >= 0.8`. Equals the sum of `v_skill_category_composition.n_tags` for the market: the denominator of its `pct_of_tags` |
+
+Counts only, each beside `n_jobs`.
+
+### `v_federal_skill_by_admission`
+
+Federal in-scope skill tag rates by **admission route** (`jobs.scope_reason`, with the `skill_density` route's trailing `:<n>` dropped): `admission_route`, `name`, `category`, `n_jobs_tagged`, `route_n_jobs`, `pct_of_jobs`.
+
+- One row per (route, skill) for every skill tagged on any federal in-scope job, **zero counts included**. If no federal job carries a tag, each route still has one row with `name` NULL.
+- It regenerates the Statistics-tag circularity check in `docs/findings_commercial_vs_federal_skills.md`.
+- No minimum-n floor; `route_n_jobs` is on every row.
+
+### `v_field_completeness_counts`
+
+The counts behind `v_field_completeness`'s percentages, one row per market, with the same populations and field definitions: `n_jobs` (the denominator) and `n_<field>` for each `pct_<field>`, plus `n_salary_predicted` (salary present and `salary_is_predicted = true`: Adzuna's model estimate), which `v_field_completeness` has no column for.
+
+- Report 2 rebuilds every rate from these counts and checks that `100 * n_<field> / n_jobs` reproduces `pct_<field>`, so the two views can't drift apart silently.
+- The market-fact vs instrument-limited labels in `v_field_completeness.sql`'s header apply unchanged.
+- `n_skill_present` counts a tag at any confidence, as `v_field_completeness` does.

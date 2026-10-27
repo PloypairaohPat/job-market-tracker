@@ -1,4 +1,4 @@
-.PHONY: up db-migrate seed-demo ingest smoke test lint notebook views daily health bi-grant bi-up bi-provision prod-build prod-up prod-down prod-ps prod-logs prod-metabase-db prod-migrate prod-views prod-grant prod-provision prod-daily prod-health
+.PHONY: up db-migrate seed-demo ingest smoke test lint notebook views daily health bi-grant bi-up bi-provision report prod-build prod-up prod-down prod-ps prod-logs prod-metabase-db prod-migrate prod-views prod-grant prod-provision prod-daily prod-health prod-report
 
 up:              ## start Postgres
 	docker compose up -d
@@ -48,6 +48,9 @@ bi-up:           ## start Metabase (and db) -- the opt-in "bi" compose profile
 bi-provision:    ## build/refresh every Metabase dashboard from dashboards/ (idempotent)
 	python -m src.dashboard.provision
 
+report:          ## render a report from the views into reports/<slug>/ (REPORT=<slug>; omit to list)
+	python -m src.reports $(REPORT)
+
 # --- production stack (server; docs/deploy.md). Always uses the root .env. ---
 PROD := docker compose -f deploy/docker-compose.prod.yml --env-file .env
 
@@ -86,3 +89,12 @@ prod-daily:      ## one daily run now (normally the systemd timer runs it)
 
 prod-health:     ## is the daily clock running on the server?
 	$(PROD) run --rm pipeline python -m src.pipeline.health
+
+# The image has no .git, so the host checkout's commit is passed in for the
+# provenance stamp. Runs as the invoking user so the files in ./reports are
+# theirs; MPLCONFIGDIR gives matplotlib a writable cache.
+prod-report:     ## render a report inside the pipeline image into ./reports/<slug>/ (REPORT=<slug>)
+	mkdir -p reports
+	$(PROD) run --rm --user "$$(id -u):$$(id -g)" -e MPLCONFIGDIR=/tmp/matplotlib \
+		-e REPORT_GIT_COMMIT="$$(git rev-parse --short=12 HEAD)$$(git diff --quiet HEAD -- || echo -dirty) (host checkout)" \
+		-v "$(CURDIR)/reports:/reports" pipeline python -m src.reports $(REPORT) --out /reports
