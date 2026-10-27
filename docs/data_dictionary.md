@@ -554,7 +554,7 @@ Limits, so nobody reads it as a finding:
 
 ## Reports *(added with the report kit)*
 
-The Phase 5 reports (`docs/reports.md`) read only `v_*` views. Three views were added so that no report has to read a base table.
+The Phase 5 reports (`docs/reports.md`) read only `v_*` views. The views below were added so that no report has to read a base table.
 
 ### `v_skill_text_basis`
 
@@ -586,3 +586,21 @@ The counts behind `v_field_completeness`'s percentages, one row per market, with
 - Report 2 rebuilds every rate from these counts and checks that `100 * n_<field> / n_jobs` reproduces `pct_<field>`, so the two views can't drift apart silently.
 - The market-fact vs instrument-limited labels in `v_field_completeness.sql`'s header apply unchanged.
 - `n_skill_present` counts a tag at any confidence, as `v_field_completeness` does.
+
+### Report 3 views: employers and sponsorship
+
+Four aggregate views for report 3 (`employers-and-sponsorship`). They use the same populations as `v_market_jobs` (commercial = every Adzuna posting, federal = USAJobs `in_scope`), defined inline because they sort before it. Each has a row per market. None carries a job- or filing-level column: no job ids, titles, URLs or case numbers.
+
+| View | One row per | What it holds |
+|---|---|---|
+| `v_employer_postings` | market × `employer_key` | `n_postings`, `employer_name` (display only), and the market's `market_n_postings` and `market_n_employers`. Postings with no company form one NULL-key row: counted in the market's total, never an employer |
+| `v_employer_sponsorship_match` | market | postings and employers matched to `v_employer_sponsorship` (`last_3_fy`, on `employer_key`) at three nested levels: any LCA filing, ≥ 1 certified H-1B, ≥ 1 certified analytics-SOC H-1B. Plus the denominators, `lca_rows_loaded` (0 = LCA files not loaded) and the window FYs |
+| `v_visa_outlook_summary` | market × `bucket` × `bucket_reason` | `v_job_visa_outlook` counted: `n_postings`, `market_n_postings`. Counts only, so a report never loads the per-job view behind the private dashboard |
+| `v_matched_employer_lca_wages` | market | offered annual wage on certified analytics-SOC H-1B **filings** by employers posting in the market (last 3 FYs): p25 / median / p75, `n_filings`, `n_filings_with_wage`, `n_employers`, `n_employers_with_wage` |
+
+Notes:
+
+- **No match is not a "no".** It means "no match found": names differ, and employers file under other entities.
+- **An LCA is a filing,** not an approval or a hire.
+- **Large filers dominate pooled wages.** The wage describes filings, not what postings pay.
+- **The rules repeat `v_employer_sponsorship.sql`.** `v_matched_employer_lca_wages` copies its SOC list, certified-H-1B rule, 3-FY window and wage annualization; a test keeps the copies identical.
