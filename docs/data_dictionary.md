@@ -318,12 +318,12 @@ Loaded by `python -m src.visa.lca_loader --file data/lca/<file> --fiscal-year <F
 
 | Column | Type | Meaning / judgment calls |
 |---|---|---|
-| `case_number` | text PK | `CASE_NUMBER`. Upsert key: files are cumulative within a fiscal year (Q3 contains Q1+Q2), so loading Q2 then Q3 converges instead of double counting. **The latest load wins** for every column — load files in chronological order. Duplicates within one file: last occurrence kept, counted. Rows without a case number: skipped, counted. |
-| `case_status` | text | `Certified` \| `Certified-Withdrawn` \| `Denied` \| `Withdrawn`, as given |
+| `case_number` | text PK | `CASE_NUMBER`. Upsert key. Some fiscal years' quarterly files hold one quarter each and others are cumulative (by `DECISION_DATE`, FY2024 Q4 and FY2025 Q4 hold July–September only; FY2026 Q3 holds October–June), so every quarterly file of each fiscal year is loaded, oldest first; a case in two overlapping files converges instead of double counting. **The latest load wins** for every column — load files in chronological order. Duplicates within one file: last occurrence kept, counted. Rows without a case number: skipped, counted. |
+| `case_status` | text | `Certified` \| `Certified - Withdrawn` (with spaces, as the files spell it) \| `Denied` \| `Withdrawn`, as given |
 | `received_date`, `decision_date`, `begin_date` | date, null | parsed from Excel dates, ISO or `m/d/Y`; unparseable → NULL, counted |
 | `visa_class` | text | `H-1B` \| `E-3 Australian` \| `H-1B1 Chile` \| `H-1B1 Singapore` |
 | `job_title`, `soc_code`, `soc_title` | text | as given. `soc_code` keeps its `.01`-style detail suffix; views match on `LEFT(soc_code, 7)` |
-| `full_time_position`, `h1b_dependent` (`H-1B_DEPENDENT`), `willful_violator` | bool, null | `Y`/`Yes`/`N`/`No` (any case); blank → NULL; anything else → NULL, counted |
+| `full_time_position`, `h1b_dependent` (`H_1B_DEPENDENT` in the FY2024–FY2026 files; `H-1B_DEPENDENT` also accepted, matched exactly; a file carrying both is refused), `willful_violator` | bool, null | `Y`/`Yes`/`N`/`No` (any case); blank → NULL; `N/A` / `NA` (any case) → NULL, counted per column as *not applicable*, not as a bad cell; anything else → NULL, counted as a bad cell |
 | `total_worker_positions`, `new_employment`, `continued_employment`, `change_employer` | int, null | non-integers → NULL, counted |
 | `employer_name`, `trade_name_dba`, `employer_city`, `employer_state`, `employer_fein`, `naics_code`, `worksite_city`, `worksite_state` | text | as given; numeric-looking Excel cells lose a spurious `.0` (`541511.0` → `541511`) |
 | `wage_rate_of_pay_from`, `wage_rate_of_pay_to`, `prevailing_wage` | numeric(14,2), null | `$` / `,` / spaces stripped; ranges, words or negatives → NULL, counted |
@@ -334,7 +334,21 @@ Loaded by `python -m src.visa.lca_loader --file data/lca/<file> --fiscal-year <F
 | `loaded_at` | timestamptz | when that load ran |
 | `employer_key` | text, null | `normalize_company_name(employer_name)` — the same key as `companies.normalized_name`. Employer names are **not** deduplicated beyond that: "Amazon.com Services LLC" and "Amazon Web Services" stay separate employers |
 
-**Personal data never loaded.** The files also carry real people's names, emails and phone numbers (`EMPLOYER_POC_*`, `AGENT_ATTORNEY_*`, `LAWFIRM_*`, `PREPARER_*`). The loader streams rows through an explicit 30-column allowlist (`COLUMN_MAP` in `src/visa/lca_loader.py`); every other cell is dropped as its row is read. Tested on synthetic files carrying invented values in those columns. Allowlisted columns missing from a file load as NULL with a warning; a file missing `CASE_NUMBER`, `CASE_STATUS` or `EMPLOYER_NAME` is refused.
+**Personal data never loaded.** The files also carry real people's names, emails and phone numbers (`EMPLOYER_POC_*`, `AGENT_ATTORNEY_*`, `LAWFIRM_*`, `PREPARER_*`). The loader streams rows through an explicit allowlist of 30 columns (`COLUMN_MAP` in `src/visa/lca_loader.py`: 31 exact header names, since `H-1B_DEPENDENT` and `H_1B_DEPENDENT` both map to `h1b_dependent`; no fuzzy or case-insensitive matching); every other cell is dropped as its row is read. Tested on synthetic files carrying invented values in those columns. Allowlisted columns missing from a file load as NULL with a warning naming every header tried; a file missing `CASE_NUMBER`, `CASE_STATUS` or `EMPLOYER_NAME` is refused.
+
+### `v_lca_coverage` — what each loaded fiscal year holds
+
+`sql/views/v_lca_coverage.sql`. One row per `fiscal_year` loaded, aggregate only:
+
+| Column | Meaning |
+|---|---|
+| `n_cases` | cases stored for the FY (one per `case_number`) |
+| `min_decision_date`, `max_decision_date` | earliest and latest `decision_date` |
+| `n_months_with_decisions` | calendar months with ≥ 1 decision: 12 for a complete FY, fewer for a partial one (9 for a current FY loaded to June) |
+
+A missing quarterly file shows up as fewer months or a late `min_decision_date`, not as an error. Cases with no `decision_date` count in `n_cases` only.
+
+The loader prints the same for each file after every load, dry run included: the `DECISION_DATE` range, cases per calendar month (a month with none shows 0), and how many cases were decided outside the `--fiscal-year` given (1 Oct of FY−1 to 30 Sep of FY). Any such case → a warning. More than 1% of the file's cases (`OUTSIDE_FY_MAX_SHARE`, *parked*) → the load is refused and nothing is written, unless `--allow-outside-fy` is passed: a mislabelled fiscal year would otherwise shift the 3-FY window.
 
 ### `v_employer_sponsorship` — employer-level sponsorship history
 
@@ -354,7 +368,7 @@ Loaded by `python -m src.visa.lca_loader --file data/lca/<file> --fiscal-year <F
 | `any_h1b_dependent`, `any_willful_violator` | any filing in the period flagged (any status / visa class) |
 
 Judgment calls:
-- **Certified-Withdrawn is excluded** from "certified": the employer withdrew it. Denied and Withdrawn are excluded. E-3 and H-1B1 are excluded — treaty visas an F-1 holder can't switch into.
+- **Certified - Withdrawn is excluded** from "certified": the employer withdrew it. Denied and Withdrawn are excluded. E-3 and H-1B1 are excluded — treaty visas an F-1 holder can't switch into.
 - **The 3-FY window is data-relative** (anchored on `MAX(fiscal_year)` loaded), so the view is deterministic. It only reaches "now" once the newest FY's file is loaded. *(Parked.)*
 - **Analytics SOC list** (default, *parked*), matched on the first 7 characters of `soc_code`: 15-2051 Data Scientists (incl. .01 Business Intelligence Analysts), 15-2041 Statisticians, 15-2031 Operations Research Analysts, 13-1161 Market Research Analysts, 15-1211 Computer Systems Analysts, 13-1111 Management Analysts, 15-1243 Database Architects, 13-2051 Financial and Investment Analysts. Lives in ONE place: the view's `analytics_soc` CTE.
 - **Wage annualization**: Hour × 2080, Week × 52, Bi-Weekly × 26, Month × 12, Year × 1. Any other or missing unit → NULL and counted, never guessed. Uses the bottom of the offered range (`_from`); `_to` is often blank.

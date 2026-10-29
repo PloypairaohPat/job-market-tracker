@@ -1,6 +1,7 @@
 """Load a DOL LCA disclosure file (.xlsx or .csv) into `lca_cases`.
 
 Run:  python -m src.visa.lca_loader --file data/lca/<file> --fiscal-year 2026 [--dry-run]
+          [--allow-outside-fy]
       python -m src.visa.lca_loader --rekey   (recompute employer_key after alias edits)
 
 Judgment calls (see docs/data_dictionary.md, `lca_cases`):
@@ -10,13 +11,28 @@ Judgment calls (see docs/data_dictionary.md, `lca_cases`):
   LAWFIRM_*, PREPARER_*). Rows are streamed and every cell outside
   `COLUMN_MAP` is dropped the moment its row is read, so those values
   are never held in a DataFrame and never reach the database.
-- **Upsert on case_number, latest load wins.** DOL's quarterly files
-  are cumulative within a fiscal year (a Q3 file also holds Q1+Q2), so
-  loading Q2 and then Q3 converges on one row per case instead of
-  double counting. Load files in chronological order.
+- **Header aliases, matched exactly.** A column DOL has spelled two ways
+  (`H-1B_DEPENDENT` / `H_1B_DEPENDENT`) lists both in `COLUMN_MAP`. No
+  fuzzy or case-insensitive matching. A file carrying two different
+  spellings of one column is refused rather than guessed at.
+- **Upsert on case_number, latest load wins.** Some fiscal years'
+  quarterly files hold one quarter each and others are cumulative (by
+  DECISION_DATE, FY2024 Q4 holds July-September only; FY2026 Q3 holds
+  October-June), so every quarterly file of a fiscal year is loaded,
+  oldest first. A case in two overlapping files converges on one row
+  instead of double counting. Load files in chronological order.
 - **Defensive parsing.** A bad flag, date, number or wage becomes NULL
   and is counted per column; it never aborts the load. A row with no
-  CASE_NUMBER is skipped and counted.
+  CASE_NUMBER is skipped and counted. `N/A` in a flag column means "not
+  applicable", not malformed: it loads as NULL and is counted separately
+  (`not_applicable`), never as a bad cell.
+- **Coverage, and a fiscal-year guard.** Every load (dry run included)
+  prints the earliest and latest DECISION_DATE and the cases per month,
+  so a one-quarter file is told apart from a year-to-date one. Cases
+  decided outside the `--fiscal-year` given (1 Oct of FY-1 to 30 Sep of
+  FY) are warned about; above `OUTSIDE_FY_MAX_SHARE` of the file's cases
+  the load is refused, nothing written, unless `--allow-outside-fy`: a
+  mislabelled FY would otherwise corrupt the 3-FY window.
 - `employer_key` = `normalize_company_name(EMPLOYER_NAME)` -- the same
   grouping key as `companies.normalized_name`, so employer-level joins
   line up. Names are NOT deduplicated beyond that ("Amazon.com Services
@@ -29,8 +45,9 @@ import argparse
 import csv
 import logging
 import re
+import sys
 from collections import Counter
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from decimal import Decimal, InvalidOperation
@@ -47,7 +64,8 @@ from src.utils.db import session_scope
 logger = logging.getLogger(__name__)
 
 # Source column (exact DOL header) -> lca_cases column. NOTHING outside
-# this map is ever kept -- it is the personal-data firewall.
+# this map is ever kept -- it is the personal-data firewall. A column may
+# accept more than one header spelling: each is listed, matched exactly.
 COLUMN_MAP: dict[str, str] = {
     "CASE_NUMBER": "case_number",
     "CASE_STATUS": "case_status",
@@ -78,10 +96,17 @@ COLUMN_MAP: dict[str, str] = {
     "PW_UNIT_OF_PAY": "pw_unit_of_pay",
     "PW_WAGE_LEVEL": "pw_wage_level",
     "H-1B_DEPENDENT": "h1b_dependent",
+    "H_1B_DEPENDENT": "h1b_dependent",  # the FY2024-FY2026 files' spelling
     "WILLFUL_VIOLATOR": "willful_violator",
 }
+# lca_cases column -> every header accepted for it, in COLUMN_MAP order.
+ALIASES: dict[str, tuple[str, ...]] = {}
+for _source, _column in COLUMN_MAP.items():
+    ALIASES[_column] = ALIASES.get(_column, ()) + (_source,)
+COLUMNS = tuple(ALIASES)
+
 # Without these a row can't be keyed or attributed -- fail fast if absent.
-REQUIRED_COLUMNS = ("CASE_NUMBER", "CASE_STATUS", "EMPLOYER_NAME")
+REQUIRED_COLUMNS = ("case_number", "case_status", "employer_name")
 
 _FLAG_COLUMNS = {"full_time_position", "h1b_dependent", "willful_violator"}
 _DATE_COLUMNS = {"received_date", "decision_date", "begin_date"}
@@ -95,14 +120,33 @@ _WAGE_COLUMNS = {"wage_rate_of_pay_from", "wage_rate_of_pay_to", "prevailing_wag
 
 _TRUE = {"y", "yes", "true", "t", "1"}
 _FALSE = {"n", "no", "false", "f", "0"}
+_NOT_APPLICABLE = {"n/a", "na"}  # after trimming, any case
 _DATE_FORMATS = ("%Y-%m-%d", "%m/%d/%Y", "%Y-%m-%d %H:%M:%S", "%m/%d/%y")
 _WAGE_JUNK = re.compile(r"[$,\s]")
 
 BATCH_SIZE = 1000
 
+# More than this share of a file's cases decided outside its --fiscal-year
+# -> refuse (unless --allow-outside-fy). A default, parked for the owner.
+OUTSIDE_FY_MAX_SHARE = 0.01
+
 
 class MissingColumnsError(ValueError):
     """The file lacks a column the loader can't work without."""
+
+
+class AmbiguousColumnsError(ValueError):
+    """The file carries two different header spellings of one column."""
+
+
+def describe(column: str) -> str:
+    """A column and every header tried for it: `h1b_dependent (H-1B_DEPENDENT, H_1B_DEPENDENT)`."""
+    return f"{column} ({', '.join(ALIASES[column])})"
+
+
+def fiscal_year_bounds(fiscal_year: int) -> tuple[date, date]:
+    """The federal fiscal year: 1 Oct of the year before to 30 Sep."""
+    return date(fiscal_year - 1, 10, 1), date(fiscal_year, 9, 30)
 
 
 @dataclass
@@ -111,10 +155,27 @@ class LoadResult:
     rows_loaded: int = 0  # distinct case_numbers upserted from this file
     skipped_no_case_number: int = 0
     duplicate_case_numbers_in_file: int = 0
-    missing_columns: list[str] = field(default_factory=list)
+    missing_columns: list[str] = field(default_factory=list)  # lca_cases columns
     bad_cells: Counter = field(default_factory=Counter)  # column -> count nulled
+    not_applicable: Counter = field(default_factory=Counter)  # flag column -> N/A count
     by_case_status: Counter = field(default_factory=Counter)
     by_visa_class: Counter = field(default_factory=Counter)
+    # coverage, over the distinct cases kept
+    fiscal_year: int | None = None
+    decision_date_min: date | None = None
+    decision_date_max: date | None = None
+    by_decision_month: Counter = field(default_factory=Counter)  # 'YYYY-MM' -> cases
+    no_decision_date: int = 0
+    outside_fiscal_year: int = 0  # decided outside the --fiscal-year given
+    refused: str = ""  # why nothing was written, if the guard refused
+
+
+class OutsideFiscalYearError(ValueError):
+    """Too many cases decided outside the --fiscal-year given: likely mislabelled."""
+
+    def __init__(self, message: str, result: LoadResult) -> None:
+        super().__init__(message)
+        self.result = result
 
 
 # --------------------------------------------------------------------- #
@@ -133,6 +194,11 @@ def parse_text(value: Any) -> tuple[str | None, bool]:
     return str(value).strip(), True
 
 
+def is_not_applicable(value: Any) -> bool:
+    """'N/A', 'NA', 'n/a' ... (trimmed, any case): DOL's "not applicable"."""
+    return isinstance(value, str) and value.strip().lower() in _NOT_APPLICABLE
+
+
 def parse_flag(value: Any) -> tuple[bool | None, bool]:
     if _blank(value):
         return None, True
@@ -143,6 +209,8 @@ def parse_flag(value: Any) -> tuple[bool | None, bool]:
         return True, True
     if s in _FALSE:
         return False, True
+    if s in _NOT_APPLICABLE:
+        return None, True  # not applicable: NULL, but not a bad cell
     return None, False
 
 
@@ -200,15 +268,25 @@ def _parser_for(column: str):
 
 
 # --------------------------------------------------------------------- #
-# readers -- yield {SOURCE_HEADER: raw value} for allowlisted columns only
+# readers -- yield {lca_cases column: raw value} for allowlisted columns only
 
 
-def _allowlisted_indexes(header: list[Any]) -> dict[int, str]:
-    idx = {}
+def _allowlisted_indexes(header: list[Any], source: str) -> dict[int, str]:
+    """Header position -> lca_cases column, for exact allowlisted headers only."""
+    idx: dict[int, str] = {}
+    spelled: dict[str, str] = {}  # column -> the header that supplied it
     for i, name in enumerate(header):
         name = (str(name).strip() if name is not None else "").lstrip("﻿")
-        if name in COLUMN_MAP:
-            idx[i] = name
+        column = COLUMN_MAP.get(name)
+        if column is None:
+            continue
+        if column in spelled and spelled[column] != name:
+            raise AmbiguousColumnsError(
+                f"{source} has both {spelled[column]!r} and {name!r}, two spellings of "
+                f"{column}: keep one of them and reload"
+            )
+        spelled[column] = name
+        idx[i] = column
     return idx
 
 
@@ -219,10 +297,10 @@ def _iter_xlsx(path: Path) -> Iterator[tuple[list[str], dict[str, Any]]]:
     try:
         rows = wb.worksheets[0].iter_rows(values_only=True)
         header = next(rows, None) or []
-        idx = _allowlisted_indexes(list(header))
+        idx = _allowlisted_indexes(list(header), path.name)
         present = list(idx.values())
         for row in rows:
-            yield present, {name: row[i] for i, name in idx.items() if i < len(row)}
+            yield present, {col: row[i] for i, col in idx.items() if i < len(row)}
     finally:
         wb.close()
 
@@ -231,10 +309,10 @@ def _iter_csv(path: Path) -> Iterator[tuple[list[str], dict[str, Any]]]:
     with path.open(newline="", encoding="utf-8-sig", errors="replace") as fh:
         reader = csv.reader(fh)
         header = next(reader, None) or []
-        idx = _allowlisted_indexes(header)
+        idx = _allowlisted_indexes(header, path.name)
         present = list(idx.values())
         for row in reader:
-            yield present, {name: row[i] for i, name in idx.items() if i < len(row)}
+            yield present, {col: row[i] for i, col in idx.items() if i < len(row)}
 
 
 def iter_allowlisted_rows(path: Path) -> Iterator[tuple[list[str], dict[str, Any]]]:
@@ -249,12 +327,18 @@ def iter_allowlisted_rows(path: Path) -> Iterator[tuple[list[str], dict[str, Any
 # --------------------------------------------------------------------- #
 
 
-def parse_row(raw: dict[str, Any], bad_cells: Counter) -> dict[str, Any]:
+def parse_row(
+    raw: dict[str, Any], bad_cells: Counter, not_applicable: Counter | None = None
+) -> dict[str, Any]:
+    """`raw` is keyed by lca_cases column (the readers translate headers)."""
     out: dict[str, Any] = {}
-    for source_col, column in COLUMN_MAP.items():
-        value, ok = _parser_for(column)(raw.get(source_col))
+    for column in COLUMNS:
+        cell = raw.get(column)
+        value, ok = _parser_for(column)(cell)
         if not ok:
             bad_cells[column] += 1
+        elif column in _FLAG_COLUMNS and not_applicable is not None and is_not_applicable(cell):
+            not_applicable[column] += 1
         out[column] = value
     return out
 
@@ -265,31 +349,42 @@ def load_file(
     *,
     dry_run: bool = False,
     database_url: str | None = None,
+    allow_outside_fy: bool = False,
 ) -> LoadResult:
-    """Parse `path` and upsert its cases. Returns counts; never raises on bad cells."""
+    """Parse `path` and upsert its cases. Returns counts; never raises on bad cells.
+
+    Raises OutsideFiscalYearError, before writing anything (dry run too),
+    when more than OUTSIDE_FY_MAX_SHARE of the cases were decided outside
+    `fiscal_year`, unless `allow_outside_fy`.
+    """
     path = Path(path)
-    result = LoadResult()
+    result = LoadResult(fiscal_year=fiscal_year)
     records: dict[str, dict[str, Any]] = {}  # case_number -> row; last occurrence wins
     loaded_at = datetime.now(UTC)
     checked_header = False
 
     for present, raw in iter_allowlisted_rows(path):
         if not checked_header:
-            missing = [c for c in COLUMN_MAP if c not in present]
+            missing = [c for c in COLUMNS if c not in present]
             hard = [c for c in REQUIRED_COLUMNS if c in missing]
             if hard:
-                raise MissingColumnsError(f"{path.name} lacks required column(s): {hard}")
+                raise MissingColumnsError(
+                    f"{path.name} lacks required column(s), headers tried: "
+                    + "; ".join(describe(c) for c in hard)
+                )
             result.missing_columns = missing
             if missing:
                 logger.warning(
-                    "%s lacks allowlisted column(s), loaded as NULL: %s", path.name, missing
+                    "%s lacks allowlisted column(s), loaded as NULL (headers tried): %s",
+                    path.name,
+                    "; ".join(describe(c) for c in missing),
                 )
             checked_header = True
 
         if all(_blank(v) for v in raw.values()):
             continue  # trailing empty spreadsheet rows
         result.rows_read += 1
-        row = parse_row(raw, result.bad_cells)
+        row = parse_row(raw, result.bad_cells, result.not_applicable)
         if not row["case_number"]:
             result.skipped_no_case_number += 1
             continue
@@ -307,10 +402,50 @@ def load_file(
         result.by_case_status[row["case_status"] or "(none)"] += 1
         result.by_visa_class[row["visa_class"] or "(none)"] += 1
     result.rows_loaded = len(records)
+    _count_coverage(result, records.values())
+
+    if result.outside_fiscal_year:
+        start, end = fiscal_year_bounds(fiscal_year)
+        share = result.outside_fiscal_year / result.rows_loaded
+        message = (
+            f"{path.name}: {result.outside_fiscal_year} of {result.rows_loaded} cases "
+            f"({share:.1%}) were decided outside FY{fiscal_year} ({start} to {end})"
+        )
+        if share > OUTSIDE_FY_MAX_SHARE and not allow_outside_fy:
+            result.refused = (
+                f"{message}, more than {OUTSIDE_FY_MAX_SHARE:.0%}: check --fiscal-year, "
+                "or pass --allow-outside-fy to load anyway. Nothing was written."
+            )
+            raise OutsideFiscalYearError(result.refused, result)
+        logger.warning("%s", message)
 
     if not dry_run and records:
         _upsert(list(records.values()), database_url)
     return result
+
+
+def _count_coverage(result: LoadResult, rows: Iterable[dict[str, Any]]) -> None:
+    """DECISION_DATE range, cases per month, and cases outside the fiscal year."""
+    start, end = fiscal_year_bounds(result.fiscal_year)
+    decided = []
+    for row in rows:
+        if row["decision_date"] is None:
+            result.no_decision_date += 1
+            continue
+        decided.append(row["decision_date"])
+    for d in decided:
+        result.by_decision_month[f"{d:%Y-%m}"] += 1
+    result.outside_fiscal_year = sum(not start <= d <= end for d in decided)
+    result.decision_date_min = min(decided, default=None)
+    result.decision_date_max = max(decided, default=None)
+
+
+def _months(first: date, last: date) -> Iterator[str]:
+    """'YYYY-MM' for every calendar month from `first` to `last`, gaps included."""
+    year, month = first.year, first.month
+    while (year, month) <= (last.year, last.month):
+        yield f"{year:04d}-{month:02d}"
+        year, month = (year + 1, 1) if month == 12 else (year, month + 1)
 
 
 def _upsert(rows: list[dict[str, Any]], database_url: str | None) -> None:
@@ -342,22 +477,59 @@ def rekey_employers(database_url: str | None = None) -> int:
 
 
 def summarize(result: LoadResult, dry_run: bool) -> str:
+    if result.refused:
+        written = "parsed, REFUSED (nothing written)"
+    else:
+        written = "parsed (dry run, nothing written)" if dry_run else "upserted"
     lines = [
         f"rows read: {result.rows_read}",
-        f"cases {'parsed (dry run, nothing written)' if dry_run else 'upserted'}: {result.rows_loaded}",
+        f"cases {written}: {result.rows_loaded}",
         f"skipped (no CASE_NUMBER): {result.skipped_no_case_number}",
         f"duplicate CASE_NUMBERs within file (last kept): {result.duplicate_case_numbers_in_file}",
     ]
     if result.missing_columns:
-        lines.append(f"allowlisted columns absent from file (NULL): {result.missing_columns}")
+        lines.append(
+            "allowlisted columns absent from file (NULL; headers tried): "
+            + "; ".join(describe(c) for c in result.missing_columns)
+        )
     lines.append(
         "bad cells nulled: " + (str(dict(result.bad_cells)) if result.bad_cells else "none")
+    )
+    lines.append(
+        "flags marked N/A (not applicable), loaded as NULL: "
+        + (str(dict(result.not_applicable)) if result.not_applicable else "none")
     )
     lines.append("by case_status:")
     lines += [f"  {k:<22} {v}" for k, v in result.by_case_status.most_common()]
     lines.append("by visa_class:")
     lines += [f"  {k:<22} {v}" for k, v in result.by_visa_class.most_common()]
+    lines += _coverage_lines(result)
     return "\n".join(lines)
+
+
+def _coverage_lines(result: LoadResult) -> list[str]:
+    lines = []
+    if result.fiscal_year is not None:
+        start, end = fiscal_year_bounds(result.fiscal_year)
+        lines.append(f"FY{result.fiscal_year} runs {start} to {end}")
+    if result.decision_date_min is None:
+        lines.append("DECISION_DATE coverage: no decision dates")
+    else:
+        lines.append(
+            f"DECISION_DATE coverage: {result.decision_date_min} to {result.decision_date_max}"
+        )
+        lines.append("cases per month of DECISION_DATE:")
+        lines += [
+            f"  {m}  {result.by_decision_month[m]}"
+            for m in _months(result.decision_date_min, result.decision_date_max)
+        ]
+    lines.append(f"no DECISION_DATE: {result.no_decision_date}")
+    if result.fiscal_year is not None:
+        warning = "  <-- WARNING: check --fiscal-year" if result.outside_fiscal_year else ""
+        lines.append(
+            f"decided outside FY{result.fiscal_year}: {result.outside_fiscal_year}{warning}"
+        )
+    return lines
 
 
 def main() -> None:
@@ -366,6 +538,12 @@ def main() -> None:
     argp.add_argument("--file", type=Path, help=".xlsx or .csv under data/lca/")
     argp.add_argument("--fiscal-year", type=int, help="federal FY of the file")
     argp.add_argument("--dry-run", action="store_true", help="parse and count, write nothing")
+    argp.add_argument(
+        "--allow-outside-fy",
+        action="store_true",
+        help=f"load even if more than {OUTSIDE_FY_MAX_SHARE:.0%} of cases were decided "
+        "outside --fiscal-year",
+    )
     argp.add_argument(
         "--rekey",
         action="store_true",
@@ -379,7 +557,16 @@ def main() -> None:
     if args.file is None or args.fiscal_year is None:
         argp.error("--file and --fiscal-year are required (or use --rekey)")
 
-    result = load_file(args.file, args.fiscal_year, dry_run=args.dry_run)
+    try:
+        result = load_file(
+            args.file,
+            args.fiscal_year,
+            dry_run=args.dry_run,
+            allow_outside_fy=args.allow_outside_fy,
+        )
+    except OutsideFiscalYearError as exc:
+        print(summarize(exc.result, args.dry_run))
+        sys.exit(f"refused: {exc}")
     print(summarize(result, args.dry_run))
 
 

@@ -7,9 +7,9 @@ docs/data_dictionary.md. Only an explicit column allowlist is loaded
 emails and phone numbers (employer contacts, attorneys, preparers),
 and those columns never reach this table.
 
-Keyed on `case_number`: DOL's quarterly files are cumulative within a
-fiscal year, so re-loading a later quarter upserts instead of
-double counting.
+Keyed on `case_number`. Some fiscal years' quarterly files hold one
+quarter each and others are cumulative; every quarterly file is loaded,
+oldest first, and a case in two files is upserted, never double counted.
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ class LcaCase(Base):
     __tablename__ = "lca_cases"
 
     case_number: Mapped[str] = mapped_column(Text, primary_key=True)
-    case_status: Mapped[str | None] = mapped_column(Text)  # Certified | Certified-Withdrawn | ...
+    case_status: Mapped[str | None] = mapped_column(Text)  # Certified | Certified - Withdrawn | ...
     received_date: Mapped[date | None] = mapped_column(Date)
     decision_date: Mapped[date | None] = mapped_column(Date)
     visa_class: Mapped[str | None] = mapped_column(Text)  # H-1B | E-3 Australian | H-1B1 ...
@@ -54,7 +54,7 @@ class LcaCase(Base):
     prevailing_wage: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     pw_unit_of_pay: Mapped[str | None] = mapped_column(Text)
     pw_wage_level: Mapped[str | None] = mapped_column(Text)  # I | II | III | IV | N/A
-    h1b_dependent: Mapped[bool | None] = mapped_column(Boolean)  # source column H-1B_DEPENDENT
+    h1b_dependent: Mapped[bool | None] = mapped_column(Boolean)  # H_1B_DEPENDENT / H-1B_DEPENDENT
     willful_violator: Mapped[bool | None] = mapped_column(Boolean)
 
     fiscal_year: Mapped[int] = mapped_column(Integer, nullable=False, index=True)

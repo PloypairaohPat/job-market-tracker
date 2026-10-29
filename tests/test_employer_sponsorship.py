@@ -53,7 +53,7 @@ def db():
                     wage_unit_of_pay="Piece Rate",  # unconvertible -> NULL, counted
                 ),
                 # FY2026 -- excluded by status / visa class
-                lca(case_status="Certified-Withdrawn"),
+                lca(case_status="Certified - Withdrawn"),
                 lca(case_status="Denied"),
                 lca(visa_class="E-3 Australian"),
                 # FY2024 -- inside the 3-FY window (2024..2026)
@@ -92,7 +92,7 @@ def _row(engine, key: str, period: str) -> dict:
 def test_status_and_visa_class_filtering_and_analytics_subset(db):
     fy = _row(db, "fakeco analytics", "FY2026")
     assert fy["n_lcas_all_statuses"] == 7
-    assert fy["certified_h1b_lcas"] == 4  # excludes Certified-Withdrawn, Denied, E-3
+    assert fy["certified_h1b_lcas"] == 4  # excludes Certified - Withdrawn, Denied, E-3
     assert fy["certified_h1b_new_employment"] == 3  # the continued-employment filing drops out
     assert fy["certified_h1b_analytics_soc"] == 3  # 15-1252 drops out
     assert fy["certified_h1b_analytics_soc_new_employment"] == 3

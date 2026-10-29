@@ -16,7 +16,7 @@
 -- you". See src/visa/README.md, "What this can't tell you".
 --
 -- "Certified H-1B" = case_status = 'Certified' AND visa_class = 'H-1B'.
--- Certified-Withdrawn (the employer withdrew after certification), Denied
+-- Certified - Withdrawn (the employer withdrew after certification), Denied
 -- and Withdrawn are excluded, as are E-3 / H-1B1 (treaty visas F-1 holders
 -- can't use). n_lcas_all_statuses keeps the unfiltered total for context.
 --
