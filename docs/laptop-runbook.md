@@ -49,6 +49,21 @@ foreach ($r in @("commercial-vs-federal-skills", "how-much-employers-disclose", 
 
 Each lands in `reports\<slug>\report.md` ([docs/reports.md](reports.md)). `reports\` is gitignored: rendered output is never committed.
 
+## Reviewing company and employer matches
+
+Two CSVs propose near-duplicate names for you to review: `data\company_merge_candidates.csv` (from `apply_cleaning --only companies`) and `data\sponsor_match_candidates.csv` (from `uv run python -m src.visa.sponsor_match`). Open one in Excel, type `y` in the `approved` column of each pair that is really the same employer, and save it as CSV. Then, one command at a time:
+
+```powershell
+uv run python -m src.cleaning.aliases apply --from "data\sponsor_match_candidates.csv"
+uv run python -m src.cleaning.aliases apply --from "data\sponsor_match_candidates.csv" --write
+uv run python -m src.cleaning.apply_cleaning --only companies
+uv run python -m src.visa.lca_loader --rekey
+uv run python scripts/apply_views.py
+uv run python -m src.reports employers-and-sponsorship
+```
+
+The first command is a dry run: read the aliases it would add and the rows it refuses (with the reason) before running the second. To choose which name survives, add a `keep_company` or `keep_lca` column (`keep_a` / `keep_b` in the company CSV) and type `y` in it. `company_aliases.json` is tracked in git: commit the change once the re-render looks right. Do the same with `data\company_merge_candidates.csv`.
+
 ## Where files go
 
 | What | Where | Committed? |
