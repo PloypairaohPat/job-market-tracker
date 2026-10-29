@@ -62,7 +62,7 @@ uv run python scripts/apply_views.py
 uv run python -m src.reports employers-and-sponsorship
 ```
 
-The first command is a dry run: read the aliases it would add and the rows it refuses (with the reason) before running the second. To choose which name survives, add a `keep_company` or `keep_lca` column (`keep_a` / `keep_b` in the company CSV) and type `y` in it. `company_aliases.json` is tracked in git: commit the change once the re-render looks right. Do the same with `data\company_merge_candidates.csv`.
+The first command is a dry run: read the aliases it would add and the rows it refuses (with the reason) before running the second. To choose which name survives, add a `keep_company` or `keep_lca` column (`keep_a` / `keep_b` in the company CSV) and type `y` in it. `company_aliases.json` is tracked by git, so `git status` will show it changed; whether to commit your additions is an open question (see `docs/overnight-batch.md`). Do the same with `data\company_merge_candidates.csv`.
 
 ## Where files go
 
