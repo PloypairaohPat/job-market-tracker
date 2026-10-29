@@ -2,7 +2,9 @@
 
 Every bar is a Rate and is labelled with its full rendering (percentage,
 count and denominator), so a chart lifted out of the report still carries
-its n. Commercial skill rates need "truncation-floored" in the title or axis
+its n. Every salary box is ONE SalarySummary's values, labelled with its
+group, basis and n, and only at or above SALARY_FLOOR: there is no way to
+draw a pooled box. Commercial skill rates need "truncation-floored" in the title or axis
 label, and a demo/test database puts the demo banner in the title.
 
 Colours are slots 1 and 2 of the dataviz reference palette (light mode),
@@ -19,8 +21,17 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402  (backend must be set first)
+import numpy as np  # noqa: E402
+from matplotlib import cbook  # noqa: E402
+from matplotlib.ticker import FuncFormatter  # noqa: E402
 
-from src.reports.guardrails import TRUNCATION_LABEL, GuardrailError, Rate  # noqa: E402
+from src.reports.guardrails import (  # noqa: E402
+    SALARY_FLOOR,
+    TRUNCATION_LABEL,
+    GuardrailError,
+    Rate,
+    SalarySummary,
+)
 from src.reports.provenance import DEMO_BANNER  # noqa: E402
 
 SURFACE = "#fcfcfb"
@@ -105,6 +116,86 @@ def grouped_barh(
             ncol=n_series,
             labelcolor=INK,
         )
+    fig.tight_layout()
+    fig.savefig(path, facecolor=SURFACE, metadata={"Software": None})
+    plt.close(fig)
+    return path
+
+
+def salary_boxes(
+    path: Path,
+    boxes: list[tuple[SalarySummary, list[float]]],
+    *,
+    title: str,
+    demo: bool,
+    xlabel: str = "Annual salary midpoint (USD)",
+) -> Path:
+    """One horizontal box per SalarySummary: median line, IQR box, whiskers at
+    1.5 IQR, no outlier points (no single posting is drawn). Each box is
+    labelled with its group or basis and its n, and annotated with its median
+    and IQR. A box under SALARY_FLOOR, or whose values don't reproduce its
+    summary's median, is refused."""
+    if not 1 <= len(boxes) <= 8:
+        raise GuardrailError("salary_boxes takes 1-8 boxes")
+    stats = []
+    for summary, values in boxes:
+        if not isinstance(summary, SalarySummary):
+            raise GuardrailError("each salary box is one SalarySummary: never a pooled box")
+        if summary.n < SALARY_FLOOR or len(values) != summary.n:
+            raise GuardrailError(
+                f"{summary.label}: a box needs n ≥ {SALARY_FLOOR} and exactly its summary's values"
+            )
+        if abs(float(np.median(values)) - summary.median) > 0.5:
+            raise GuardrailError(f"{summary.label}: the box's values don't match its summary")
+        (stat,) = cbook.boxplot_stats(np.asarray(values, dtype=float), whis=1.5)
+        stat["label"] = f"{summary.group or summary.basis}\n(n={summary.n:,})"
+        stats.append(stat)
+
+    fig, ax = plt.subplots(figsize=(9, 1.5 + 0.8 * len(boxes)), dpi=150)
+    fig.patch.set_facecolor(SURFACE)
+    ax.set_facecolor(SURFACE)
+    bases = list(dict.fromkeys(summary.basis for summary, _ in boxes))
+    if len(bases) > len(SERIES_COLORS):
+        raise GuardrailError(f"salary_boxes colours at most {len(SERIES_COLORS)} bases")
+    artists = ax.bxp(
+        stats,
+        orientation="horizontal",
+        showfliers=False,
+        patch_artist=True,
+        widths=0.5,
+        medianprops={"color": INK, "linewidth": 1.6},
+        whiskerprops={"color": INK_SECONDARY},
+        capprops={"color": INK_SECONDARY},
+        boxprops={"edgecolor": INK_SECONDARY},
+    )
+    for patch, (summary, _) in zip(artists["boxes"], boxes, strict=True):
+        patch.set_facecolor(SERIES_COLORS[bases.index(summary.basis)])
+        patch.set_alpha(0.55)
+    span = max(s["whishi"] for s in stats) - min(s["whislo"] for s in stats) or 1.0
+    for y, (stat, (summary, _)) in enumerate(zip(stats, boxes, strict=True), start=1):
+        ax.text(
+            stat["whishi"] + span * 0.02,
+            y,
+            f"median ${summary.median:,.0f}; IQR ${summary.p25:,.0f}–${summary.p75:,.0f}"
+            f" ({summary.basis})",
+            va="center",
+            ha="left",
+            fontsize=7.5,
+            color=INK,
+        )
+    ax.invert_yaxis()
+    low, high = min(s["whislo"] for s in stats), max(s["whishi"] for s in stats)
+    ax.set_xlim(low - span * 0.05, high + span * 0.85)
+    ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: f"${v / 1000:,.0f}k"))
+    ax.set_xlabel(xlabel, color=INK_SECONDARY, fontsize=8.5)
+    ax.tick_params(axis="x", colors=INK_SECONDARY, labelsize=8)
+    ax.tick_params(axis="y", length=0, labelsize=9, labelcolor=INK)
+    ax.grid(axis="x", color=GRID, linewidth=0.8, zorder=0)
+    for side in ("top", "right", "left"):
+        ax.spines[side].set_visible(False)
+    ax.spines["bottom"].set_color(GRID)
+    full_title = f"{DEMO_BANNER}\n{title}" if demo else title
+    ax.set_title(full_title, loc="left", color=INK, fontsize=10.5, pad=12)
     fig.tight_layout()
     fig.savefig(path, facecolor=SURFACE, metadata={"Software": None})
     plt.close(fig)
