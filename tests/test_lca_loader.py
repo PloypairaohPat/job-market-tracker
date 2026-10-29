@@ -14,7 +14,9 @@ from openpyxl import Workbook
 from sqlalchemy import create_engine, text
 
 from src.visa.lca_loader import (
+    ALIASES,
     COLUMN_MAP,
+    AmbiguousColumnsError,
     MissingColumnsError,
     load_file,
     parse_date,
@@ -22,6 +24,7 @@ from src.visa.lca_loader import (
     parse_int,
     parse_wage,
     rekey_employers,
+    summarize,
 )
 from tests.conftest import reset_schema
 
@@ -95,6 +98,15 @@ def write_xlsx(path, rows):
         ws.append([r[h] for h in header])
     wb.save(path)
     return path
+
+
+def spelled(row: dict, h1b_header: str) -> dict:
+    """The same case with H-1B_DEPENDENT under another header spelling (or dropped)."""
+    value = row["H-1B_DEPENDENT"]
+    out = {k: v for k, v in row.items() if k != "H-1B_DEPENDENT"}
+    if h1b_header:
+        out[h1b_header] = value
+    return out
 
 
 # --------------------------------------------------------------------- #
@@ -289,3 +301,51 @@ def test_rekey_recomputes_employer_key(db, tmp_path):
     with db.connect() as conn:
         key = conn.execute(text("select employer_key from lca_cases")).scalar_one()
     assert key == "fakeco analytics"
+
+
+# --------------------------------------------------------------------- #
+# header aliases: DOL's files spell the H-1B dependency column H_1B_DEPENDENT
+
+
+def test_aliases_are_exact_and_carry_no_personal_data():
+    assert ALIASES["h1b_dependent"] == ("H-1B_DEPENDENT", "H_1B_DEPENDENT")
+    assert all(len(v) == 1 for k, v in ALIASES.items() if k != "h1b_dependent")
+    assert len(ALIASES) == 30  # the lca_cases columns, unchanged
+
+
+@pytest.mark.parametrize("writer,suffix", [(write_csv, ".csv"), (write_xlsx, ".xlsx")])
+@pytest.mark.parametrize("header", ["H-1B_DEPENDENT", "H_1B_DEPENDENT"])
+@pytest.mark.integration
+@pytest.mark.skipif(not TEST_DB_URL, reason="TEST_DATABASE_URL not set")
+def test_either_spelling_loads_the_h1b_flag(db, tmp_path, writer, suffix, header):
+    rows = [
+        spelled(case("H-1", **{"H-1B_DEPENDENT": "Yes"}), header),
+        spelled(case("H-2", **{"H-1B_DEPENDENT": "No"}), header),
+    ]
+    result = load_file(writer(tmp_path / f"h{suffix}", rows), 2026, database_url=TEST_DB_URL)
+    assert result.missing_columns == [] and not result.bad_cells
+    with db.connect() as conn:
+        flags = dict(conn.execute(text("select case_number, h1b_dependent from lca_cases")).all())
+    assert flags == {"H-1": True, "H-2": False}
+    dumped = _all_text(db)
+    for value in PERSONAL.values():  # the personal-data firewall still holds
+        assert value not in dumped
+
+
+@pytest.mark.parametrize("writer,suffix", [(write_csv, ".csv"), (write_xlsx, ".xlsx")])
+def test_two_spellings_of_one_column_are_refused(tmp_path, writer, suffix):
+    row = {**case("A-1"), "H_1B_DEPENDENT": "Yes"}  # both H-1B_DEPENDENT and H_1B_DEPENDENT
+    path = writer(tmp_path / f"both{suffix}", [row])
+    with pytest.raises(AmbiguousColumnsError, match="'H-1B_DEPENDENT' and 'H_1B_DEPENDENT'"):
+        load_file(path, 2026, dry_run=True)
+
+
+def test_missing_columns_name_the_column_and_every_header_tried(tmp_path):
+    path = write_csv(tmp_path / "none.csv", [spelled(case("M-1"), "")])
+    result = load_file(path, 2026, dry_run=True)
+    assert result.missing_columns == ["h1b_dependent"]
+    assert "h1b_dependent (H-1B_DEPENDENT, H_1B_DEPENDENT)" in summarize(result, dry_run=True)
+
+    no_case = [{k: v for k, v in case("M-2").items() if k != "CASE_NUMBER"}]
+    with pytest.raises(MissingColumnsError, match=r"case_number \(CASE_NUMBER\)"):
+        load_file(write_csv(tmp_path / "nocase.csv", no_case), 2026, dry_run=True)
