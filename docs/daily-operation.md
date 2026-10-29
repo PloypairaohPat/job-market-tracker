@@ -34,6 +34,18 @@ uv run python -m src.pipeline.daily --skip adzuna             # e.g. save Adzuna
 uv run python -m src.pipeline.daily --skip adzuna usajobs     # just cleaning + skills + health
 ```
 
+## The database container restarts by itself
+
+`docker-compose.yml` gives the `db` service `restart: unless-stopped`: whenever Docker starts (after a reboot, or when Docker Desktop starts at sign-in) it starts the database container again, unless you stopped it yourself with `docker compose stop db`.
+
+A container created before this setting existed doesn't have it yet. Run this once after pulling the change:
+
+```powershell
+docker compose up -d db
+```
+
+Compose sees the changed setting and **recreates** the container with it. Your data lives in the named volume `jobmarket_pg_data`, which is kept, so nothing is lost. (`docker compose down -v` is the command that would delete it; don't use `-v`.)
+
 ## Registering the scheduled task (Windows)
 
 ```powershell

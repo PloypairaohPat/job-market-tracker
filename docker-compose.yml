@@ -1,6 +1,10 @@
 services:
   db:
     image: postgres:16
+    # Comes back by itself whenever Docker starts (after a reboot, or Docker
+    # Desktop starting at sign-in), so the 07:15 daily task finds a database.
+    # `docker compose stop db` still keeps it stopped.
+    restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
