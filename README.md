@@ -143,7 +143,7 @@ uv run python -m src.pipeline.daily      # or: make daily
 uv run python -m src.pipeline.health     # is the clock running? exit 1 on any FAIL (make health)
 ```
 
-On Windows, `scripts/windows/register_daily_task.ps1` registers it as a daily scheduled task; on the server, a systemd timer runs it in the pipeline container ([`docs/deploy.md`](docs/deploy.md)). Setup, what each health check means, and the budget arithmetic: [`docs/daily-operation.md`](docs/daily-operation.md).
+On Windows, `scripts/windows/register_daily_task.ps1` registers it as a daily scheduled task; on the server, a systemd timer runs it in the pipeline container ([`docs/deploy.md`](docs/deploy.md)). Setup, what each health check means, and the budget arithmetic: [`docs/daily-operation.md`](docs/daily-operation.md). On the laptop, `uv run python -m src.doctor` (or `make doctor`) checks the whole setup read-only and prints the command that fixes each problem; the routine after every `git pull` and a troubleshooting table are in [`docs/laptop-runbook.md`](docs/laptop-runbook.md).
 
 ### Dashboards
 
@@ -232,6 +232,7 @@ docs/            project guide, data dictionary, findings, runbooks
 - [`docs/PROJECT_GUIDE.md`](docs/PROJECT_GUIDE.md) — full project rationale, architecture, decisions
 - [`docs/data_dictionary.md`](docs/data_dictionary.md) — every table, every column, every judgment call
 - [`docs/daily-operation.md`](docs/daily-operation.md) — running the daily clock and reading its health check
+- [`docs/laptop-runbook.md`](docs/laptop-runbook.md) — the laptop routine (after every pull, weekly) and a troubleshooting table; `python -m src.doctor` checks the setup
 - [`docs/dashboard.md`](docs/dashboard.md) — the Metabase dashboards: setup, caveats, changing a card
 - [`docs/deploy.md`](docs/deploy.md) — running on a server: bootstrap, cut-over, backups, updating
 - [`docs/reports.md`](docs/reports.md) — the written reports: rendering one from the views, the guardrails, writing the narrative

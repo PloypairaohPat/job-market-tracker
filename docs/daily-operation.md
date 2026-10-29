@@ -2,7 +2,7 @@
 
 The project's targets are **90+ days of daily snapshots, 60+ days of daily ingestion and 10,000+ unique jobs**. They only accumulate if ingestion really runs every day, and **a missed day can never be backfilled**, because a snapshot records what the APIs showed that day. This page covers running the clock on the Windows laptop, checking it, and reading the health check.
 
-Commands below are for Windows PowerShell with `uv`, run from the repo root.
+Commands below are for Windows PowerShell with `uv`, run from the repo root. The laptop routine (after every `git pull`, weekly) and a troubleshooting table are in [docs/laptop-runbook.md](laptop-runbook.md); `uv run python -m src.doctor` checks the whole setup, this clock included.
 
 > **Never create or edit `.env` with PowerShell `echo` or `>>`.** Windows PowerShell 5.1 writes UTF-16, which puts NUL bytes in the file (that's how README.md got corrupted once). Python's dotenv then can't read it. Use Notepad or VS Code, or `Copy-Item .env.example .env` and then edit it.
 
