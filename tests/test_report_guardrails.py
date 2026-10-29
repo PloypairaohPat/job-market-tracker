@@ -5,21 +5,27 @@ import pandas as pd
 import pytest
 
 from src.reports.guardrails import (
+    MEDIAN_RATIONALE,
+    SALARY_FLOOR,
     SKILL_FLOOR,
     TRUNCATION_LABEL,
     Count,
+    FlooredSalary,
     Gap,
     GuardrailError,
     Rate,
     Ratio,
+    SalaryDiff,
     SalarySummary,
     Stat,
     apply_floor,
     below_floor,
+    check_salary_wording,
     round_half_up,
     skill_rate,
     summarize_salary,
 )
+from src.reports.markdown import render_cell
 
 # --------------------------------------------------------------------- #
 # rates always carry their denominator
@@ -198,3 +204,74 @@ def test_an_empty_basis_renders_as_not_applicable():
     summary = summarize_salary(frame, "Adzuna-predicted", "v_commercial_salary_clean")
     assert summary == SalarySummary("Adzuna-predicted", 0, None, None, None)
     assert summary.render() == "n/a (n=0, Adzuna-predicted)"
+
+
+# --------------------------------------------------------------------- #
+# salary floor, SalaryDiff, wording
+
+
+def summary(basis="employer-disclosed", n=20, median=100_000.0, group=""):
+    if median is None:
+        return SalarySummary(basis, n, None, None, None, group)
+    return SalarySummary(basis, n, median, median - 10_000, median + 10_000, group)
+
+
+def test_the_salary_floor_withholds_the_median_but_shows_n():
+    assert SALARY_FLOOR == 15
+    assert FlooredSalary(summary(n=15)).render() == summary(n=15).render()
+    withheld = FlooredSalary(summary(n=14))
+    assert withheld.withheld and "$" not in withheld.render()
+    assert withheld.render() == "withheld: n=14 is under the n ≥ 15 floor (employer-disclosed)"
+    assert FlooredSalary(summary(n=0, median=None)).render() == (
+        "no data (n=0, employer-disclosed)"
+    )
+    with pytest.raises(GuardrailError):
+        FlooredSalary(100_000)
+
+
+def test_a_salary_diff_shows_both_medians_and_both_n():
+    diff = SalaryDiff(summary("Adzuna-predicted", 40, 106_000.0), summary(n=30))
+    assert diff.dollars == 6_000
+    assert diff.render() == (
+        "+$6,000 (Adzuna-predicted $106,000, n=40 vs employer-disclosed $100,000, n=30)"
+    )
+    groups = SalaryDiff(summary(group="senior", median=120_000.0), summary(group="no title signal"))
+    assert groups.render().startswith("+$20,000 (senior (employer-disclosed) $120,000, n=20 vs ")
+    lower = SalaryDiff(summary(median=90_000.0, group="mid"), summary(group="senior"))
+    assert lower.render().startswith("-$10,000 ")
+
+
+@pytest.mark.parametrize(
+    "a,b,match",
+    [
+        (summary(), summary(), "two different bases"),
+        (summary(group="senior"), summary(group="senior"), "two different bases"),
+        (summary("Adzuna-predicted", n=14), summary(), "under the n ≥ 15 floor"),
+        (summary("Adzuna-predicted"), summary(n=0, median=None), "no data"),
+        (100_000, summary(), "two SalarySummary"),
+    ],
+)
+def test_salary_diff_refusals(a, b, match):
+    with pytest.raises(GuardrailError, match=match):
+        SalaryDiff(a, b)
+
+
+def test_salary_wording_allows_mean_only_in_the_median_rationale():
+    check_salary_wording(f"Median $100,000. {MEDIAN_RATIONALE} What it means: ...")
+    for bad in ("The mean is $1", "an AVERAGE of", "avg salary", "Mean salary"):
+        with pytest.raises(GuardrailError, match="median and IQR only"):
+            check_salary_wording(f"{MEDIAN_RATIONALE} {bad}")
+    with pytest.raises(GuardrailError):  # the rationale is allowed once, not twice
+        check_salary_wording(MEDIAN_RATIONALE + " " + MEDIAN_RATIONALE)
+
+
+def test_salary_summaries_can_carry_a_group():
+    frame = salaries()
+    s = summarize_salary(frame, "employer-disclosed", "v_commercial_salary_clean", group="senior")
+    assert s.group == "senior" and s.label == "senior (employer-disclosed)"
+    assert s.render() == "$100,000 (IQR $90,000–$110,000; n=5, employer-disclosed)"  # unchanged
+
+
+def test_floored_salaries_and_diffs_render_in_tables():
+    assert render_cell(FlooredSalary(summary(n=3))).startswith("withheld")
+    assert render_cell(SalaryDiff(summary("Adzuna-predicted"), summary())).startswith("+$0")

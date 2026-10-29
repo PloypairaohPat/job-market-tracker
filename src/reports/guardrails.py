@@ -17,6 +17,11 @@ accept nothing else:
   Gap    the percentage-point difference between two Rates, rendered with both.
   SalarySummary  median and IQR (never the mean) of ONE salary basis: employer-
          disclosed or Adzuna-predicted, never both pooled.
+  FlooredSalary  a SalarySummary held to SALARY_FLOOR: under it, the n shows
+         and the median is withheld with the reason.
+  SalaryDiff  the dollar counterpart of Gap: the difference between two
+         medians of different bases (or one basis, two groups), with both
+         medians and both n. Refused below the floor or at n = 0.
 
 Plus:
   - SKILL_FLOOR: the skill drill-down reporting floors (n >= 15 commercial,
@@ -26,12 +31,16 @@ Plus:
     out marked truncation-floored (the ~500-character description cap), and
     the renderers refuse to show them without that label.
   - The salary population rule: salary_quality = 'ok', USD, period = year.
+  - `check_salary_wording`: rendered salary text never says "mean", "average"
+    or "avg", except in MEDIAN_RATIONALE, the one Methods sentence on why
+    the median is used.
 """
 
 from __future__ import annotations
 
 import math
 import numbers
+import re
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
 
@@ -59,6 +68,14 @@ SALARY_FILTER = {"salary_quality": "ok", "salary_currency": "USD", "salary_perio
 # Views that already apply SALARY_FILTER in their WHERE clause.
 SALARY_CLEAN_VIEWS = frozenset({"v_commercial_salary_clean"})
 SALARY_BASES = {"employer-disclosed": False, "Adzuna-predicted": True}
+# Investigation #1's bar: a salary group under this n shows its n, never a median.
+SALARY_FLOOR = 15
+# The one sentence a salary report may use "mean" in (`check_salary_wording`).
+MEDIAN_RATIONALE = (
+    "Salaries are summarized by the median and the interquartile range, never the mean: "
+    "salaries are right-skewed, so a few very high ones pull a mean up."
+)
+_MEAN_WORDS = re.compile(r"\b(?:mean|average|avg)\b", re.IGNORECASE)
 
 
 def floor_for(market: str) -> int:
@@ -291,13 +308,21 @@ def skill_rate(numerator: int, denominator: int, market: str, pct: float | None 
 
 @dataclass(frozen=True)
 class SalarySummary:
-    """Median and IQR of one salary basis. There is deliberately no mean."""
+    """Median and IQR of one salary basis. There is deliberately no mean.
+
+    `group` names a subgroup within the basis (a seniority band, a metro);
+    it isn't rendered, but it lets a SalaryDiff tell two groups apart."""
 
     basis: str
     n: int
     median: float | None
     p25: float | None
     p75: float | None
+    group: str = ""
+
+    @property
+    def label(self) -> str:
+        return f"{self.group} ({self.basis})" if self.group else self.basis
 
     def render(self) -> str:
         if self.n == 0:
@@ -305,6 +330,83 @@ class SalarySummary:
         return (
             f"${self.median:,.0f} (IQR ${self.p25:,.0f}–${self.p75:,.0f}; "
             f"n={self.n:,}, {self.basis})"
+        )
+
+
+@dataclass(frozen=True)
+class FlooredSalary:
+    """A SalarySummary held to SALARY_FLOOR. Under it the group still shows its
+    n, but its median and IQR are withheld, with the reason."""
+
+    summary: SalarySummary
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.summary, SalarySummary):
+            raise GuardrailError("FlooredSalary wraps a SalarySummary")
+
+    @property
+    def withheld(self) -> bool:
+        return self.summary.n < SALARY_FLOOR
+
+    def render(self) -> str:
+        s = self.summary
+        if s.n == 0:
+            return f"no data (n=0, {s.basis})"
+        if self.withheld:
+            return f"withheld: n={s.n:,} is under the n ≥ {SALARY_FLOOR} floor ({s.basis})"
+        return s.render()
+
+
+@dataclass(frozen=True)
+class SalaryDiff:
+    """Signed difference a − b of two medians, shown with both medians and both n.
+
+    Only between two SalarySummary objects of different bases, or of one basis
+    but different groups; never below SALARY_FLOOR or at n = 0."""
+
+    a: SalarySummary
+    b: SalarySummary
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.a, SalarySummary) or not isinstance(self.b, SalarySummary):
+            raise GuardrailError(
+                "a salary difference is computed between two SalarySummary objects"
+            )
+        if self.a.basis == self.b.basis and self.a.group == self.b.group:
+            raise GuardrailError(
+                "a salary difference needs two different bases, or one basis and two groups"
+            )
+        for side in (self.a, self.b):
+            if side.n == 0:
+                raise GuardrailError(f"{side.label} has no data (n=0): no difference to show")
+            if side.n < SALARY_FLOOR:
+                raise GuardrailError(
+                    f"{side.label} has n={side.n}, under the n ≥ {SALARY_FLOOR} floor: "
+                    "its median is withheld, so no difference is shown"
+                )
+
+    @property
+    def dollars(self) -> float:
+        return self.a.median - self.b.median
+
+    def render(self) -> str:
+        sign = "+" if self.dollars >= 0 else "-"
+        return (
+            f"{sign}${abs(self.dollars):,.0f} ({self.a.label} ${self.a.median:,.0f}, "
+            f"n={self.a.n:,} vs {self.b.label} ${self.b.median:,.0f}, n={self.b.n:,})"
+        )
+
+
+def check_salary_wording(text: str) -> None:
+    """Refuse "mean", "average" or "avg" in rendered salary text, except in the
+    one MEDIAN_RATIONALE sentence."""
+    found = sorted(
+        {m.group(0).lower() for m in _MEAN_WORDS.finditer(text.replace(MEDIAN_RATIONALE, "", 1))}
+    )
+    if found:
+        raise GuardrailError(
+            f"salary text says {found}: salaries are reported as median and IQR only "
+            "(the Methods sentence on why is the one exception)"
         )
 
 
@@ -331,6 +433,7 @@ def summarize_salary(
     basis: str,
     source_view: str,
     value_col: str = "salary_midpoint",
+    group: str = "",
 ) -> SalarySummary:
     """Median and IQR for ONE basis ("employer-disclosed" or "Adzuna-predicted").
 
@@ -356,6 +459,6 @@ def summarize_salary(
         raise GuardrailError("salary_is_predicted is NULL on some rows: can't assign a basis")
     values = frame.loc[flags == SALARY_BASES[basis], value_col].dropna().astype(float)
     if values.empty:
-        return SalarySummary(basis, 0, None, None, None)
+        return SalarySummary(basis, 0, None, None, None, group)
     p25, median, p75 = values.quantile([0.25, 0.5, 0.75]).tolist()
-    return SalarySummary(basis, len(values), median, p25, p75)
+    return SalarySummary(basis, len(values), median, p25, p75, group)
