@@ -174,6 +174,80 @@ def test_wages_pool_matched_employers_analytics_filings(small):
     assert federal["n_filings"] == 0 and federal["median_offered_annual_wage"] is None
 
 
+def test_wage_robustness_columns_without_the_largest_filer_and_per_employer(db):
+    """A big filer drags the pooled median up; both robustness checks show it."""
+    big, mid, small_, d, e = (
+        company(db, n)
+        for n in (
+            "FAKE Big Filer",
+            "FAKE Mid Filer",
+            "FAKE Small Filer",
+            "FAKE Dept D",
+            "FAKE Dept E",
+        )
+    )
+    for c in (big, mid, small_):
+        job(db, "adzuna", c)
+    job(db, "usajobs", d)
+    job(db, "usajobs", e)
+    wage = lambda employer, k: lca(employer, wage_rate_of_pay_from=Decimal(k * 1000))  # noqa: E731
+    lca_rows(
+        db,
+        [wage("FAKE Big Filer", k) for k in (200, 210, 220, 230)]
+        + [wage("FAKE Mid Filer", k) for k in (80, 90)]
+        + [wage("FAKE Small Filer", 100)]
+        + [wage("FAKE Dept D", 120), wage("FAKE Dept E", 140)],  # federal: a tie at 1 filing
+    )
+    by_market = {r["market"]: r for r in rows(db, "select * from v_matched_employer_lca_wages")}
+    commercial, federal = by_market["commercial"], by_market["federal"]
+    assert commercial["median_offered_annual_wage"] == 200_000  # pooled: the big filer's level
+    assert (
+        commercial["median_excl_largest_filer"],
+        commercial["n_filings_excl_largest_filer"],
+    ) == (90_000, 3)
+    assert (
+        commercial["median_of_employer_medians"],
+        commercial["n_employers_for_median_of_medians"],
+    ) == (100_000, 3)  # medians 215k, 85k and 100k
+    # a tie for largest drops the first employer_key ("fake dept d")
+    assert (federal["median_excl_largest_filer"], federal["n_filings_excl_largest_filer"]) == (
+        140_000,
+        1,
+    )
+    assert federal["median_of_employer_medians"] == 130_000
+
+    # the new columns come last, after every existing one
+    columns = [
+        r["column_name"]
+        for r in rows(
+            db,
+            "select column_name from information_schema.columns "
+            "where table_name = 'v_matched_employer_lca_wages' order by ordinal_position",
+        )
+    ]
+    assert columns[-5:] == [
+        "largest_employer_n_filings",
+        "median_excl_largest_filer",
+        "n_filings_excl_largest_filer",
+        "median_of_employer_medians",
+        "n_employers_for_median_of_medians",
+    ]
+
+
+def test_with_one_employer_there_is_no_median_without_it(db):
+    job(db, "adzuna", company(db, "FAKE Only Filer"))
+    lca_rows(db, [lca("FAKE Only Filer"), lca("FAKE Only Filer")])
+    commercial = {r["market"]: r for r in rows(db, "select * from v_matched_employer_lca_wages")}[
+        "commercial"
+    ]
+    assert commercial["median_excl_largest_filer"] is None
+    assert commercial["n_filings_excl_largest_filer"] == 0
+    assert (
+        commercial["median_of_employer_medians"],
+        commercial["n_employers_for_median_of_medians"],
+    ) == (90_000, 1)
+
+
 def test_with_no_lca_data_every_view_still_has_a_row_per_market(db):
     job(db, "adzuna", company(db, "FAKECO Analytics"))
     job(db, "usajobs", company(db, "FAKE Agency"))
@@ -186,6 +260,11 @@ def test_with_no_lca_data_every_view_still_has_a_row_per_market(db):
     assert set(wages) == {"commercial", "federal"}
     assert all(
         r["n_filings"] == 0 and r["median_offered_annual_wage"] is None for r in wages.values()
+    )
+    assert all(
+        r["median_excl_largest_filer"] is None
+        and r["n_filings_excl_largest_filer"] == r["n_employers_for_median_of_medians"] == 0
+        for r in wages.values()
     )
 
 

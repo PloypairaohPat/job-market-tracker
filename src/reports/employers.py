@@ -37,7 +37,7 @@ from pathlib import Path
 import pandas as pd
 
 from src.reports.charts import grouped_barh
-from src.reports.guardrails import Count, Rate
+from src.reports.guardrails import Count, Rate, Stat
 from src.reports.lca_guardrails import (
     BUCKET_LABELS,
     BUCKETS,
@@ -130,6 +130,9 @@ class Wages:
     wage: FilingWage = FilingWage(0, 0)
     largest_filer: Rate = Rate(0, 0, unit="filings")
     unconvertible: int = 0
+    # robustness checks: n = filings with a wage, and employers
+    excl_largest: Stat = Stat(None, 0, prefix="$")
+    median_of_medians: Stat = Stat(None, 0, prefix="$")
 
     @property
     def directional(self) -> bool:
@@ -285,6 +288,14 @@ def _wages(row) -> Wages:
         ),
         largest_filer=Rate(row.largest_employer_n_filings, row.n_filings, unit="filings"),
         unconvertible=row.n_filings - row.n_filings_with_wage,
+        excl_largest=Stat(
+            money(row.median_excl_largest_filer), row.n_filings_excl_largest_filer, prefix="$"
+        ),
+        median_of_medians=Stat(
+            money(row.median_of_employer_medians),
+            row.n_employers_for_median_of_medians,
+            prefix="$",
+        ),
     )
 
 
@@ -671,6 +682,24 @@ def render(data: EmployersReport, provenance: Provenance, out_dir: Path) -> Path
                 for m, w in data.wages.items()
             ],
             caption="From `v_matched_employer_lca_wages`. Median and IQR, never the mean.",
+        )
+        doc.table(
+            ["Robustness check", "Commercial", "Federal"],
+            [
+                [
+                    "Pooled median without the single largest filer (n = LCA filings)",
+                    *[data.wages[m].excl_largest for m in MARKETS],
+                ],
+                [
+                    "Median of each employer's median (n = employers)",
+                    *[data.wages[m].median_of_medians for m in MARKETS],
+                ],
+            ],
+            caption=(
+                "Robustness checks on the pooled median above. If they differ a lot from it, "
+                "the pooled figure mostly reflects the largest filers. The first check needs at "
+                "least 2 employers."
+            ),
         )
 
     doc.heading("What it means")

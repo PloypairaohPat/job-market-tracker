@@ -35,6 +35,16 @@
 --                          for: how far a single large filer drives the pool
 --                          (a count only; the employer isn't named)
 --   p25 / median / p75_offered_annual_wage  over n_filings_with_wage
+-- Robustness checks (appended last; the columns above are unchanged), to see
+-- how far the pooled median is the largest filers' median:
+--   median_excl_largest_filer     the same pooled median with the single
+--                                 largest filer's filings removed (largest by
+--                                 n filings, ties to the first employer_key);
+--                                 NULL when fewer than 2 employers
+--   n_filings_excl_largest_filer  the filings with a wage behind it (0 if none)
+--   median_of_employer_medians    each employer's median offered wage over its
+--                                 filings with a wage, then the median of those
+--   n_employers_for_median_of_medians  the employers behind it (0 if none)
 -- Aggregate only: no filing-level columns.
 
 CREATE OR REPLACE VIEW v_matched_employer_lca_wages AS
@@ -92,6 +102,39 @@ largest AS (
     SELECT market, MAX(n) AS largest_employer_n_filings
     FROM per_employer
     GROUP BY market
+),
+largest_filer AS (
+    SELECT DISTINCT ON (market) market, employer_key
+    FROM per_employer
+    ORDER BY market, n DESC, employer_key
+),
+excl_largest AS (
+    SELECT
+        x.market,
+        COUNT(x.offered_annual_wage) AS n_filings_excl_largest_filer,
+        percentile_cont(0.5) WITHIN GROUP (ORDER BY x.offered_annual_wage)
+            AS median_excl_largest_filer
+    FROM matched x
+    JOIN largest_filer lf ON lf.market = x.market AND x.employer_key <> lf.employer_key
+    GROUP BY x.market
+),
+employer_medians AS (
+    SELECT
+        market,
+        employer_key,
+        percentile_cont(0.5) WITHIN GROUP (ORDER BY offered_annual_wage) AS employer_median
+    FROM matched
+    WHERE offered_annual_wage IS NOT NULL
+    GROUP BY market, employer_key
+),
+median_of_medians AS (
+    SELECT
+        market,
+        percentile_cont(0.5) WITHIN GROUP (ORDER BY employer_median)
+            AS median_of_employer_medians,
+        COUNT(*) AS n_employers_for_median_of_medians
+    FROM employer_medians
+    GROUP BY market
 )
 SELECT
     m.market,
@@ -103,9 +146,15 @@ SELECT
     percentile_cont(0.25) WITHIN GROUP (ORDER BY x.offered_annual_wage) AS p25_offered_annual_wage,
     percentile_cont(0.5) WITHIN GROUP (ORDER BY x.offered_annual_wage) AS median_offered_annual_wage,
     percentile_cont(0.75) WITHIN GROUP (ORDER BY x.offered_annual_wage) AS p75_offered_annual_wage,
-    COALESCE(MAX(lg.largest_employer_n_filings), 0) AS largest_employer_n_filings
+    COALESCE(MAX(lg.largest_employer_n_filings), 0) AS largest_employer_n_filings,
+    MAX(el.median_excl_largest_filer) AS median_excl_largest_filer,
+    COALESCE(MAX(el.n_filings_excl_largest_filer), 0) AS n_filings_excl_largest_filer,
+    MAX(mm.median_of_employer_medians) AS median_of_employer_medians,
+    COALESCE(MAX(mm.n_employers_for_median_of_medians), 0) AS n_employers_for_median_of_medians
 FROM markets m
 LEFT JOIN matched x ON x.market = m.market
 LEFT JOIN largest lg ON lg.market = m.market
+LEFT JOIN excl_largest el ON el.market = m.market
+LEFT JOIN median_of_medians mm ON mm.market = m.market
 GROUP BY m.market
 ORDER BY m.market;

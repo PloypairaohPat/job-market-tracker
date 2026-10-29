@@ -145,6 +145,13 @@ From `v_matched_employer_lca_wages`. Median and IQR, never the mean.
 | commercial | 40 certified analytics-SOC H-1B LCA filings | $95,000 (IQR $82,000–$118,000; n=38 LCA filings from 8 employer(s)) | 50.0% (20 of 40 filings) | 2 filing(s) without an annual wage |
 | federal | 0 certified analytics-SOC H-1B LCA filings | n/a (0 LCA filings with a convertible wage) | n/a (0 of 0 filings) |  |
 
+Robustness checks on the pooled median above. If they differ a lot from it, the pooled figure mostly reflects the largest filers. The first check needs at least 2 employers.
+
+| Robustness check | Commercial | Federal |
+|---|---|---|
+| Pooled median without the single largest filer (n = LCA filings) | $84,000 (n=18) | n/a (n=0) |
+| Median of each employer's median (n = employers) | $88,500 (n=8) | n/a (n=0) |
+
 ## What it means
 
 > **[TO WRITE: What it means]** What concentration and the filing record say about where analyst hiring is, and what the measurement can't show (unmatched names, truncated text, filings vs hires).

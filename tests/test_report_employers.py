@@ -166,12 +166,12 @@ def outlook_frame():
 
 def wages_frame(loaded=True):
     c = (
-        (40, 38, 9, 8, 82_000.0, 95_000.0, 118_000.0, 20)
+        (40, 38, 9, 8, 82_000.0, 95_000.0, 118_000.0, 20, 84_000.0, 18, 88_500.0, 8)
         if loaded
-        else (0, 0, 0, 0, NAN, NAN, NAN, 0)
+        else (0, 0, 0, 0, NAN, NAN, NAN, 0, NAN, 0, NAN, 0)
     )
     return pd.DataFrame(
-        [("commercial", *c), ("federal", 0, 0, 0, 0, NAN, NAN, NAN, 0)],
+        [("commercial", *c), ("federal", 0, 0, 0, 0, NAN, NAN, NAN, 0, NAN, 0, NAN, 0)],
         columns=[
             "market",
             "n_filings",
@@ -182,6 +182,10 @@ def wages_frame(loaded=True):
             "median_offered_annual_wage",
             "p75_offered_annual_wage",
             "largest_employer_n_filings",
+            "median_excl_largest_filer",
+            "n_filings_excl_largest_filer",
+            "median_of_employer_medians",
+            "n_employers_for_median_of_medians",
         ],
     )
 
@@ -405,6 +409,22 @@ def test_without_lca_data_the_hiring_sections_still_render(tmp_path):
     assert "- Commercial employers with ≥ 1 certified H-1B LCA filing: LCA data not loaded" in md
     for key in REQUIRED_CAVEATS:  # the caveats are printed either way
         assert LCA_CAVEATS[key] in md
+
+
+def test_wage_robustness_rows_sit_under_the_pooled_wage_with_their_n(tmp_path):
+    md = render(tmp_path)
+    wages = md[md.index("## 5. Offered wage") : md.index("## What it means")]
+    assert (
+        "| Pooled median without the single largest filer (n = LCA filings) | $84,000 (n=18) "
+        "| n/a (n=0) |"
+    ) in wages
+    assert (
+        "| Median of each employer's median (n = employers) | $88,500 (n=8) | n/a (n=0) |" in wages
+    )
+    assert "the pooled figure mostly reflects the largest filers" in wages
+    assert wages.index("| commercial | 40 certified") < wages.index("| Pooled median without")
+    for word in ("mean", "average"):  # robustness rows are medians too
+        assert word not in wages.replace("never the mean", "")
 
 
 def test_a_small_filing_pool_is_marked_directional(tmp_path):
