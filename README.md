@@ -4,7 +4,7 @@ A self-hosted analytics platform that ingests live job posting data, extracts sk
 
 **Why it exists**: job seekers in analytics face information asymmetry — hidden salary bands, inconsistent skill descriptions, no visibility into market shape. This project builds a transparent, queryable view of that market, and in doing so demonstrates the full analyst workflow: **ingestion → cleaning → modeling → analysis → visualization → storytelling**.
 
-> **Status:** two sources (Adzuna and USAJobs) ingested by a daily runner with a budget guard and a health check; a cleaning layer, skill tagging and a visa-sponsorship layer; twenty-one SQL views with three investigations written up; six Metabase dashboards defined as code. A deploy kit for an always-on server is ready but not yet used. A report kit renders four written reports' tables, charts and methods from the views; their narrative comes next. See the [roadmap](#roadmap).
+> **Status:** two sources (Adzuna and USAJobs) ingested by a daily runner with a budget guard and a health check; a cleaning layer, skill tagging and a visa-sponsorship layer; twenty-two SQL views with three investigations written up; six Metabase dashboards defined as code. A deploy kit for an always-on server is ready but not yet used. A report kit renders four written reports' tables, charts and methods from the views; their narrative comes next. See the [roadmap](#roadmap).
 
 ## In three minutes
 

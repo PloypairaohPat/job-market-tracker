@@ -590,6 +590,10 @@ One row per market (`commercial` | `federal`, the same populations and the same 
 
 Counts only, each beside `n_jobs`.
 
+### `v_skill_category_composition_roles`
+
+A **sensitivity** companion of `v_skill_category_composition`, with the same columns (`market`, `category`, `n_tags`, `pct_of_tags`, `market_n_jobs`), counted over distinct roles instead of postings. A role is a (market, `employer_key`, normalized title) triple, as in `v_employer_roles`; postings with no company have none. A role carries a category if **any** of its postings is tagged with it at `confidence >= 0.8`, so `n_tags` counts role-category pairs (a role reposted ten times counts once), `pct_of_tags` is their share, and `market_n_jobs` counts the market's distinct roles. Report 1 shows it beside the primary composition; the primary numbers and headline don't use it. Not a dedup: identical titles can be different jobs, and wording variants count separately.
+
 ### `v_federal_skill_by_admission`
 
 Federal in-scope skill tag rates by **admission route** (`jobs.scope_reason`, with the `skill_density` route's trailing `:<n>` dropped): `admission_route`, `name`, `category`, `n_jobs_tagged`, `route_n_jobs`, `pct_of_jobs`.
