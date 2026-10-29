@@ -10,7 +10,7 @@ Laptop commands below are for Windows PowerShell with `uv`, run from the repo ro
 |---|---|---|---|
 | `commercial-vs-federal-skills` | Commercial vs federal skill demand | Phase 3 Investigation #2 | `v_skill_category_composition`, `v_skill_text_basis`, `v_skill_top_by_source`, `v_federal_skill_by_admission` |
 | `how-much-employers-disclose` | How much employers disclose | Phase 3 Investigation #3 | `v_field_completeness`, `v_field_completeness_counts` |
-| `employers-and-sponsorship` | Who hires data analysts, and who has filed to sponsor them | new: hiring concentration and the employers' LCA filing record (visa layer) | `v_employer_postings`, `v_employer_sponsorship_match`, `v_visa_outlook_summary`, `v_matched_employer_lca_wages` |
+| `employers-and-sponsorship` | Who hires data analysts, and who has filed to sponsor them | new: hiring concentration (postings and distinct roles) and the employers' LCA filing record (visa layer) | `v_employer_postings`, `v_employer_roles`, `v_employer_sponsorship_match`, `v_visa_outlook_summary`, `v_matched_employer_lca_wages`, `v_lca_coverage`, `v_lca_monthly` |
 
 `uv run python -m src.reports --list` prints the current list.
 

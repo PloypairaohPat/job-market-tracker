@@ -348,6 +348,10 @@ Loaded by `python -m src.visa.lca_loader --file data/lca/<file> --fiscal-year <F
 
 A missing quarterly file shows up as fewer months or a late `min_decision_date`, not as an error. Cases with no `decision_date` count in `n_cases` only.
 
+### `v_lca_monthly` — decisions per month
+
+`sql/views/v_lca_monthly.sql`. One row per (`fiscal_year`, `month`) with at least one decision: `month` is the first day of the calendar month of `decision_date`, `n_cases` the cases decided in it. A month with no decisions has no row, so the rows per fiscal year equal `v_lca_coverage.n_months_with_decisions`. Aggregate only. Report 3's Methods reads it to list each window year's months and to flag a month with fewer than 10% of its fiscal year's median month ("unusually few decisions; cause not established"; the 10% is *parked*).
+
 The loader prints the same for each file after every load, dry run included: the `DECISION_DATE` range, cases per calendar month (a month with none shows 0), and how many cases were decided outside the `--fiscal-year` given (1 Oct of FY−1 to 30 Sep of FY). Any such case → a warning. More than 1% of the file's cases (`OUTSIDE_FY_MAX_SHARE`, *parked*) → the load is refused and nothing is written, unless `--allow-outside-fy` is passed: a mislabelled fiscal year would otherwise shift the 3-FY window.
 
 ### `v_employer_sponsorship` — employer-level sponsorship history
@@ -604,14 +608,15 @@ The counts behind `v_field_completeness`'s percentages, one row per market, with
 
 ### Report 3 views: employers and sponsorship
 
-Four aggregate views for report 3 (`employers-and-sponsorship`). They use the same populations as `v_market_jobs` (commercial = every Adzuna posting, federal = USAJobs `in_scope`), defined inline because they sort before it. Each has a row per market. None carries a job- or filing-level column: no job ids, titles, URLs or case numbers.
+Five aggregate views for report 3 (`employers-and-sponsorship`), which also reads `v_lca_coverage` and `v_lca_monthly` for its Methods. They use the same populations as `v_market_jobs` (commercial = every Adzuna posting, federal = USAJobs `in_scope`), defined inline because they sort before it. Each has a row per market. None carries a job- or filing-level column: no job ids, titles, URLs or case numbers.
 
 | View | One row per | What it holds |
 |---|---|---|
 | `v_employer_postings` | market × `employer_key` | `n_postings`, `employer_name` (display only), and the market's `market_n_postings` and `market_n_employers`. Postings with no company form one NULL-key row: counted in the market's total, never an employer |
+| `v_employer_roles` | market × `employer_key` | distinct roles beside postings: `n_postings`, `n_roles` (distinct `COALESCE(NULLIF(title_normalized, ''), LOWER(TRIM(title)))`), `n_locations` (distinct `location_id`), `market_n_postings`, `market_n_roles`. Same rows as `v_employer_postings`; the NULL-employer row's postings count but it has 0 roles. A role is an (employer, normalized title) pair: a **sensitivity measure, not a dedup** (identical titles can be different jobs, so roles undercount; wording variants count separately, so they overcount) |
 | `v_employer_sponsorship_match` | market | postings and employers matched to `v_employer_sponsorship` (`last_3_fy`, on `employer_key`) at three nested levels: any LCA filing, ≥ 1 certified H-1B, ≥ 1 certified analytics-SOC H-1B. Plus the denominators, `lca_rows_loaded` (0 = LCA files not loaded) and the window FYs |
 | `v_visa_outlook_summary` | market × `bucket` × `bucket_reason` | `v_job_visa_outlook` counted: `n_postings`, `market_n_postings`. Counts only, so a report never loads the per-job view behind the private dashboard |
-| `v_matched_employer_lca_wages` | market | offered annual wage on certified analytics-SOC H-1B **filings** by employers posting in the market (last 3 FYs): p25 / median / p75, `n_filings`, `n_filings_with_wage`, `n_employers`, `n_employers_with_wage` |
+| `v_matched_employer_lca_wages` | market | offered annual wage on certified analytics-SOC H-1B **filings** by employers posting in the market (last 3 FYs): p25 / median / p75, `n_filings`, `n_filings_with_wage`, `n_employers`, `n_employers_with_wage`, `largest_employer_n_filings`. Robustness checks, appended last: `median_excl_largest_filer` with `n_filings_excl_largest_filer` (the same pooled median without the single largest filer, by filings, ties to the first key; NULL with fewer than 2 employers), and `median_of_employer_medians` with `n_employers_for_median_of_medians` (each employer's median, then their median) |
 
 Notes:
 
