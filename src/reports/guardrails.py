@@ -10,6 +10,8 @@ accept nothing else:
          There is no way to build one without its denominator, and if the view
          computed the percentage, the numerator/denominator must reproduce it
          (catches a report quoting a rate against the wrong denominator).
+         A nonzero rate that rounds to 0.0 renders "<0.1%"; one short of the
+         whole that rounds to 100.0 renders ">99.9%".
   Ratio  a ratio or multiple (tags per job, "3.5x"), rendered with both terms.
   Stat   any other grouped number (a median, a length), rendered with its n.
   Gap    the percentage-point difference between two Rates, rendered with both.
@@ -163,7 +165,18 @@ class Rate:
         unit = f" {self.unit}" if self.unit else ""
         if self.denominator == 0:
             return f"n/a (0 of 0{unit})"
-        return f"{self.value:.1f}% ({self.numerator:,} of {self.denominator:,}{unit})"
+        return f"{self.shown()} ({self.numerator:,} of {self.denominator:,}{unit})"
+
+    def shown(self) -> str:
+        """The percentage as displayed. A nonzero rate never reads as 0.0%, and a
+        rate short of the whole never reads as 100.0%: "<0.1%" and ">99.9%".
+        `value` itself is unchanged."""
+        text = f"{self.value:.1f}"
+        if text == "0.0" and self.numerator > 0:
+            return "<0.1%"
+        if text == "100.0" and self.numerator < self.denominator:
+            return ">99.9%"
+        return f"{text}%"
 
 
 @dataclass(frozen=True)

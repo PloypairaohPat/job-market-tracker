@@ -54,6 +54,19 @@ def test_rounding_matches_postgres_round_half_up():
     assert Rate(1, 400, pct=0.3).value == 0.3
 
 
+def test_a_small_rate_never_reads_as_zero_or_whole():
+    assert Rate(1, 2835, unit="postings").render() == "<0.1% (1 of 2,835 postings)"
+    assert Rate(2834, 2835, unit="postings").render() == ">99.9% (2,834 of 2,835 postings)"
+    assert Rate(1, 2835, pct=0.0).render() == "<0.1% (1 of 2,835)"  # the view's own 0.0 too
+    # exact zeros and hundreds, and rates that don't round to them, are unchanged
+    assert Rate(0, 2835).render() == "0.0% (0 of 2,835)"
+    assert Rate(2835, 2835).render() == "100.0% (2,835 of 2,835)"
+    assert Rate(1, 1000).render() == "0.1% (1 of 1,000)"
+    assert Rate(999, 1000).render() == "99.9% (999 of 1,000)"
+    # only the display changes: the value is still the rounded number
+    assert Rate(1, 2835).value == 0.0 and Rate(2834, 2835).value == 100.0
+
+
 def test_a_zero_denominator_renders_as_not_applicable():
     assert Rate(0, 0, unit="jobs").render() == "n/a (0 of 0 jobs)"
 
