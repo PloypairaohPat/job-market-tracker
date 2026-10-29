@@ -6,19 +6,26 @@ test can prove they never reach the database.
 """
 
 import csv
+import logging
 import os
+import sys
+from datetime import date
 from decimal import Decimal
 
 import pytest
 from openpyxl import Workbook
 from sqlalchemy import create_engine, text
 
+from scripts.apply_views import apply_views
 from src.visa.lca_loader import (
     ALIASES,
     COLUMN_MAP,
     AmbiguousColumnsError,
     MissingColumnsError,
+    OutsideFiscalYearError,
+    fiscal_year_bounds,
     load_file,
+    main,
     parse_date,
     parse_flag,
     parse_int,
@@ -414,3 +421,146 @@ def test_na_only_input_has_no_bad_cells(tmp_path):
         "willful_violator": 3,
         "full_time_position": 3,
     }
+
+
+# --------------------------------------------------------------------- #
+# coverage: which months a file covers, and cases outside its fiscal year
+
+
+def test_fiscal_year_bounds_are_the_federal_fiscal_year():
+    assert fiscal_year_bounds(2026) == (date(2025, 10, 1), date(2026, 9, 30))
+
+
+def decided(n: str, when: str) -> dict:
+    return case(n, DECISION_DATE=when)
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(not TEST_DB_URL, reason="TEST_DATABASE_URL not set")
+def test_coverage_of_two_quarterly_files_and_v_lca_coverage(db, tmp_path):
+    # FY2026 Q1 holds one quarter; Q2 repeats one Q1 case and adds Q2's
+    q1 = write_xlsx(
+        tmp_path / "LCA_FY2026_Q1.xlsx",
+        [decided("C-1", "10/15/2025"), decided("C-2", "11/20/2025"), decided("C-3", "12/05/2025")],
+    )
+    q2 = write_csv(
+        tmp_path / "LCA_FY2026_Q2.csv",
+        [
+            decided("C-3", "12/05/2025"),
+            decided("C-4", "2026-01-10"),
+            decided("C-5", "02/14/2026"),
+            decided("C-6", "03/31/2026"),
+            decided("C-7", ""),  # no decision date: a case, but no month
+        ],
+    )
+    fy2025 = write_csv(
+        tmp_path / "LCA_FY2025_Q4.csv",
+        [decided("P-1", "08/15/2025"), decided("P-2", "09/30/2025")],
+    )
+    r1 = load_file(q1, 2026, database_url=TEST_DB_URL)
+    r2 = load_file(q2, 2026, database_url=TEST_DB_URL)
+    load_file(fy2025, 2025, database_url=TEST_DB_URL)
+
+    assert (r1.decision_date_min, r1.decision_date_max) == (date(2025, 10, 15), date(2025, 12, 5))
+    assert r1.by_decision_month == {"2025-10": 1, "2025-11": 1, "2025-12": 1}
+    assert (r1.no_decision_date, r1.outside_fiscal_year) == (0, 0)
+    assert (r2.decision_date_min, r2.decision_date_max) == (date(2025, 12, 5), date(2026, 3, 31))
+    assert r2.by_decision_month == {"2025-12": 1, "2026-01": 1, "2026-02": 1, "2026-03": 1}
+    assert (r2.no_decision_date, r2.outside_fiscal_year) == (1, 0)
+
+    out = summarize(r1, dry_run=False)
+    assert "FY2026 runs 2025-10-01 to 2026-09-30" in out
+    assert "DECISION_DATE coverage: 2025-10-15 to 2025-12-05" in out
+    assert "  2025-10  1\n  2025-11  1\n  2025-12  1" in out
+    assert "decided outside FY2026: 0" in out and "WARNING" not in out
+
+    apply_views(TEST_DB_URL)
+    with db.connect() as conn:
+        got = {
+            r["fiscal_year"]: r
+            for r in conn.execute(text("select * from v_lca_coverage")).mappings()
+        }
+    assert {fy: dict(r) for fy, r in got.items()} == {
+        2026: {
+            "fiscal_year": 2026,
+            "n_cases": 7,  # C-3 is in both files, stored once
+            "min_decision_date": date(2025, 10, 15),
+            "max_decision_date": date(2026, 3, 31),
+            "n_months_with_decisions": 6,
+        },
+        2025: {
+            "fiscal_year": 2025,
+            "n_cases": 2,
+            "min_decision_date": date(2025, 8, 15),
+            "max_decision_date": date(2025, 9, 30),
+            "n_months_with_decisions": 2,
+        },
+    }
+
+
+def test_months_with_no_decisions_show_as_zero(tmp_path):
+    path = write_csv(
+        tmp_path / "gap.csv", [decided("G-1", "10/01/2025"), decided("G-2", "12/31/2025")]
+    )
+    out = summarize(load_file(path, 2026, dry_run=True), dry_run=True)
+    assert "  2025-10  1\n  2025-11  0\n  2025-12  1" in out
+
+
+def test_no_decision_dates_still_summarize(tmp_path):
+    path = write_csv(tmp_path / "nodates.csv", [decided("E-1", "")])
+    result = load_file(path, 2026, dry_run=True)
+    assert result.decision_date_min is None and result.no_decision_date == 1
+    assert "DECISION_DATE coverage: no decision dates" in summarize(result, dry_run=True)
+
+
+def test_up_to_one_percent_outside_the_fiscal_year_warns_but_loads(tmp_path, caplog):
+    # the FY's first and last days are inside it; one case of 100 is outside
+    rows = [decided("F-0", "10/01/2025"), decided("F-1", "09/30/2026")]
+    rows += [decided(f"F-{i}", "01/15/2026") for i in range(2, 99)]
+    rows += [decided("F-99", "09/30/2025")]
+    with caplog.at_level(logging.WARNING, logger="src.visa.lca_loader"):
+        result = load_file(write_csv(tmp_path / "one.csv", rows), 2026, dry_run=True)
+    assert (result.rows_loaded, result.outside_fiscal_year) == (100, 1)
+    assert "1 of 100 cases (1.0%) were decided outside FY2026" in caplog.text
+    assert "decided outside FY2026: 1  <-- WARNING" in summarize(result, dry_run=True)
+
+
+def test_more_than_one_percent_outside_is_refused_in_a_dry_run_too(tmp_path):
+    rows = [decided(f"F-{i}", "01/15/2026") for i in range(98)]
+    rows += [decided("F-98", "09/30/2025"), decided("F-99", "10/01/2026")]
+    path = write_csv(tmp_path / "two.csv", rows)
+    with pytest.raises(OutsideFiscalYearError, match=r"2 of 100 cases \(2\.0%\)") as err:
+        load_file(path, 2026, dry_run=True)
+    assert err.value.result.outside_fiscal_year == 2
+    assert "REFUSED (nothing written)" in summarize(err.value.result, dry_run=True)
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(not TEST_DB_URL, reason="TEST_DATABASE_URL not set")
+def test_a_mislabelled_fiscal_year_writes_nothing_unless_allowed(db, tmp_path):
+    path = write_csv(tmp_path / "LCA_FY2026_Q1.csv", [case("W-1"), case("W-2")])  # FY2026 cases
+    with pytest.raises(OutsideFiscalYearError, match="--allow-outside-fy"):
+        load_file(path, 2025, database_url=TEST_DB_URL)
+    with db.connect() as conn:
+        assert conn.execute(text("select count(*) from lca_cases")).scalar_one() == 0
+
+    result = load_file(path, 2025, database_url=TEST_DB_URL, allow_outside_fy=True)
+    assert (result.rows_loaded, result.outside_fiscal_year, result.refused) == (2, 2, "")
+    with db.connect() as conn:
+        assert conn.execute(text("select count(*) from lca_cases")).scalar_one() == 2
+
+
+def test_cli_prints_coverage_and_exits_non_zero_when_refused(tmp_path, monkeypatch, capsys):
+    path = write_csv(tmp_path / "LCA_FY2026_Q1.csv", [case("X-1")])
+    argv = ["lca_loader", "--file", str(path), "--fiscal-year", "2025", "--dry-run"]
+    monkeypatch.setattr(sys, "argv", argv)
+    with pytest.raises(SystemExit) as exit_:
+        main()
+    assert str(exit_.value.code).startswith("refused: LCA_FY2026_Q1.csv: 1 of 1 cases")
+    out = capsys.readouterr().out
+    assert "DECISION_DATE coverage: 2025-11-10 to 2025-11-10" in out
+    assert "decided outside FY2025: 1  <-- WARNING" in out
+
+    monkeypatch.setattr(sys, "argv", [*argv, "--allow-outside-fy"])
+    main()
+    assert "cases parsed (dry run, nothing written): 1" in capsys.readouterr().out

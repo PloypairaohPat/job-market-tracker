@@ -336,6 +336,20 @@ Loaded by `python -m src.visa.lca_loader --file data/lca/<file> --fiscal-year <F
 
 **Personal data never loaded.** The files also carry real people's names, emails and phone numbers (`EMPLOYER_POC_*`, `AGENT_ATTORNEY_*`, `LAWFIRM_*`, `PREPARER_*`). The loader streams rows through an explicit 30-column allowlist (`COLUMN_MAP` in `src/visa/lca_loader.py`); every other cell is dropped as its row is read. Tested on synthetic files carrying invented values in those columns. Allowlisted columns missing from a file load as NULL with a warning; a file missing `CASE_NUMBER`, `CASE_STATUS` or `EMPLOYER_NAME` is refused.
 
+### `v_lca_coverage` — what each loaded fiscal year holds
+
+`sql/views/v_lca_coverage.sql`. One row per `fiscal_year` loaded, aggregate only:
+
+| Column | Meaning |
+|---|---|
+| `n_cases` | cases stored for the FY (one per `case_number`) |
+| `min_decision_date`, `max_decision_date` | earliest and latest `decision_date` |
+| `n_months_with_decisions` | calendar months with ≥ 1 decision: 12 for a complete FY, fewer for a partial one (9 for a current FY loaded to June) |
+
+A missing quarterly file shows up as fewer months or a late `min_decision_date`, not as an error. Cases with no `decision_date` count in `n_cases` only.
+
+The loader prints the same for each file after every load, dry run included: the `DECISION_DATE` range, cases per calendar month (a month with none shows 0), and how many cases were decided outside the `--fiscal-year` given (1 Oct of FY−1 to 30 Sep of FY). Any such case → a warning. More than 1% of the file's cases (`OUTSIDE_FY_MAX_SHARE`, *parked*) → the load is refused and nothing is written, unless `--allow-outside-fy` is passed: a mislabelled fiscal year would otherwise shift the 3-FY window.
+
 ### `v_employer_sponsorship` — employer-level sponsorship history
 
 `sql/views/v_employer_sponsorship.sql`. One row per `(employer_key, period)`: `period = 'FY<year>'` per loaded fiscal year, plus `period = 'last_3_fy'` for the latest loaded FY and the two before it (`window_start_fy`..`window_end_fy`).
