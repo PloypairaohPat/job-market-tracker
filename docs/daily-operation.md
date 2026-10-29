@@ -22,6 +22,8 @@ If one source fails (an API error or missing credentials), it is recorded as a `
 
 Only one run can be active at a time, enforced with a Postgres advisory lock. A second run that starts while one is active logs that and exits 0.
 
+Before anything else, the runner waits for the database: up to 5 minutes (`--db-wait`, in seconds), trying every 10 seconds. Each attempt is logged with the host and port only. If the database never answers, the runner stops with exit code 2 and says how to start it (see "Exit codes" and "After a reboot or wake" below).
+
 Exit code 0 means every step that ran succeeded. A `skipped_budget` or `partial` Adzuna run counts as success, because that is the guard working.
 
 The log goes to the console and to `logs\daily-YYYY-MM-DD.log`. The date in the file name is the UTC date. The file is UTF-8 and is appended to on each run. Credentials are masked as `***` in the log. Nothing is ever rotated or deleted.
@@ -32,7 +34,18 @@ Useful flags:
 uv run python -m src.pipeline.daily --dry-run                 # plan only: budget decision + steps; no API calls, no writes
 uv run python -m src.pipeline.daily --skip adzuna             # e.g. save Adzuna calls on a re-run
 uv run python -m src.pipeline.daily --skip adzuna usajobs     # just cleaning + skills + health
+uv run python -m src.pipeline.daily --db-wait 0               # don't wait for the database: one try
 ```
+
+## Exit codes
+
+| Code | Meaning | What to do |
+|---|---|---|
+| **0** | Every step that ran succeeded (`skipped_budget` and `partial` count), or another run already held the lock | Nothing |
+| **1** | A step failed. The summary marks it `FAIL`; the other steps still ran | Read that step's line in the summary, and `ingestion_runs.error` for a source |
+| **2** | The database never became reachable within `--db-wait`. Nothing ran | See "After a reboot or wake" |
+
+Task Scheduler shows the same number as **LastTaskResult**.
 
 ## The database container restarts by itself
 
@@ -74,7 +87,7 @@ The task itself always runs with `-ExecutionPolicy Bypass`.
 ### Checking that it ran
 
 ```powershell
-Get-ScheduledTaskInfo -TaskName JobMarketTracker-Daily   # LastRunTime, LastTaskResult (0 = success, 1 = a step failed)
+Get-ScheduledTaskInfo -TaskName JobMarketTracker-Daily   # LastRunTime, LastTaskResult (0 = success; see "Exit codes")
 Start-ScheduledTask   -TaskName JobMarketTracker-Daily   # run it now
 Get-ChildItem logs                                       # one daily-YYYY-MM-DD.log per UTC day
 Get-Content logs\daily-2026-10-27.log -Tail 20           # the summary is at the end
@@ -95,6 +108,55 @@ Snapshot dates are **UTC** dates. If a run lands near UTC midnight (about 7–9 
 - **Off or away** all day: that day is lost for good. The health check will show it (H2 WARN/FAIL and a reset streak), but nothing can recover it.
 
 The durable fix is running the same pipeline on an always-on server: **Milestone D**. [docs/deploy.md](deploy.md) sets it up with a systemd timer at 11:15 UTC, and its cut-over makes sure the laptop and the server never both ingest on the same UTC day. Don't add a cron job as well.
+
+## After a reboot or wake
+
+Three things keep the 07:15 run from finding the database down:
+
+1. **Docker Desktop starts when you sign in.** In Docker Desktop, open **Settings → General** and tick **"Start Docker Desktop when you sign in to your computer"**. Without it, Docker isn't running after a reboot until you open it.
+2. **The database container restarts with Docker.** `docker-compose.yml` gives `db` the `restart: unless-stopped` policy (see "The database container restarts by itself" above), and `run_daily.ps1` also runs `docker compose up -d db` before the pipeline. If `docker` isn't found, it prints one line saying so and carries on.
+3. **The runner waits.** Right after a login or wake, Docker Desktop can take a minute or two to start. The runner keeps trying for 5 minutes before it gives up.
+
+If it still gives up, the log and the console end with:
+
+```text
+database unreachable at localhost:5432 after 300 s; is Docker Desktop running? Then: docker compose up -d db
+```
+
+and the task's LastTaskResult is **2**. Open Docker Desktop, wait for **Engine running**, then run these one at a time:
+
+```powershell
+docker compose up -d db
+Start-ScheduledTask -TaskName JobMarketTracker-Daily
+```
+
+## How to tell the clock is running
+
+Run these one at a time:
+
+```powershell
+uv run python -m src.pipeline.health
+Get-ScheduledTaskInfo -TaskName JobMarketTracker-Daily
+Get-ChildItem logs
+```
+
+- **Health:** H2 is PASS (or WARN before today's run), **H7 is PASS** (no day without a snapshot in the last 14), and the current streak grows by one a day.
+- **The scheduled task:** LastRunTime is today, and **LastTaskResult** is 0. **267011** means the task hasn't run yet since it was registered; that's normal until its first 07:15. 1 and 2 are the runner's exit codes (see "Exit codes"). Any other number is Task Scheduler's own error: check the task's History tab.
+- **The logs:** one `logs\daily-YYYY-MM-DD.log` per UTC day the task ran. The summary is at the end of each: `Get-Content "logs\daily-2026-10-27.log" -Tail 25`.
+
+## If a day was missed
+
+A missed day **can't be backfilled**: a snapshot records what the APIs showed on that day, and that's gone. First, save today if it hasn't run yet:
+
+```powershell
+Start-ScheduledTask -TaskName JobMarketTracker-Daily
+```
+
+Then find out why, so it doesn't happen again. H7 lists the missing dates. For each one, look for its log (the file name is the **UTC** date):
+
+- **No log file for that date:** the task never started. The laptop was off, asleep all day, or not logged on, or the task is disabled. Check `Get-ScheduledTaskInfo` and the task's History tab.
+- **The log ends with "database unreachable":** Docker wasn't running. See "After a reboot or wake".
+- **The log's summary has a FAIL step:** read that step's line, and `ingestion_runs.error` for a failed source.
 
 ## The Adzuna budget
 
