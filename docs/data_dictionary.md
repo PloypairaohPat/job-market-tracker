@@ -606,6 +606,20 @@ The counts behind `v_field_completeness`'s percentages, one row per market, with
 - The market-fact vs instrument-limited labels in `v_field_completeness.sql`'s header apply unchanged.
 - `n_skill_present` counts a tag at any confidence, as `v_field_completeness` does.
 
+### Report 4 views: what commercial postings pay
+
+Two aggregate views for report 4 (`what-postings-pay`), which also reads `v_commercial_salary_clean` (for its medians only; no row reaches the output) and `v_ingestion_daily`.
+
+| View | One row per | What it holds |
+|---|---|---|
+| `v_salary_population` | (`salary_quality`, `salary_currency`, `salary_period`, `salary_is_predicted`) over every commercial posting, NULLs as their own groups | `n`; `in_clean_population` (the groups `v_commercial_salary_clean` keeps: `'ok'`, USD, year), so the clean total equals that view's row count; `market_n_postings`. `salary_quality` NULL means no salary figure at all |
+| `v_salary_skill_coverage` | salary basis (`employer-disclosed`, `Adzuna-predicted`; both rows always present) within the clean population | `n_jobs`; `n_jobs_tagged` (any skill tag at confidence ≥ 0.8, the skill views' join); `largest_skill_n` (postings carrying the most common skill); `n_skills_at_floor` (skills on ≥ 15 postings, the salary floor; a test keeps it equal to `SALARY_FLOOR`). Rows whose `salary_is_predicted` is NULL belong to neither basis |
+
+Notes:
+
+- **"Salary present" is API behaviour.** Adzuna fills in a predicted salary when the employer gives none, so nearly every posting has one; the employer-disclosed share is the market fact.
+- **Counts are truncation-floored.** Skill tags come from descriptions cut at about 500 characters.
+
 ### Report 3 views: employers and sponsorship
 
 Five aggregate views for report 3 (`employers-and-sponsorship`), which also reads `v_lca_coverage` and `v_lca_monthly` for its Methods. They use the same populations as `v_market_jobs` (commercial = every Adzuna posting, federal = USAJobs `in_scope`), defined inline because they sort before it. Each has a row per market. None carries a job- or filing-level column: no job ids, titles, URLs or case numbers.

@@ -41,7 +41,7 @@ Look at the health check's **H7** line (days without a snapshot) and the streak 
 Then re-render the reports. This loop stops at the first one that fails:
 
 ```powershell
-foreach ($r in @("commercial-vs-federal-skills", "how-much-employers-disclose", "employers-and-sponsorship")) {
+foreach ($r in @("commercial-vs-federal-skills", "how-much-employers-disclose", "employers-and-sponsorship", "what-postings-pay")) {
   uv run python -m src.reports $r
   if ($LASTEXITCODE -ne 0) { Write-Host "STOP: $r"; break }
 }

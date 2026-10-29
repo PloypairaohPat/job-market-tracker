@@ -10,6 +10,7 @@ Laptop commands below are for Windows PowerShell with `uv`, run from the repo ro
 |---|---|---|---|
 | `commercial-vs-federal-skills` | Commercial vs federal skill demand | Phase 3 Investigation #2 | `v_skill_category_composition`, `v_skill_text_basis`, `v_skill_top_by_source`, `v_federal_skill_by_admission` |
 | `how-much-employers-disclose` | How much employers disclose | Phase 3 Investigation #3 | `v_field_completeness`, `v_field_completeness_counts` |
+| `what-postings-pay` | What commercial data-analyst postings pay | Phase 3 Investigation #1 | `v_commercial_salary_clean`, `v_salary_population`, `v_salary_skill_coverage`, `v_ingestion_daily` |
 | `employers-and-sponsorship` | Who hires data analysts, and who has filed to sponsor them | new: hiring concentration (postings and distinct roles) and the employers' LCA filing record (visa layer) | `v_employer_postings`, `v_employer_roles`, `v_employer_sponsorship_match`, `v_visa_outlook_summary`, `v_matched_employer_lca_wages`, `v_lca_coverage`, `v_lca_monthly` |
 
 `uv run python -m src.reports --list` prints the current list.
@@ -84,7 +85,8 @@ A report can't print a number except through `src/reports/guardrails.py`, and th
 |---|---|
 | Every grouped number shows its n | Table cells accept counts, labels and guardrail types only. A float, or a label that's really a number ("33.8%"), is refused. Medians and lengths render as "235 (IQR 224–244; n=609)". |
 | No rate without its denominator | A `Rate` can't be built without one, and renders as "33.8% (180 of 533 tags)". When the view computed the percentage, the numerator and denominator must reproduce it, or the report stops ("wrong denominator?"). A gap is "+22.8 pp" only in a table row that shows both rates. |
-| Salary | Only `salary_quality = 'ok'`, USD, `period = year` (`v_commercial_salary_clean`, or rows that prove it). Median and IQR, never the mean. Employer-disclosed and Adzuna-predicted are summarized separately; there is no pooled option. |
+| Salary | Only `salary_quality = 'ok'`, USD, `period = year` (`v_commercial_salary_clean`, or rows that prove it). Median and IQR, never the mean: `check_salary_wording` refuses "mean", "average" or "avg" in report 4's text, except in the one Methods sentence on why the median is used. Employer-disclosed and Adzuna-predicted are summarized separately; there is no pooled option. |
+| Salary floor and differences | `SALARY_FLOOR = 15`: a salary group under it shows its n, and its median is withheld with the reason (`FlooredSalary`). `SalaryDiff`, the dollar counterpart of a gap, is built only from two summaries of different bases (or one basis, two groups), renders the signed difference with both medians and both n, and is refused below the floor or at n = 0. A salary box chart draws one summary per box, only at n ≥ 15, with no single posting shown. |
 | Small groups | Skill drill-downs keep only n ≥ 15 (commercial) and n ≥ 5 (federal), and say how many rows were suppressed. Composition categories below those floors are shown but marked ‡. |
 | Truncation | Commercial (Adzuna) skill rates are marked truncation-floored, and a table or chart showing one must say "truncation-floored". |
 | Instrument-limited fields | In report 2, seniority, metro and remote get their own section with the mechanism that limits each, and can't be charted beside the measured fields. Federal remote is "not measurable", never a 0% rate. |
