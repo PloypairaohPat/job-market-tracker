@@ -232,14 +232,15 @@ def test_file_loads_and_personal_data_never_reaches_db(db, tmp_path, writer, suf
 
 @pytest.mark.integration
 @pytest.mark.skipif(not TEST_DB_URL, reason="TEST_DATABASE_URL not set")
-def test_cumulative_quarter_reload_does_not_double_count(db, tmp_path):
+def test_reloading_an_overlapping_file_does_not_double_count(db, tmp_path):
     q2 = write_xlsx(
         tmp_path / "LCA_FY2026_Q2.xlsx", [case("A-1"), case("A-2", CASE_STATUS="Withdrawn")]
     )
-    # Q3 is cumulative: repeats A-1 and A-2 (A-2 now Certified-Withdrawn) and adds A-3
+    # Q3 overlaps Q2 (as a year-to-date file does): repeats A-1 and A-2
+    # (A-2 now Certified - Withdrawn) and adds A-3
     q3 = write_csv(
         tmp_path / "LCA_FY2026_Q3.csv",
-        [case("A-1"), case("A-2", CASE_STATUS="Certified-Withdrawn"), case("A-3")],
+        [case("A-1"), case("A-2", CASE_STATUS="Certified - Withdrawn"), case("A-3")],
     )
     load_file(q2, 2026, database_url=TEST_DB_URL)
     load_file(q3, 2026, database_url=TEST_DB_URL)
@@ -248,7 +249,7 @@ def test_cumulative_quarter_reload_does_not_double_count(db, tmp_path):
     with db.connect() as conn:
         rows = dict(conn.execute(text("select case_number, case_status from lca_cases")).all())
         files = set(conn.execute(text("select source_file from lca_cases")).scalars())
-    assert rows == {"A-1": "Certified", "A-2": "Certified-Withdrawn", "A-3": "Certified"}
+    assert rows == {"A-1": "Certified", "A-2": "Certified - Withdrawn", "A-3": "Certified"}
     assert files == {"LCA_FY2026_Q3.csv"}  # latest file wins
 
 

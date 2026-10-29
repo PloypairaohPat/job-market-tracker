@@ -18,33 +18,70 @@ in [`docs/data_dictionary.md`](../../docs/data_dictionary.md) ("Visa-sponsorship
 
 DOL's Office of Foreign Labor Certification (OFLC) publishes **LCA Programs
 (H-1B, H-1B1, E-3) disclosure data** on its *Performance Data* page, one
-.xlsx per fiscal-year quarter (tens to 100+ MB each). Files are
-**cumulative within a fiscal year** (a Q3 file includes Q1 and Q2), so you
-need just the **latest quarter of each fiscal year**. The federal FY runs
+.xlsx per fiscal-year quarter (tens to 100+ MB each). The federal FY runs
 October to September: FY2026 = Oct 2025 to Sep 2026.
+
+**Some fiscal years' quarterly files hold one quarter each and others are
+cumulative; load every quarterly file for each fiscal year, oldest first.
+Overlaps are upserted on `case_number`.** By `DECISION_DATE`, the FY2024 Q4
+and FY2025 Q4 files each hold July to September only, while the FY2026 Q3
+file holds October 2025 to June 2026. A file's name doesn't tell you which
+kind it is; the loader's coverage output does (step 2).
+
+For the 3-fiscal-year window the views use, download:
+
+- **every quarter (Q1 to Q4) of the two earlier fiscal years**, and
+- **the latest file of the current fiscal year**. The FY2026 Q3 file is the
+  year to date. If the current year's coverage output shows a single quarter,
+  download that year's earlier quarters too.
 
 ```bash
 mkdir -p data/lca        # data/ is gitignored, so these files are never committed
-# save e.g. data/lca/LCA_Disclosure_Data_FY2024_Q4.xlsx
-#           data/lca/LCA_Disclosure_Data_FY2025_Q4.xlsx
-#           data/lca/LCA_Disclosure_Data_FY2026_Q4.xlsx   (or the latest quarter out)
+# e.g. for FY2024-FY2026, save:
+#   data/lca/LCA_Disclosure_Data_FY2024_Q1.xlsx ... LCA_Disclosure_Data_FY2024_Q4.xlsx
+#   data/lca/LCA_Disclosure_Data_FY2025_Q1.xlsx ... LCA_Disclosure_Data_FY2025_Q4.xlsx
+#   data/lca/LCA_Disclosure_Data_FY2026_Q3.xlsx   (the latest out)
 ```
 
 ## 2. Load them
 
 ```bash
 alembic upgrade head                                     # creates lca_cases, job_visa_signals
-python -m src.visa.lca_loader --file data/lca/LCA_Disclosure_Data_FY2026_Q4.xlsx \
-    --fiscal-year 2026 --dry-run                         # parse + count, write nothing
-python -m src.visa.lca_loader --file data/lca/LCA_Disclosure_Data_FY2024_Q4.xlsx --fiscal-year 2024
-python -m src.visa.lca_loader --file data/lca/LCA_Disclosure_Data_FY2025_Q4.xlsx --fiscal-year 2025
-python -m src.visa.lca_loader --file data/lca/LCA_Disclosure_Data_FY2026_Q4.xlsx --fiscal-year 2026
+python -m src.visa.lca_loader --file data/lca/LCA_Disclosure_Data_FY2024_Q1.xlsx \
+    --fiscal-year 2024 --dry-run                         # parse + count, write nothing
+# then every file, oldest first, each with its own --fiscal-year
+for q in 1 2 3 4; do
+  python -m src.visa.lca_loader --file data/lca/LCA_Disclosure_Data_FY2024_Q$q.xlsx --fiscal-year 2024
+done
+for q in 1 2 3 4; do
+  python -m src.visa.lca_loader --file data/lca/LCA_Disclosure_Data_FY2025_Q$q.xlsx --fiscal-year 2025
+done
+python -m src.visa.lca_loader --file data/lca/LCA_Disclosure_Data_FY2026_Q3.xlsx --fiscal-year 2026
 ```
 
-Each run prints rows read, cases upserted, skipped rows, bad cells nulled
-per column, and counts by `case_status` and `visa_class`. Reloading a
-later, cumulative quarter of the same FY upserts on `case_number`, so
-nothing is counted twice. **Load in chronological order**, since the latest load wins.
+Each run, dry run included, prints rows read, cases upserted, skipped rows,
+bad cells nulled per column, flags marked `N/A`, and counts by `case_status`
+and `visa_class`. Then it prints the file's **coverage**:
+
+- the fiscal year's dates and the earliest and latest `DECISION_DATE`;
+- cases per calendar month of `DECISION_DATE`, with a month that has none
+  shown as 0. A one-quarter file shows three months; a year-to-date file
+  shows every month since October;
+- how many cases were decided outside the `--fiscal-year` given. Any such
+  case gets a warning. If more than 1% of the file's cases are outside it,
+  the load is **refused and nothing is written** (in a dry run too), unless
+  you pass `--allow-outside-fy`. That catches a mislabelled fiscal year
+  before it shifts the 3-FY window.
+
+A case that appears in two files (a cumulative file overlapping an earlier
+one) is upserted on `case_number`, so nothing is counted twice. **Load in
+chronological order**, since the latest load wins.
+
+The files name the H-1B dependency column `H_1B_DEPENDENT`; the loader also
+accepts `H-1B_DEPENDENT`, matched exactly, and refuses a file carrying both.
+`N/A` in `H_1B_DEPENDENT`, `WILLFUL_VIOLATOR` or `FULL_TIME_POSITION` means
+"not applicable": it loads as NULL and is counted apart from bad cells.
+
 Only an explicit column allowlist is read. The contact, attorney and
 preparer columns (real people's names, emails and phone numbers) never
 reach the database.
@@ -58,6 +95,17 @@ python -m src.cleaning.apply_cleaning --only companies visa
 
 `apply_cleaning` with no `--only` now runs the `visa` step last. The step
 rebuilds `job_visa_signals` from stored text every time, so it's safe to re-run.
+
+Check what each loaded fiscal year holds:
+
+```sql
+select * from v_lca_coverage order by fiscal_year;
+```
+
+One row per fiscal year: `n_cases`, `min_decision_date`, `max_decision_date`
+and `n_months_with_decisions`. A complete fiscal year shows 12 months; the
+current one fewer (9 when loaded to June). Fewer months than expected, or a
+late `min_decision_date`, means a quarterly file is missing.
 
 ## 4. Review employer matches
 
@@ -111,6 +159,12 @@ new-employment H-1B LCAs in the last 3 FYs, or likely cap-exempt) →
   they'll sponsor *you* for *this* role, and a small employer with two
   filings may be a better fit. Look at the analytics-SOC and new-employment
   subsets, and the H-1B-dependent flag, before the headline number.
+- **A partial current fiscal year makes the 3-FY window uneven.** The window
+  is the latest fiscal year loaded and the two before it. While the latest
+  is partial (FY2026 loaded to June is nine months), it holds fewer filings
+  than the two complete years. So a recent sponsor looks smaller than it is,
+  and FY-to-FY comparisons aren't like for like. `v_lca_coverage` shows how
+  many months each year holds.
 - **Truncated text hides signals.** Adzuna descriptions are capped at about 500
   characters, so "we are unable to sponsor" is often in the part that was cut
   off. `none_found` on `truncated` text means *unknown*, never "sponsors".

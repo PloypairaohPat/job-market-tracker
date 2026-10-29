@@ -15,10 +15,12 @@ Judgment calls (see docs/data_dictionary.md, `lca_cases`):
   (`H-1B_DEPENDENT` / `H_1B_DEPENDENT`) lists both in `COLUMN_MAP`. No
   fuzzy or case-insensitive matching. A file carrying two different
   spellings of one column is refused rather than guessed at.
-- **Upsert on case_number, latest load wins.** DOL's quarterly files
-  are cumulative within a fiscal year (a Q3 file also holds Q1+Q2), so
-  loading Q2 and then Q3 converges on one row per case instead of
-  double counting. Load files in chronological order.
+- **Upsert on case_number, latest load wins.** Some fiscal years'
+  quarterly files hold one quarter each and others are cumulative (by
+  DECISION_DATE, FY2024 Q4 holds July-September only; FY2026 Q3 holds
+  October-June), so every quarterly file of a fiscal year is loaded,
+  oldest first. A case in two overlapping files converges on one row
+  instead of double counting. Load files in chronological order.
 - **Defensive parsing.** A bad flag, date, number or wage becomes NULL
   and is counted per column; it never aborts the load. A row with no
   CASE_NUMBER is skipped and counted. `N/A` in a flag column means "not
