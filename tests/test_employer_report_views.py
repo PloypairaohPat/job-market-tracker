@@ -189,9 +189,68 @@ def test_with_no_lca_data_every_view_still_has_a_row_per_market(db):
     )
 
 
+def location(engine, city):
+    with engine.begin() as conn:
+        return conn.execute(
+            text(
+                "insert into locations (city, state, is_remote) values (:c, 'NY', false) returning id"
+            ),
+            {"c": city},
+        ).scalar_one()
+
+
+def titled_job(engine, source, company_id, title, normalized, location_id=None, in_scope=True):
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "insert into jobs (external_id, source, title, title_normalized, company_id, "
+                "location_id, in_scope, is_remote) values (gen_random_uuid()::text, :s, :t, :n, "
+                ":c, :l, :i, false)"
+            ),
+            {
+                "s": source,
+                "t": title,
+                "n": normalized,
+                "c": company_id,
+                "l": location_id,
+                "i": in_scope,
+            },
+        )
+
+
+def test_roles_count_distinct_titles_and_locations_per_employer(db):
+    a, b, g = (company(db, n) for n in ("FAKECO Reposts", "FAKE Variants", "FAKE Agency"))
+    places = [location(db, f"Fakeville {i}") for i in range(5)]
+    for place in places:  # one title in five locations: 5 postings, 1 role
+        titled_job(db, "adzuna", a, "Data Analyst", "data analyst", place)
+    titled_job(db, "adzuna", b, "Data Analyst", "data analyst", places[0])
+    titled_job(db, "adzuna", b, " Data Analyst ", "", places[0])  # empty normalized: falls back
+    titled_job(db, "adzuna", b, "Senior Data Analyst", "senior data analyst")  # a variant: counted
+    titled_job(db, "adzuna", b, "Sr. Data Analyst", "sr. data analyst")  # ... separately
+    titled_job(db, "adzuna", None, "Data Analyst", "data analyst", places[1])
+    titled_job(db, "adzuna", None, "BI Analyst", "bi analyst", places[2])
+    titled_job(db, "usajobs", g, "Management Analyst", "management analyst", places[3])
+    titled_job(db, "usajobs", g, "Program Analyst", "program analyst", in_scope=False)
+
+    got = {(r["market"], r["employer_key"]): r for r in rows(db, "select * from v_employer_roles")}
+    pick = ("n_postings", "n_roles", "n_locations", "market_n_postings", "market_n_roles")
+    assert {k: tuple(r[c] for c in pick) for k, r in got.items()} == {
+        ("commercial", "fakeco reposts"): (5, 1, 5, 11, 4),
+        ("commercial", "fake variants"): (4, 3, 1, 11, 4),
+        ("commercial", None): (2, 0, 2, 11, 4),  # counted, but no roles without an employer
+        ("federal", "fake agency"): (1, 1, 1, 1, 1),  # the out-of-scope posting isn't in
+    }
+    postings = {
+        (r["market"], r["employer_key"]): r["n_postings"]
+        for r in rows(db, "select * from v_employer_postings")
+    }
+    assert postings == {k: r["n_postings"] for k, r in got.items()}  # the same populations
+
+
 def test_the_new_views_carry_no_row_level_columns(db):
     for view in (
         "v_employer_postings",
+        "v_employer_roles",
         "v_employer_sponsorship_match",
         "v_visa_outlook_summary",
         "v_matched_employer_lca_wages",

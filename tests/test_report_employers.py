@@ -46,6 +46,24 @@ COMMERCIAL = [  # 12 employers; the 10th and 11th tie at 3 postings
 ]
 FEDERAL = [("fake agency a", "FAKE Agency A", 6), ("fake agency b", "FAKE Agency B", 4)]
 NO_COMPANY = 12  # commercial postings with no company
+# employer_key -> (distinct titles, locations). FAKE Alpha reposts 4 titles in 30
+# places; ranked by roles the top 10 drops FAKE Foxtrot and picks up FAKE Kilo
+ROLES = {
+    "fake alpha": (4, 30),
+    "fake bravo": (20, 5),
+    "fake charlie": (18, 10),
+    "fake delta": (12, 3),
+    "fake echo": (9, 9),
+    "fake foxtrot": (2, 8),
+    "fake golf": (6, 2),
+    "fake hotel": (5, 1),
+    "fake india": (4, 4),
+    "fake juliet": (3, 3),
+    "fake kilo": (3, 1),
+    "fake lima": (2, 2),
+    "fake agency a": (2, 3),
+    "fake agency b": (4, 2),
+}
 
 
 def postings_frame():
@@ -63,6 +81,30 @@ def postings_frame():
             "n_postings",
             "market_n_postings",
             "market_n_employers",
+        ],
+    )
+
+
+def roles_frame():
+    postings = postings_frame()
+    rows = []
+    for market, group in postings.groupby("market"):
+        n_roles = sum(ROLES[k][0] for k in group["employer_key"].dropna())
+        for r in group.itertuples(index=False):
+            titles, places = (0, 7) if pd.isna(r.employer_key) else ROLES[r.employer_key]
+            rows.append(
+                (market, r.employer_key, r.n_postings, titles, places, r.market_n_postings, n_roles)
+            )
+    return pd.DataFrame(
+        rows,
+        columns=[
+            "market",
+            "employer_key",
+            "n_postings",
+            "n_roles",
+            "n_locations",
+            "market_n_postings",
+            "market_n_roles",
         ],
     )
 
@@ -146,6 +188,7 @@ def wages_frame(loaded=True):
 def frames(loaded=True, **overrides):
     out = {
         "v_employer_postings": postings_frame(),
+        "v_employer_roles": roles_frame(),
         "v_employer_sponsorship_match": match_frame(1000 if loaded else 0),
         "v_visa_outlook_summary": outlook_frame(),
         "v_matched_employer_lca_wages": wages_frame(loaded),
@@ -196,6 +239,33 @@ def test_hiring_concentration_has_its_denominator_and_tie_note(tmp_path):
     assert "| #10 | FAKE Juliet | 2.0% (3 of 150 postings) |" in md
     assert "FAKE Kilo" not in md  # 11th: not in the top 10
     assert "- Share of federal postings from the top 2 employers: 100.0% (10 of 10 postings)" in md
+
+
+def test_distinct_roles_sit_beside_postings_with_their_own_ranking(tmp_path):
+    md = render(tmp_path)
+    # 88 commercial roles; by roles the top 10 hold 84 (FAKE Foxtrot out, FAKE Kilo in)
+    assert (
+        "- Share of distinct commercial roles from the top 10 employers by roles "
+        "(their own ranking): 95.5% (84 of 88 roles)"
+    ) in md
+    # 138 postings with a company, 88 roles: 50 repeat a role already counted
+    assert (
+        "- Commercial postings that repeat a role already counted: "
+        "36.2% (50 of 138 postings with a company)"
+    ) in md
+    assert "| #1 | FAKE Alpha | 26.7% (40 of 150 postings) | 4 | 30 |" in md
+    assert (
+        "| Rank | Employer | Postings (share of the market) | Distinct titles | Locations |" in md
+    )
+    assert "- Federal postings that repeat a role already counted: 40.0% (4 of 10" in md
+    headline = md[md.index("## Headline") : md.index("## 1. Who is compared")]
+    assert "Commercial share of postings from the top 10 employers: 88.7%" in headline
+    assert (
+        "Commercial share of distinct roles from the top 10 employers by roles: 95.5%" in headline
+    )
+    methods = md[md.index("## Methods and caveats") :]
+    assert "identical titles at one employer can be different jobs (roles undercount)" in methods
+    assert "small wording variants count separately (roles overcount)" in methods
 
 
 def test_sponsorship_numbers_are_aggregate_and_worded_as_filings(tmp_path):

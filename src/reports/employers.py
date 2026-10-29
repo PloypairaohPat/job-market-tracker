@@ -7,6 +7,8 @@ with this run's numbers; the kit writes no conclusions.
 
 Views read (aggregate only; none has a job- or filing-level column):
   v_employer_postings           postings per employer, per market
+  v_employer_roles              distinct roles (employer, normalized title) and
+                                locations beside postings: a repost sensitivity
   v_employer_sponsorship_match  postings and employers matched to LCA history
   v_visa_outlook_summary        postings per visa-outlook bucket and reason
   v_matched_employer_lca_wages  offered wage on matched employers' filings
@@ -52,6 +54,7 @@ SLUG = "employers-and-sponsorship"
 TITLE = "Who hires data analysts, and who has filed to sponsor them"
 VIEWS = (
     "v_employer_postings",
+    "v_employer_roles",
     "v_employer_sponsorship_match",
     "v_visa_outlook_summary",
     "v_matched_employer_lca_wages",
@@ -68,13 +71,24 @@ ANALYTICS_FILINGS = "certified analytics-SOC H-1B LCA filings"
 
 
 @dataclass(frozen=True)
+class TopEmployer:
+    name: str
+    postings: Rate
+    titles: int
+    locations: int
+
+
+@dataclass(frozen=True)
 class Hiring:
     n_postings: int = 0
     n_employers: int = 0
     n_no_employer: int = 0
-    top: tuple[tuple[str, Rate], ...] = ()
+    top: tuple[TopEmployer, ...] = ()
     top_share: Rate = Rate(0, 0, unit="postings")
     tie_at_cutoff: bool = False
+    n_roles: int = 0
+    top_roles_share: Rate = Rate(0, 0, unit="roles")  # top TOP_N employers ranked by roles
+    repeats: Rate = Rate(0, 0, unit="postings with a company")  # postings - roles
 
 
 @dataclass(frozen=True)
@@ -125,29 +139,47 @@ LEVELS = (
 )
 
 
-def _hiring(frame: pd.DataFrame) -> Hiring:
+def _hiring(frame: pd.DataFrame, roles: pd.DataFrame) -> Hiring:
     if frame.empty:
         return Hiring()
     total = int(frame["market_n_postings"].iloc[0])
-    employers = frame[frame["employer_key"].notna()].sort_values(
+    employers = frame[frame["employer_key"].notna()].merge(
+        roles[["employer_key", "n_roles", "n_locations"]], on="employer_key", how="left"
+    )
+    employers[["n_roles", "n_locations"]] = employers[["n_roles", "n_locations"]].fillna(0)
+    by_postings = employers.sort_values(
         ["n_postings", "employer_name", "employer_key"], ascending=[False, True, True]
     )
-    top = employers.head(TOP_N)
+    top = by_postings.head(TOP_N)
     no_employer = int(frame.loc[frame["employer_key"].isna(), "n_postings"].sum())
     tie = (
-        len(employers) > TOP_N
-        and employers["n_postings"].iloc[TOP_N - 1] == employers["n_postings"].iloc[TOP_N]
+        len(by_postings) > TOP_N
+        and by_postings["n_postings"].iloc[TOP_N - 1] == by_postings["n_postings"].iloc[TOP_N]
     )
+    n_roles = int(roles["market_n_roles"].iloc[0]) if not roles.empty else 0
+    # its own ranking: the top TOP_N by roles can differ from the top by postings
+    by_roles = employers.sort_values(
+        ["n_roles", "employer_name", "employer_key"], ascending=[False, True, True]
+    ).head(TOP_N)
+    with_company = total - no_employer
     return Hiring(
         n_postings=total,
         n_employers=int(frame["market_n_employers"].iloc[0]),
         n_no_employer=no_employer,
         top=tuple(
-            (r.employer_name, Rate(r.n_postings, total, unit="postings"))
+            TopEmployer(
+                r.employer_name,
+                Rate(r.n_postings, total, unit="postings"),
+                int(r.n_roles),
+                int(r.n_locations),
+            )
             for r in top.itertuples(index=False)
         ),
         top_share=Rate(int(top["n_postings"].sum()), total, unit="postings"),
         tie_at_cutoff=bool(tie),
+        n_roles=n_roles,
+        top_roles_share=Rate(int(by_roles["n_roles"].sum()), n_roles, unit="roles"),
+        repeats=Rate(with_company - n_roles, with_company, unit="postings with a company"),
     )
 
 
@@ -224,6 +256,7 @@ def _wages(row) -> Wages:
 def compute(frames: dict[str, pd.DataFrame]) -> EmployersReport:
     check_aggregate(frames)
     postings = frames["v_employer_postings"]
+    roles = frames["v_employer_roles"]
     match = {r.market: r for r in frames["v_employer_sponsorship_match"].itertuples(index=False)}
     outlook = frames["v_visa_outlook_summary"]
     wages = {r.market: r for r in frames["v_matched_employer_lca_wages"].itertuples(index=False)}
@@ -233,7 +266,10 @@ def compute(frames: dict[str, pd.DataFrame]) -> EmployersReport:
     if lca_rows and not pd.isna(any_match.lca_window_end_fy):
         window = (int(any_match.lca_window_start_fy), int(any_match.lca_window_end_fy))
     return EmployersReport(
-        hiring={m: _hiring(postings[postings["market"] == m]) for m in MARKETS},
+        hiring={
+            m: _hiring(postings[postings["market"] == m], roles[roles["market"] == m])
+            for m in MARKETS
+        },
         lca_loaded=lca_rows > 0,
         lca_rows=lca_rows,
         window=window,
@@ -262,6 +298,11 @@ def headline_numbers(data: EmployersReport) -> list[tuple[str, object]]:
                 f"{m.capitalize()} share of postings from the top {min(TOP_N, h.n_employers)} "
                 "employers",
                 h.top_share,
+            ),
+            (
+                f"{m.capitalize()} share of distinct roles from the top "
+                f"{min(TOP_N, h.n_employers)} employers by roles",
+                h.top_roles_share,
             ),
         ]
     for m in MARKETS:
@@ -380,29 +421,37 @@ def render(data: EmployersReport, provenance: Provenance, out_dir: Path) -> Path
         if not h.top:
             doc.paragraph(f"No {m} postings with a company in this data.")
             continue
+        k = min(TOP_N, h.n_employers)
         doc.bullets(
             [
+                (f"Share of {m} postings from the top {k} employers", h.top_share),
                 (
-                    f"Share of {m} postings from the top {min(TOP_N, h.n_employers)} employers",
-                    h.top_share,
-                )
+                    f"Share of distinct {m} roles from the top {k} employers by roles "
+                    "(their own ranking)",
+                    h.top_roles_share,
+                ),
+                (f"{m.capitalize()} postings that repeat a role already counted", h.repeats),
             ]
         )
         chart = grouped_barh(
             out / f"top-employers-{m}.png",
-            [name for name, _ in h.top],
-            {m: [rate for _, rate in h.top]},
+            [e.name for e in h.top],
+            {m: [e.postings for e in h.top]},
             title=f"{m.capitalize()}: top {len(h.top)} employers by postings",
             xlabel="% of the market's postings",
             demo=provenance.is_demo,
         )
         doc.image(chart.name, f"Bars: the top {m} employers' share of postings")
         doc.table(
-            ["Rank", "Employer", "Postings (share of the market)"],
-            [[f"#{i}", name, rate] for i, (name, rate) in enumerate(h.top, start=1)],
+            ["Rank", "Employer", "Postings (share of the market)", "Distinct titles", "Locations"],
+            [
+                [f"#{i}", e.name, e.postings, e.titles, e.locations]
+                for i, e in enumerate(h.top, start=1)
+            ],
             caption=(
                 "Postings with no company are never an employer; they stay in the denominator. "
-                "Concentration counts postings, not hires."
+                "Concentration counts postings, not hires. Distinct titles and locations are from "
+                "`v_employer_roles`: many postings with few titles means the same role reposted."
             ),
         )
         if h.tie_at_cutoff:
@@ -602,6 +651,13 @@ def _methods(doc: Doc, data: EmployersReport) -> None:
             "canonical name under it. Postings with no company are counted, never as an employer.",
             f"Concentration: the top {TOP_N} employers' share of the market's postings, ties broken "
             "by name (the share doesn't depend on the tie-break).",
+            "Distinct roles (`v_employer_roles`): a role is an (employer, normalized title) pair; "
+            "postings with no company have none. It's a sensitivity measure, not a dedup: "
+            "identical titles at one employer can be different jobs (roles undercount), and small "
+            "wording variants count separately (roles overcount). The role share ranks employers "
+            "by roles, so its top "
+            f"{TOP_N} can differ from the postings table; repeats are postings with a company "
+            "minus their roles.",
             (
                 "LCA filings loaded",
                 FilingCount(data.lca_rows) if data.lca_loaded else NOT_LOADED,
