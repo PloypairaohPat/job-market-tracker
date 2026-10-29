@@ -31,7 +31,7 @@ _Phase 5 report 3. Who posts analyst jobs, how concentrated hiring is, and how m
 > - Federal share of postings from the top 2 employers: 100.0% (10 of 10 postings)
 > - Federal share of distinct roles from the top 2 employers by roles: 100.0% (6 of 6 roles)
 > - Commercial employers with ≥ 1 certified H-1B LCA filing: 33.3% (4 of 12 employers)
-> - Federal employers with ≥ 1 certified H-1B LCA filing: 0.0% (0 of 2 employers)
+> - Federal employers with ≥ 1 certified H-1B LCA filing: 50.0% (1 of 2 employers)
 
 ## 1. Who is compared
 
@@ -94,10 +94,12 @@ From `v_employer_sponsorship_match`; levels are nested. 1,000 LCA filings loaded
 
 | Employer has | Commercial postings | Commercial employers | Federal postings | Federal employers |
 |---|---|---|---|---|
-| an LCA filing of any status in the window | 40.0% (60 of 150 postings) | 41.7% (5 of 12 employers) | 0.0% (0 of 10 postings) | 0.0% (0 of 2 employers) |
-| ≥ 1 certified H-1B LCA filing | 33.3% (50 of 150 postings) | 33.3% (4 of 12 employers) | 0.0% (0 of 10 postings) | 0.0% (0 of 2 employers) |
+| an LCA filing of any status in the window | 40.0% (60 of 150 postings) | 41.7% (5 of 12 employers) | 60.0% (6 of 10 postings) | 50.0% (1 of 2 employers) |
+| ≥ 1 certified H-1B LCA filing | 33.3% (50 of 150 postings) | 33.3% (4 of 12 employers) | 60.0% (6 of 10 postings) | 50.0% (1 of 2 employers) |
 | ≥ 1 certified analytics-SOC H-1B LCA filing | 20.0% (30 of 150 postings) | 25.0% (3 of 12 employers) | 0.0% (0 of 10 postings) | 0.0% (0 of 2 employers) |
-| no match found | 60.0% (90 of 150 postings) | 58.3% (7 of 12 employers) | 100.0% (10 of 10 postings) | 100.0% (2 of 2 employers) |
+| no match found | 60.0% (90 of 150 postings) | 58.3% (7 of 12 employers) | 40.0% (4 of 10 postings) | 50.0% (1 of 2 employers) |
+
+- Federal: matched employers' filings in this window include no analytics-SOC H-1B filings.
 
 ## 4. Visa outlook buckets (counts only)
 
@@ -151,7 +153,7 @@ From `v_matched_employer_lca_wages`. Median and IQR, never the mean.
 > - Commercial postings at an employer with ≥ 1 certified H-1B LCA filing: 33.3% (50 of 150 postings)
 > - Commercial postings in the unknown bucket: 60.0% (90 of 150 postings)
 > - Commercial closed postings due to a citizenship or clearance requirement: 50.0% (5 of 10 closed postings)
-> - Federal postings at an employer with ≥ 1 certified H-1B LCA filing: 0.0% (0 of 10 postings)
+> - Federal postings at an employer with ≥ 1 certified H-1B LCA filing: 60.0% (6 of 10 postings)
 > - Federal postings in the unknown bucket: 10.0% (1 of 10 postings)
 > - Federal closed postings due to a citizenship or clearance requirement: 100.0% (9 of 9 closed postings)
 > - Commercial: offered wage on matched employers' analytics-SOC LCA filings: $95,000 (IQR $82,000–$118,000; n=38 LCA filings from 8 employer(s))
@@ -181,6 +183,8 @@ From `v_matched_employer_lca_wages`. Median and IQR, never the mean.
 - Match: a posting's normalized employer name equals an LCA employer key in `v_employer_sponsorship` (`last_3_fy`). No fuzzy matching; near-misses go through `src/visa/sponsor_match.py`. Analytics SOC codes, the certified rule and the outlook thresholds are the visa layer's defaults (`sql/views/v_employer_sponsorship.sql`, `v_job_visa_outlook.sql`).
 - The offered wage is pooled over filings; under 15 filings or 5 employers it's marked directional.
 - The outlook buckets count in-scope postings (`v_job_visa_outlook`); their total can differ from the posting count above while a posting's scope isn't classified yet.
+- **Federal LCA matches rarely bear on federal analyst jobs.** Federal civil-service positions generally require US citizenship, so an agency's LCA filings say little about its analyst postings. For the federal market the closed share, from the postings' own words, is the more relevant number.
+- Federal postings in the closed bucket: 90.0% (9 of 10 postings)
 - Privacy: employers are named only beside their posting counts. Every sponsorship number is an aggregate. No job titles, URLs or filing rows appear, and the per-job Visa outlook dashboard stays private.
 
 ### What LCA data can't tell you

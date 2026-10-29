@@ -112,7 +112,8 @@ def roles_frame():
 def match_frame(lca_rows=1000, window=(2024, 2026)):
     start, end = window if lca_rows else (NAN, NAN)
     c = (150, 12, 60, 50, 30, 12, 5, 4, 3) if lca_rows else (150, 12, 0, 0, 0, 12, 0, 0, 0)
-    f = (10, 0, 0, 0, 0, 2, 0, 0, 0)
+    # federal: one agency matches LCA history, none of it analytics-SOC
+    f = (10, 0, 6, 6, 0, 2, 1, 1, 0) if lca_rows else (10, 0, 0, 0, 0, 2, 0, 0, 0)
     cols = [
         "n_postings",
         "n_postings_no_employer",
@@ -295,6 +296,26 @@ def test_sponsorship_numbers_are_aggregate_and_worded_as_filings(tmp_path):
         "2 filing(s) without an annual wage |"
     ) in sponsorship
     assert "hires" not in sponsorship.replace("not approvals or hires", "")
+
+
+def test_a_market_whose_matches_have_no_analytics_filings_says_so(tmp_path):
+    md = render(tmp_path)
+    sponsorship = sponsorship_sections(md)
+    note = "matched employers' filings in this window include no analytics-SOC H-1B filings"
+    assert f"- Federal: {note}." in sponsorship
+    assert f"- Commercial: {note}" not in sponsorship  # 3 commercial employers have some
+    # the note sits right after the match table, before the outlook section
+    assert sponsorship.index(note) < sponsorship.index("## 4. Visa outlook buckets")
+    methods = md[md.index("## Methods and caveats") :]
+    assert employers.FEDERAL_CAVEAT in methods
+    assert "- Federal postings in the closed bucket: 90.0% (9 of 10 postings)" in methods
+
+    # no matched employer at all: nothing to qualify, so no note
+    none = match_frame().assign(n_postings_matched=[60, 0], n_employers_matched=[5, 0])
+    assert note not in render(tmp_path, v_employer_sponsorship_match=none)
+    # without LCA data: no note, and the closed share isn't quoted
+    md = render(tmp_path, loaded=False)
+    assert note not in md and "- Federal postings in the closed bucket: LCA data not loaded" in md
 
 
 def test_methods_carries_every_lca_caveat(tmp_path):

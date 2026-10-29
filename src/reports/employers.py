@@ -67,6 +67,15 @@ WAGE_MIN_FILINGS = 15
 WAGE_MIN_EMPLOYERS = 5
 CLOSED_BY_REQUIREMENT = ("posting restriction: citizenship", "posting restriction: clearance")
 NOT_LOADED = "LCA data not loaded"
+NO_ANALYTICS_NOTE = (
+    "matched employers' filings in this window include no analytics-SOC H-1B filings"
+)
+FEDERAL_CAVEAT = (
+    "**Federal LCA matches rarely bear on federal analyst jobs.** Federal civil-service "
+    "positions generally require US citizenship, so an agency's LCA filings say little about "
+    "its analyst postings. For the federal market the closed share, from the postings' own "
+    "words, is the more relevant number."
+)
 ANALYTICS_FILINGS = "certified analytics-SOC H-1B LCA filings"
 
 
@@ -515,6 +524,11 @@ def render(data: EmployersReport, provenance: Provenance, out_dir: Path) -> Path
                 "filings loaded in all."
             ),
         )
+        notes = [
+            f"{m.capitalize()}: {NO_ANALYTICS_NOTE}." for m in MARKETS if _no_analytics(data, m)
+        ]
+        if notes:
+            doc.bullets(notes)
 
     doc.heading("4. Visa outlook buckets (counts only)")
     if not data.lca_loaded:
@@ -623,6 +637,14 @@ def render(data: EmployersReport, provenance: Provenance, out_dir: Path) -> Path
     return path
 
 
+def _no_analytics(data: EmployersReport, market: str) -> bool:
+    """The market has matched employers, but none with an analytics-SOC filing."""
+    employers_ = data.match[market].employers
+    return bool(employers_) and (
+        employers_["matched"].numerator > 0 and employers_["analytics_soc"].numerator == 0
+    )
+
+
 def _wage_note(w: Wages) -> str:
     notes = []
     if w.directional:
@@ -677,6 +699,13 @@ def _methods(doc: Doc, data: EmployersReport) -> None:
             f"{WAGE_MIN_EMPLOYERS} employers it's marked directional.",
             "The outlook buckets count in-scope postings (`v_job_visa_outlook`); their total can "
             "differ from the posting count above while a posting's scope isn't classified yet.",
+            FEDERAL_CAVEAT,
+            (
+                "Federal postings in the closed bucket",
+                data.outlook["federal"].buckets.get("closed", Rate(0, 0))
+                if data.lca_loaded
+                else NOT_LOADED,
+            ),
             "Privacy: employers are named only beside their posting counts. Every sponsorship "
             "number is an aggregate. No job titles, URLs or filing rows appear, and the per-job "
             "Visa outlook dashboard stays private.",
