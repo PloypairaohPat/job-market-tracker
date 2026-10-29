@@ -12,6 +12,8 @@ Views read (aggregate only; none has a job- or filing-level column):
   v_employer_sponsorship_match  postings and employers matched to LCA history
   v_visa_outlook_summary        postings per visa-outlook bucket and reason
   v_matched_employer_lca_wages  offered wage on matched employers' filings
+  v_lca_coverage, v_lca_monthly how complete each fiscal year in the filing
+                                window is (Methods)
 
 Guardrails (src/reports/guardrails.py, src/reports/lca_guardrails.py):
   - every number carries its n or denominator; LCA counts are labelled as
@@ -29,6 +31,7 @@ Guardrails (src/reports/guardrails.py, src/reports/lca_guardrails.py):
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date
 from pathlib import Path
 
 import pandas as pd
@@ -58,6 +61,8 @@ VIEWS = (
     "v_employer_sponsorship_match",
     "v_visa_outlook_summary",
     "v_matched_employer_lca_wages",
+    "v_lca_coverage",
+    "v_lca_monthly",
 )
 MARKETS = ("commercial", "federal")
 TOP_N = 10
@@ -65,6 +70,9 @@ TOP_N = 10
 # shown, but marked directional (parked threshold).
 WAGE_MIN_FILINGS = 15
 WAGE_MIN_EMPLOYERS = 5
+# A month with fewer decisions than this share of its fiscal year's median
+# month is flagged in Methods (parked threshold).
+SPARSE_MONTH_SHARE = 0.10
 CLOSED_BY_REQUIREMENT = ("posting restriction: citizenship", "posting restriction: clearance")
 NOT_LOADED = "LCA data not loaded"
 NO_ANALYTICS_NOTE = (
@@ -130,6 +138,23 @@ class Wages:
         return self.wage.n_filings < WAGE_MIN_FILINGS or self.wage.n_employers < WAGE_MIN_EMPLOYERS
 
 
+@dataclass(frozen=True)
+class FyCoverage:
+    """How complete one fiscal year of LCA data is (v_lca_coverage, v_lca_monthly)."""
+
+    fiscal_year: int
+    n_cases: int = 0
+    first: date | None = None
+    last: date | None = None
+    n_months: int = 0
+    median_month: float = 0.0
+    sparse: tuple[tuple[date, int], ...] = ()  # (month, n_cases) under SPARSE_MONTH_SHARE
+
+    @property
+    def partial(self) -> bool:
+        return self.n_months < 12
+
+
 @dataclass
 class EmployersReport:
     hiring: dict[str, Hiring]
@@ -139,6 +164,7 @@ class EmployersReport:
     match: dict[str, Match]
     outlook: dict[str, Outlook]
     wages: dict[str, Wages]
+    coverage: tuple[FyCoverage, ...] = ()  # each FY of the filing window, oldest first
 
 
 LEVELS = (
@@ -262,6 +288,39 @@ def _wages(row) -> Wages:
     )
 
 
+def _coverage(
+    window: tuple[int, int] | None, coverage: pd.DataFrame, monthly: pd.DataFrame
+) -> tuple[FyCoverage, ...]:
+    if window is None:
+        return ()
+    rows = {int(r.fiscal_year): r for r in coverage.itertuples(index=False)}
+    out = []
+    for fy in range(window[0], window[1] + 1):
+        r = rows.get(fy)
+        if r is None:
+            out.append(FyCoverage(fy))
+            continue
+        months = monthly[monthly["fiscal_year"] == fy].sort_values("month")
+        median = float(months["n_cases"].median()) if len(months) else 0.0
+        sparse = tuple(
+            (pd.Timestamp(m.month).date(), int(m.n_cases))
+            for m in months.itertuples(index=False)
+            if m.n_cases < SPARSE_MONTH_SHARE * median
+        )
+        out.append(
+            FyCoverage(
+                fiscal_year=fy,
+                n_cases=int(r.n_cases),
+                first=None if pd.isna(r.min_decision_date) else r.min_decision_date,
+                last=None if pd.isna(r.max_decision_date) else r.max_decision_date,
+                n_months=int(r.n_months_with_decisions),
+                median_month=median,
+                sparse=sparse,
+            )
+        )
+    return tuple(out)
+
+
 def compute(frames: dict[str, pd.DataFrame]) -> EmployersReport:
     check_aggregate(frames)
     postings = frames["v_employer_postings"]
@@ -285,6 +344,7 @@ def compute(frames: dict[str, pd.DataFrame]) -> EmployersReport:
         match={m: _match(match.get(m)) for m in MARKETS},
         outlook={m: _outlook(outlook[outlook["market"] == m]) for m in MARKETS},
         wages={m: _wages(wages.get(m)) for m in MARKETS},
+        coverage=_coverage(window, frames["v_lca_coverage"], frames["v_lca_monthly"]),
     )
 
 
@@ -656,6 +716,18 @@ def _wage_note(w: Wages) -> str:
     return "; ".join(notes)
 
 
+def _coverage_line(c: FyCoverage) -> str:
+    if not c.n_cases:
+        return f"FY{c.fiscal_year}: no LCA filings loaded"
+    line = (
+        f"FY{c.fiscal_year}: {c.n_months} of 12 months with decisions, {c.first} to {c.last}; "
+        f"{c.n_cases:,} LCA filings loaded"
+    )
+    if c.partial:
+        line += " (**partial fiscal year**: fewer than 12 months)"
+    return line
+
+
 def _not_loaded_section(doc: Doc) -> None:
     doc.paragraph(
         f"**{NOT_LOADED}.** `lca_cases` is empty, so no employer can be matched to a filing record. "
@@ -711,6 +783,25 @@ def _methods(doc: Doc, data: EmployersReport) -> None:
             "Visa outlook dashboard stays private.",
         ]
     )
+    doc.heading("LCA coverage of the filing window", level=3)
+    if not data.lca_loaded:
+        doc.paragraph(f"**{NOT_LOADED}.**")
+    else:
+        doc.paragraph(
+            "How complete each fiscal year in the window is (`v_lca_coverage`, `v_lca_monthly`). "
+            "A partial year holds fewer filings than a full one, so the window is uneven and "
+            "year-to-year comparisons aren't like for like."
+        )
+        doc.bullets([_coverage_line(c) for c in data.coverage])
+        sparse = [
+            f"FY{c.fiscal_year}, {month:%Y-%m}: {n:,} LCA filings decided, under "
+            f"{SPARSE_MONTH_SHARE:.0%} of the fiscal year's median month ({c.median_month:,.0f}): "
+            "unusually few decisions; cause not established"
+            for c in data.coverage
+            for month, n in c.sparse
+        ]
+        if sparse:
+            doc.bullets(sparse)
     doc.heading("What LCA data can't tell you", level=3)
     doc.paragraph(f'From {README_POINTER}, "What this can\'t tell you":')
     doc.bullets(list(LCA_CAVEATS.values()))

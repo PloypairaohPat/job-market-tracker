@@ -8,7 +8,7 @@ UPDATE_GOLDEN=1 and review the diff.
 import math
 import os
 import re
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import pandas as pd
@@ -186,6 +186,47 @@ def wages_frame(loaded=True):
     )
 
 
+def fy_months(fy, k=12):
+    """The first k months of federal fiscal year fy (Oct of fy-1 first)."""
+    return [date(fy - (m >= 10), m, 1) for m in (10, 11, 12, *range(1, 10))][:k]
+
+
+def monthly_frame(loaded=True):
+    if not loaded:
+        return pd.DataFrame(columns=["fiscal_year", "month", "n_cases"])
+    rows = [(2024, m, 100) for m in fy_months(2024)]
+    # FY2025: its first month has 5 decisions, under 10% of the median month (100)
+    rows += [(2025, m, 5 if i == 0 else 100) for i, m in enumerate(fy_months(2025))]
+    rows += [(2026, m, 90) for m in fy_months(2026, 9)]  # partial: October to June
+    return pd.DataFrame(rows, columns=["fiscal_year", "month", "n_cases"])
+
+
+def coverage_frame(loaded=True):
+    monthly = monthly_frame(loaded)
+    rows = [
+        (
+            fy,
+            int(g["n_cases"].sum()),
+            g["month"].min(),
+            g["month"].max() + pd.offsets.MonthEnd(0),
+            len(g),
+        )
+        for fy, g in monthly.groupby("fiscal_year")
+    ]
+    frame = pd.DataFrame(
+        rows,
+        columns=[
+            "fiscal_year",
+            "n_cases",
+            "min_decision_date",
+            "max_decision_date",
+            "n_months_with_decisions",
+        ],
+    )
+    frame["max_decision_date"] = [pd.Timestamp(d).date() for d in frame["max_decision_date"]]
+    return frame
+
+
 def frames(loaded=True, **overrides):
     out = {
         "v_employer_postings": postings_frame(),
@@ -193,6 +234,8 @@ def frames(loaded=True, **overrides):
         "v_employer_sponsorship_match": match_frame(1000 if loaded else 0),
         "v_visa_outlook_summary": outlook_frame(),
         "v_matched_employer_lca_wages": wages_frame(loaded),
+        "v_lca_coverage": coverage_frame(loaded),
+        "v_lca_monthly": monthly_frame(loaded),
     }
     out.update(overrides)
     return out
@@ -318,6 +361,32 @@ def test_a_market_whose_matches_have_no_analytics_filings_says_so(tmp_path):
     assert note not in md and "- Federal postings in the closed bucket: LCA data not loaded" in md
 
 
+def test_methods_shows_the_coverage_of_each_fiscal_year_in_the_window(tmp_path):
+    md = render(tmp_path)
+    block = md[md.index("### LCA coverage of the filing window") : md.index("### What LCA data")]
+    assert (
+        "- FY2024: 12 of 12 months with decisions, 2023-10-01 to 2024-09-30; "
+        "1,200 LCA filings loaded\n"
+    ) in block
+    assert "- FY2025: 12 of 12 months with decisions, 2024-10-01 to 2025-09-30; 1,105" in block
+    assert (
+        "- FY2026: 9 of 12 months with decisions, 2025-10-01 to 2026-06-30; 810 LCA filings "
+        "loaded (**partial fiscal year**: fewer than 12 months)"
+    ) in block
+    assert (
+        "- FY2025, 2024-10: 5 LCA filings decided, under 10% of the fiscal year's median month "
+        "(100): unusually few decisions; cause not established"
+    ) in block
+    assert block.count("unusually few decisions") == 1  # FY2026's 90s are all normal
+    assert block.count("**partial fiscal year**") == 1  # complete years aren't flagged
+
+
+def test_coverage_names_a_window_year_with_nothing_loaded(tmp_path):
+    no_2024 = coverage_frame()[lambda f: f["fiscal_year"] != 2024]
+    md = render(tmp_path, v_lca_coverage=no_2024)
+    assert "- FY2024: no LCA filings loaded" in md
+
+
 def test_methods_carries_every_lca_caveat(tmp_path):
     md = render(tmp_path)
     methods = md[md.index("## Methods and caveats") :]
@@ -327,7 +396,9 @@ def test_methods_carries_every_lca_caveat(tmp_path):
 
 def test_without_lca_data_the_hiring_sections_still_render(tmp_path):
     md = render(tmp_path, loaded=False)
-    assert md.count("**LCA data not loaded.**") == 3  # match, buckets, wages
+    assert md.count("**LCA data not loaded.**") == 4  # match, buckets, wages, coverage
+    coverage = md[md.index("### LCA coverage of the filing window") : md.index("### What LCA")]
+    assert "**LCA data not loaded.**" in coverage and "months with decisions" not in coverage
     assert "src/visa/README.md" in sponsorship_sections(md)
     assert "| #1 | FAKE Alpha | 26.7% (40 of 150 postings) |" in md
     assert "$95,000" not in md and "| no match found |" not in md
@@ -381,7 +452,7 @@ def test_end_to_end_on_the_demo_seed(tmp_path, monkeypatch):
             conn.execute(text("truncate lca_cases"))
         assert main([employers.SLUG, "--out", str(tmp_path / "without")]) == 0
         md = (tmp_path / "without" / employers.SLUG / "report.md").read_text()
-        assert md.count("**LCA data not loaded.**") == 3
+        assert md.count("**LCA data not loaded.**") == 4  # match, buckets, wages, coverage
         assert "## 2. Who posts analyst jobs" in md and "| #1 |" in md
     finally:
         engine.dispose()

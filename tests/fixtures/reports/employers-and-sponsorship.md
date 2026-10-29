@@ -16,6 +16,8 @@ _Phase 5 report 3. Who posts analyst jobs, how concentrated hiring is, and how m
 | Rows in `v_employer_sponsorship_match` | 2 |
 | Rows in `v_visa_outlook_summary` | 2 |
 | Rows in `v_matched_employer_lca_wages` | 2 |
+| Rows in `v_lca_coverage` | 2 |
+| Rows in `v_lca_monthly` | 2 |
 
 ## Headline
 
@@ -186,6 +188,16 @@ From `v_matched_employer_lca_wages`. Median and IQR, never the mean.
 - **Federal LCA matches rarely bear on federal analyst jobs.** Federal civil-service positions generally require US citizenship, so an agency's LCA filings say little about its analyst postings. For the federal market the closed share, from the postings' own words, is the more relevant number.
 - Federal postings in the closed bucket: 90.0% (9 of 10 postings)
 - Privacy: employers are named only beside their posting counts. Every sponsorship number is an aggregate. No job titles, URLs or filing rows appear, and the per-job Visa outlook dashboard stays private.
+
+### LCA coverage of the filing window
+
+How complete each fiscal year in the window is (`v_lca_coverage`, `v_lca_monthly`). A partial year holds fewer filings than a full one, so the window is uneven and year-to-year comparisons aren't like for like.
+
+- FY2024: 12 of 12 months with decisions, 2023-10-01 to 2024-09-30; 1,200 LCA filings loaded
+- FY2025: 12 of 12 months with decisions, 2024-10-01 to 2025-09-30; 1,105 LCA filings loaded
+- FY2026: 9 of 12 months with decisions, 2025-10-01 to 2026-06-30; 810 LCA filings loaded (**partial fiscal year**: fewer than 12 months)
+
+- FY2025, 2024-10: 5 LCA filings decided, under 10% of the fiscal year's median month (100): unusually few decisions; cause not established
 
 ### What LCA data can't tell you
 
