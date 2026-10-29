@@ -20,7 +20,9 @@ Judgment calls (see docs/data_dictionary.md, `lca_cases`):
   double counting. Load files in chronological order.
 - **Defensive parsing.** A bad flag, date, number or wage becomes NULL
   and is counted per column; it never aborts the load. A row with no
-  CASE_NUMBER is skipped and counted.
+  CASE_NUMBER is skipped and counted. `N/A` in a flag column means "not
+  applicable", not malformed: it loads as NULL and is counted separately
+  (`not_applicable`), never as a bad cell.
 - `employer_key` = `normalize_company_name(EMPLOYER_NAME)` -- the same
   grouping key as `companies.normalized_name`, so employer-level joins
   line up. Names are NOT deduplicated beyond that ("Amazon.com Services
@@ -107,6 +109,7 @@ _WAGE_COLUMNS = {"wage_rate_of_pay_from", "wage_rate_of_pay_to", "prevailing_wag
 
 _TRUE = {"y", "yes", "true", "t", "1"}
 _FALSE = {"n", "no", "false", "f", "0"}
+_NOT_APPLICABLE = {"n/a", "na"}  # after trimming, any case
 _DATE_FORMATS = ("%Y-%m-%d", "%m/%d/%Y", "%Y-%m-%d %H:%M:%S", "%m/%d/%y")
 _WAGE_JUNK = re.compile(r"[$,\s]")
 
@@ -134,6 +137,7 @@ class LoadResult:
     duplicate_case_numbers_in_file: int = 0
     missing_columns: list[str] = field(default_factory=list)  # lca_cases columns
     bad_cells: Counter = field(default_factory=Counter)  # column -> count nulled
+    not_applicable: Counter = field(default_factory=Counter)  # flag column -> N/A count
     by_case_status: Counter = field(default_factory=Counter)
     by_visa_class: Counter = field(default_factory=Counter)
 
@@ -154,6 +158,11 @@ def parse_text(value: Any) -> tuple[str | None, bool]:
     return str(value).strip(), True
 
 
+def is_not_applicable(value: Any) -> bool:
+    """'N/A', 'NA', 'n/a' ... (trimmed, any case): DOL's "not applicable"."""
+    return isinstance(value, str) and value.strip().lower() in _NOT_APPLICABLE
+
+
 def parse_flag(value: Any) -> tuple[bool | None, bool]:
     if _blank(value):
         return None, True
@@ -164,6 +173,8 @@ def parse_flag(value: Any) -> tuple[bool | None, bool]:
         return True, True
     if s in _FALSE:
         return False, True
+    if s in _NOT_APPLICABLE:
+        return None, True  # not applicable: NULL, but not a bad cell
     return None, False
 
 
@@ -280,13 +291,18 @@ def iter_allowlisted_rows(path: Path) -> Iterator[tuple[list[str], dict[str, Any
 # --------------------------------------------------------------------- #
 
 
-def parse_row(raw: dict[str, Any], bad_cells: Counter) -> dict[str, Any]:
+def parse_row(
+    raw: dict[str, Any], bad_cells: Counter, not_applicable: Counter | None = None
+) -> dict[str, Any]:
     """`raw` is keyed by lca_cases column (the readers translate headers)."""
     out: dict[str, Any] = {}
     for column in COLUMNS:
-        value, ok = _parser_for(column)(raw.get(column))
+        cell = raw.get(column)
+        value, ok = _parser_for(column)(cell)
         if not ok:
             bad_cells[column] += 1
+        elif column in _FLAG_COLUMNS and not_applicable is not None and is_not_applicable(cell):
+            not_applicable[column] += 1
         out[column] = value
     return out
 
@@ -326,7 +342,7 @@ def load_file(
         if all(_blank(v) for v in raw.values()):
             continue  # trailing empty spreadsheet rows
         result.rows_read += 1
-        row = parse_row(raw, result.bad_cells)
+        row = parse_row(raw, result.bad_cells, result.not_applicable)
         if not row["case_number"]:
             result.skipped_no_case_number += 1
             continue
@@ -392,6 +408,10 @@ def summarize(result: LoadResult, dry_run: bool) -> str:
         )
     lines.append(
         "bad cells nulled: " + (str(dict(result.bad_cells)) if result.bad_cells else "none")
+    )
+    lines.append(
+        "flags marked N/A (not applicable), loaded as NULL: "
+        + (str(dict(result.not_applicable)) if result.not_applicable else "none")
     )
     lines.append("by case_status:")
     lines += [f"  {k:<22} {v}" for k, v in result.by_case_status.most_common()]

@@ -122,7 +122,12 @@ def spelled(row: dict, h1b_header: str) -> dict:
         (" No ", False, True),
         ("", None, True),
         (None, None, True),
+        ("N/A", None, True),  # not applicable: NULL, not a bad cell
+        ("NA", None, True),
+        (" n/a ", None, True),
         ("maybe", None, False),
+        ("N.A.", None, False),  # anything else unrecognized is still bad
+        ("Unknown", None, False),
     ],
 )
 def test_parse_flag(raw, expected, ok):
@@ -349,3 +354,63 @@ def test_missing_columns_name_the_column_and_every_header_tried(tmp_path):
     no_case = [{k: v for k, v in case("M-2").items() if k != "CASE_NUMBER"}]
     with pytest.raises(MissingColumnsError, match=r"case_number \(CASE_NUMBER\)"):
         load_file(write_csv(tmp_path / "nocase.csv", no_case), 2026, dry_run=True)
+
+
+# --------------------------------------------------------------------- #
+# N/A in flag columns: "not applicable", counted apart from bad cells
+
+
+@pytest.mark.parametrize("writer,suffix", [(write_csv, ".csv"), (write_xlsx, ".xlsx")])
+@pytest.mark.integration
+@pytest.mark.skipif(not TEST_DB_URL, reason="TEST_DATABASE_URL not set")
+def test_na_flags_load_as_null_and_are_not_bad_cells(db, tmp_path, writer, suffix):
+    values = {"N-1": "Yes", "N-2": "No", "N-3": "N/A", "N-4": ""}
+    rows = [
+        spelled(
+            case(
+                n,
+                **{"H-1B_DEPENDENT": v},
+                WILLFUL_VIOLATOR=v,
+                FULL_TIME_POSITION="N/A" if n == "N-3" else "Y",
+            ),
+            "H_1B_DEPENDENT",
+        )
+        for n, v in values.items()
+    ]
+    result = load_file(writer(tmp_path / f"na{suffix}", rows), 2026, database_url=TEST_DB_URL)
+    assert result.bad_cells == {}
+    assert result.not_applicable == {
+        "h1b_dependent": 1,
+        "willful_violator": 1,
+        "full_time_position": 1,
+    }
+    assert "flags marked N/A (not applicable), loaded as NULL: " in summarize(result, dry_run=False)
+    with db.connect() as conn:
+        got = {
+            r.case_number: (r.h1b_dependent, r.willful_violator, r.full_time_position)
+            for r in conn.execute(
+                text(
+                    "select case_number, h1b_dependent, willful_violator, full_time_position from lca_cases"
+                )
+            )
+        }
+    assert got == {
+        "N-1": (True, True, True),
+        "N-2": (False, False, True),
+        "N-3": (None, None, None),
+        "N-4": (None, None, True),
+    }
+
+
+def test_na_only_input_has_no_bad_cells(tmp_path):
+    rows = [
+        case(f"Z-{i}", **{"H-1B_DEPENDENT": na}, WILLFUL_VIOLATOR=na, FULL_TIME_POSITION=na)
+        for i, na in enumerate(["N/A", "NA", "n/a"])
+    ]
+    result = load_file(write_csv(tmp_path / "na_only.csv", rows), 2026, dry_run=True)
+    assert result.bad_cells == {}
+    assert result.not_applicable == {
+        "h1b_dependent": 3,
+        "willful_violator": 3,
+        "full_time_position": 3,
+    }
