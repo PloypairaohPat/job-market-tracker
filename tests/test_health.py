@@ -10,7 +10,7 @@ from sqlalchemy import create_engine, text
 from scripts.apply_views import apply_views
 from src.models import IngestionRun, Job, JobSnapshot, JobVisaSignal
 from src.pipeline import health as health_mod
-from src.pipeline.health import current_streak, run_health
+from src.pipeline.health import current_streak, missing_days, run_health
 from src.utils.db import session_scope
 from tests.conftest import reset_schema
 
@@ -35,6 +35,33 @@ def test_streak_counts_back_from_today_or_yesterday():
     assert current_streak([day(0), day(1), day(3), day(4)], TODAY) == 2  # one-day gap breaks it
     assert current_streak([day(2), day(3)], TODAY) == 0  # ended two days ago
     assert current_streak([], TODAY) == 0
+
+
+# --------------------------------------------------------------------- #
+# H7 missing days (unit, fixed today)
+
+
+def test_no_gaps_means_nothing_missing():
+    assert missing_days([day(n) for n in range(30)], TODAY) == []
+    assert missing_days([day(n) for n in range(1, 30)], TODAY) == []  # today isn't counted
+    assert missing_days([], TODAY) == []
+
+
+def test_one_gap():
+    assert missing_days([day(n) for n in range(30) if n != 5], TODAY) == [day(5)]
+
+
+def test_a_run_of_gaps_and_the_window_edge():
+    days = [day(n) for n in range(30) if not 3 <= n <= 9]
+    assert missing_days(days, TODAY) == [day(n) for n in range(9, 2, -1)]
+    # a gap older than 14 days is outside the window
+    assert missing_days([day(n) for n in range(30) if n != 15], TODAY) == []
+    assert missing_days([day(n) for n in range(30) if n != 14], TODAY) == [day(14)]
+
+
+def test_history_shorter_than_the_window_starts_at_the_first_snapshot():
+    assert missing_days([day(5), day(4), day(1)], TODAY) == [day(3), day(2)]
+    assert missing_days([day(0)], TODAY) == []  # started today: nothing to miss yet
 
 
 # --------------------------------------------------------------------- #
@@ -221,7 +248,9 @@ def test_all_pass_exit_zero_and_progress(db):
     seed_run("adzuna", "ok", timedelta(hours=2), calls=30)
     seed_run("usajobs", "ok", timedelta(hours=2))
     rep = report()
-    assert [c.status for c in rep.checks] == ["PASS"] * len(rep.checks)
+    assert [c.status for c in rep.checks if c.id != "H7"] == ["PASS"] * (len(rep.checks) - 1)
+    h7 = check(rep, "H7")
+    assert h7.status == "WARN" and h7.detail.endswith(f": {day(2)}")  # the gap
     assert rep.exit_code == 0
     progress = {c.name: c.detail for c in rep.progress}
     assert progress["unique jobs"] == "6 of 10,000"
@@ -242,7 +271,7 @@ def test_health_is_read_only_and_cli_json(db, monkeypatch, capsys):
     assert exit_info.value.code == 1
     payload = json.loads(capsys.readouterr().out)
     assert payload["overall"] == "FAIL"
-    assert {c["id"] for c in payload["checks"]} == {"H1", "H2", "H3", "H4", "H5", "H6"}
+    assert {c["id"] for c in payload["checks"]} == {"H1", "H2", "H3", "H4", "H5", "H6", "H7"}
     with session_scope(TEST_DB_URL) as session:
         assert session.query(IngestionRun).count() == 0  # health wrote nothing
 
@@ -266,3 +295,29 @@ def test_view_splits_by_source(db):
         (day(0), "adzuna", 3, 3, 0, 1, 1, 12),
         (day(0), "usajobs", 2, 2, 2, 0, 0, None),
     ]
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(not TEST_DB_URL, reason="TEST_DATABASE_URL not set")
+def test_h7_missing_days(db, monkeypatch):
+    assert check(report(), "H7").status == "PASS"  # no snapshots: H2 fails, H7 doesn't
+    seed_jobs("adzuna", 1, [day(n) for n in range(20) if n not in (2, 3)])
+    h7 = check(report(), "H7")
+    assert h7.status == "WARN"
+    assert h7.detail == f"2 day(s) without a snapshot in the last 14 days: {day(3)}, {day(2)}"
+
+    # more missing days than the list limit: a count plus the first and last
+    monkeypatch.setattr(health_mod, "MISSING_DAYS_LIST_MAX", 1)
+    assert check(report(), "H7").detail == (
+        f"2 days without a snapshot in the last 14 days, from {day(3)} to {day(2)}"
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(not TEST_DB_URL, reason="TEST_DATABASE_URL not set")
+def test_h7_never_fails_even_when_the_clock_stopped(db):
+    seed_jobs("adzuna", 1, [day(n) for n in range(10, 20)])  # nothing for 9 days
+    rep = report()
+    h7 = check(rep, "H7")
+    assert h7.status == "WARN" and h7.detail.startswith("9 day(s) without a snapshot")
+    assert check(rep, "H2").status == "FAIL"  # staleness is H2's job

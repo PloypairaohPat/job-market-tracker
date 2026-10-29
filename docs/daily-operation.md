@@ -130,6 +130,7 @@ The check is read-only and writes nothing. It exits **1 if any check FAILs**, ot
 | **H4** Adzuna budget | < 85% of the month used | ≥ 85% | ≥ 100% | Stop manual Adzuna runs for the month. The guard already protects the remaining days. |
 | **H5** cleaning freshness | every job has a `job_visa_signals` row | some don't | — | Cleaning didn't run after the last ingestion: `uv run python -m src.pipeline.daily --skip adzuna usajobs`. |
 | **H6** failed runs | none in the last 7 days | any | — | Read `ingestion_runs.error` for those runs (redacted, so no keys), and the matching day's log. |
+| **H7** missing days | every UTC date in the last 14 days has a snapshot (today excluded; nothing before the first snapshot counts) | lists the dates with no snapshot (or, past 14, a count with the first and last) | — (never: H2 already fails on staleness) | Those days are lost and can't be backfilled. Open that day's `logs\daily-YYYY-MM-DD.log` (or notice there isn't one) to see why. See "If a day was missed" below. |
 
 The progress lines are INFO only and never fail:
 

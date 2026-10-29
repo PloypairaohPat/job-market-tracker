@@ -486,6 +486,7 @@ Judgment calls:
 | H4 Adzuna budget | WARN at ≥ X of the month used, FAIL at ≥ 100% | 85% |
 | H5 cleaning freshness | WARN if any job has no `job_visa_signals` row | — |
 | H6 failed runs | WARN if any run in the last N days ended `failed` | 7 days |
+| H7 missing days | WARN listing the UTC dates in the last N days (today excluded, none before the first snapshot) with no `job_snapshots` row; more than 14 dates: a count with the first and last. Never FAILs (H2 covers staleness) | 14 days |
 | Progress (INFO) | unique jobs / 10,000; distinct snapshot days / 90; current streak (consecutive snapshot days ending today or yesterday) / 60; first snapshot date | targets from the project guide |
 
 The exit code is 1 only on a FAIL. A month with only `skipped_budget` Adzuna runs FAILs H1 for Adzuna after 26 hours, which is intended: no Adzuna data is arriving. H4 says why.

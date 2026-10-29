@@ -21,6 +21,11 @@ only (and documented in docs/data_dictionary.md):
   H5 cleaning freshness          WARN if any job has no job_visa_signals
                                  row (cleaning hasn't run since ingestion).
   H6 failed runs                 WARN if any run in the last 7 days failed.
+  H7 missing days                WARN listing the UTC dates in the last
+                                 MISSING_DAYS_LOOKBACK (14) days, today
+                                 excluded and none before the first
+                                 snapshot, that have no snapshot. Never
+                                 FAILs: H2 already fails on staleness.
 
 Progress lines are INFO and never fail: unique jobs vs 10,000, distinct
 snapshot days vs 90, the current streak of consecutive snapshot days
@@ -48,6 +53,8 @@ RUN_FRESH_HOURS = 26
 VOLUME_DROP = 0.50
 BUDGET_WARN, BUDGET_FAIL = 0.85, 1.00
 FAILED_LOOKBACK_DAYS = 7
+MISSING_DAYS_LOOKBACK = 14  # parked default
+MISSING_DAYS_LIST_MAX = 14  # more than this: a count plus the first and last
 TARGET_JOBS, TARGET_SNAPSHOT_DAYS, TARGET_STREAK_DAYS = 10_000, 90, 60
 
 PASS, WARN, FAIL, INFO = "PASS", "WARN", "FAIL", "INFO"
@@ -213,6 +220,44 @@ def check_failed_runs(session: Session, now: datetime) -> Check:
     return Check("H6", "failed runs", PASS, f"none in the last {FAILED_LOOKBACK_DAYS} days")
 
 
+def missing_days(
+    days: list[date], today: date, lookback: int = MISSING_DAYS_LOOKBACK
+) -> list[date]:
+    """UTC dates from `lookback` days ago to yesterday with no snapshot, never
+    before the first snapshot. Today is left out: its run may not have
+    happened yet (H2 covers today)."""
+    if not days:
+        return []
+    present = set(days)
+    start = max(today - timedelta(days=lookback), min(present))
+    span = (today - start).days
+    return [
+        start + timedelta(days=i) for i in range(span) if start + timedelta(days=i) not in present
+    ]
+
+
+def check_missing_days(session: Session, now: datetime) -> Check:
+    name = "missing days"
+    days = list(session.execute(select(JobSnapshot.snapshot_date).distinct()).scalars())
+    if not days:
+        return Check("H7", name, PASS, "no snapshots yet; nothing to check (see H2)")
+    missing = missing_days(days, now.date())
+    window = f"in the last {MISSING_DAYS_LOOKBACK} days"
+    if not missing:
+        return Check("H7", name, PASS, f"no day without a snapshot {window}")
+    if len(missing) <= MISSING_DAYS_LIST_MAX:
+        listed = ", ".join(d.isoformat() for d in missing)
+        return Check(
+            "H7", name, WARN, f"{len(missing)} day(s) without a snapshot {window}: {listed}"
+        )
+    return Check(
+        "H7",
+        name,
+        WARN,
+        f"{len(missing)} days without a snapshot {window}, from {missing[0]} to {missing[-1]}",
+    )
+
+
 # --------------------------------------------------------------------- #
 # progress
 
@@ -248,6 +293,7 @@ def run_health(session: Session, now: datetime, budget: int) -> HealthReport:
     report.checks.append(check_budget(session, now, budget))
     report.checks.append(check_cleaning_freshness(session))
     report.checks.append(check_failed_runs(session, now))
+    report.checks.append(check_missing_days(session, now))
     report.progress = progress(session, now)
     return report
 
