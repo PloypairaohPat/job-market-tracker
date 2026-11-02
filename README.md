@@ -127,7 +127,7 @@ python -m src.ingestion.ingest_adzuna --help
 | | Laptop (today) | Server (after the cut-over) |
 |---|---|---|
 | Postgres | Docker (`docker-compose.yml`), port 5432 on the laptop | Docker (`deploy/docker-compose.prod.yml`), no published port |
-| Daily run | Task Scheduler, 07:15 local time | systemd timer, 11:15 UTC |
+| Daily run | Task Scheduler, 07:15 local, with 13:15 and 19:15 catch-up triggers (`--once-per-day`) | systemd timer, 11:15 UTC |
 | Dashboards | Metabase on http://localhost:3000 | Metabase behind Caddy (HTTPS); only public-dashboard links are reachable, and admin goes through an SSH tunnel |
 | Backups | not automated | nightly `pg_dump`, newest 14 kept |
 | Guide | [`docs/daily-operation.md`](docs/daily-operation.md), [`docs/dashboard.md`](docs/dashboard.md) | [`docs/deploy.md`](docs/deploy.md) |

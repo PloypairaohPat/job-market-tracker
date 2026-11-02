@@ -6,6 +6,10 @@
 # logs\daily-YYYY-MM-DD.log (UTC date, UTF-8). Extra arguments are passed
 # through, e.g.:  .\scripts\windows\run_daily.ps1 --skip adzuna
 #
+# It always passes --once-per-day: the task fires several times a day, and
+# only the first run that finds a source missing for today's UTC date does
+# any work. The later triggers exit 0 at once.
+#
 # Keep this file ASCII only: Windows PowerShell 5.1 misreads UTF-8 without a BOM.
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
@@ -33,8 +37,8 @@ $env:PYTHONUTF8 = "1"
 
 $venvPython = Join-Path $repoRoot ".venv\Scripts\python.exe"
 if (Test-Path $venvPython) {
-    & $venvPython -m src.pipeline.daily @args
+    & "$venvPython" -m src.pipeline.daily --once-per-day @args
 } else {
-    & uv run python -m src.pipeline.daily @args
+    & uv run python -m src.pipeline.daily --once-per-day @args
 }
 exit $LASTEXITCODE

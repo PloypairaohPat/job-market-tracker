@@ -1,7 +1,7 @@
 """The daily pipeline: both sources, then cleaning, then skills.
 
 Run:  python -m src.pipeline.daily [--skip adzuna usajobs cleaning skills] [--dry-run]
-          [--db-wait SECONDS]
+          [--db-wait SECONDS] [--once-per-day]
       (or: make daily; on Windows the scheduled task runs scripts/windows/run_daily.ps1)
 
 Steps, in order, called in-process (so tests inject fixture-backed clients):
@@ -22,6 +22,12 @@ Judgment calls (docs/daily-operation.md, docs/data_dictionary.md):
   attempt is logged with host and port only, never the URL or password.
   Still unreachable -> a clear message, a summary with a `db` FAIL line,
   the failure ping (not on a dry run), and exit code 2.
+- `--once-per-day` (what the scheduled task passes, so it can fire several
+  times a day): after the wait and the lock, a source that already has an
+  `ok` or `partial` ingestion_runs row for today's UTC snapshot_date is
+  skipped. Both done -> "already ran for <date>; nothing to do", the
+  summary, exit 0, and no step, API call or ping. One done -> only the
+  other source, then cleaning, skills and health. Neither -> a normal run.
 - Single instance via a Postgres advisory lock (`pg_try_advisory_lock`,
   key DAILY_LOCK_KEY) held on a dedicated connection for the whole run. A
   second runner logs that and exits 0. No file locks, so Windows and
@@ -55,12 +61,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import requests
-from sqlalchemy import create_engine, make_url, text
+from sqlalchemy import create_engine, make_url, select, text
 
 from src.cleaning.apply_cleaning import ALL_STEPS, DEFAULT_CANDIDATES_OUT, run_steps
 from src.cleaning.extract_skills import extract_for_all_jobs, sync_taxonomy
 from src.ingestion import ingest_adzuna, ingest_usajobs
 from src.ingestion.run_log import record_terminal_run
+from src.models import IngestionRun
 from src.pipeline.health import FAIL, health
 from src.utils.config import Settings, get_settings
 from src.utils.db import session_scope
@@ -73,6 +80,8 @@ logger = logging.getLogger("src.pipeline.daily")
 DAILY_LOCK_KEY = 0x4A4D5444
 
 STEPS = ("adzuna", "usajobs", "cleaning", "skills", "health")
+SOURCES = ("adzuna", "usajobs")
+DONE_STATUSES = ("ok", "partial")  # a source with one of these today needs no rerun
 SOURCE_MAX_CALLS = 60  # per-run cap, same default as the ingest CLIs
 LOG_DIR = Path("logs")
 LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
@@ -98,6 +107,7 @@ class DailyResult:
     exit_code: int
     steps: list[StepResult] = field(default_factory=list)
     locked_out: bool = False
+    already_ran: bool = False  # --once-per-day found both sources done today
 
 
 # --------------------------------------------------------------------- #
@@ -196,6 +206,26 @@ def db_unreachable_message(database_url: str, waited: int) -> str:
         f"database unreachable at {db_address(database_url)} after {waited} s; "
         "is Docker Desktop running? Then: docker compose up -d db"
     )
+
+
+# --------------------------------------------------------------------- #
+# once per day
+
+
+def sources_done(database_url: str, day) -> set[str]:
+    """Sources with an ok or partial ingestion_runs row for UTC snapshot_date `day`."""
+    with session_scope(database_url) as session:
+        return set(
+            session.execute(
+                select(IngestionRun.source)
+                .where(
+                    IngestionRun.snapshot_date == day,
+                    IngestionRun.status.in_(DONE_STATUSES),
+                    IngestionRun.source.in_(SOURCES),
+                )
+                .distinct()
+            ).scalars()
+        )
 
 
 # --------------------------------------------------------------------- #
@@ -385,6 +415,7 @@ def run_daily(
     db_wait: int = DB_WAIT_SECONDS,
     db_connect: Callable[[str], None] = try_connect,
     sleep: Callable[[float], None] = time.sleep,
+    once_per_day: bool = False,
 ) -> DailyResult:
     settings = settings or get_settings()
     database_url = database_url or settings.database_url
@@ -421,10 +452,28 @@ def run_daily(
                     DAILY_LOCK_KEY,
                 )
                 return DailyResult(exit_code=0, locked_out=True)
+            skips = {name: "--skip" for name in skip}
+            if once_per_day:
+                day = now.astimezone(UTC).date()
+                today = day.isoformat()
+                done = sources_done(database_url, day)
+                reason = f"--once-per-day: already ran for {today}"
+                if set(SOURCES) <= done:
+                    logger.info("already ran for %s; nothing to do", today)
+                    result = DailyResult(
+                        exit_code=EXIT_OK,
+                        steps=[StepResult(name, True, "skipped", detail=reason) for name in STEPS],
+                        already_ran=True,
+                    )
+                    logger.info(format_summary(result))
+                    return result
+                for source in sorted(done):
+                    logger.info("%s already ran for %s; running the rest", source, today)
+                    skips[source] = reason
             result = DailyResult(exit_code=0)
             for name in STEPS:
-                if name in skip:
-                    result.steps.append(StepResult(name, True, "skipped", detail="--skip"))
+                if name in skips:
+                    result.steps.append(StepResult(name, True, "skipped", detail=skips[name]))
                     continue
                 result.steps.append(_run_step(name, ctx))
         result.exit_code = EXIT_OK if all(s.ok for s in result.steps) else EXIT_STEP_FAILED
@@ -450,10 +499,21 @@ def main() -> None:
         help=f"wait up to this long for the database (default {DB_WAIT_SECONDS}; 0 = one try); "
         "still unreachable -> exit 2",
     )
+    argp.add_argument(
+        "--once-per-day",
+        action="store_true",
+        help="skip a source that already has an ok/partial run for today's UTC date; "
+        "if both do, do nothing (what the scheduled task passes)",
+    )
     args = argp.parse_args()
     if args.db_wait < 0:
         argp.error("--db-wait must be 0 or more")
-    result = run_daily(skip=tuple(args.skip), dry_run=args.dry_run, db_wait=args.db_wait)
+    result = run_daily(
+        skip=tuple(args.skip),
+        dry_run=args.dry_run,
+        db_wait=args.db_wait,
+        once_per_day=args.once_per_day,
+    )
     sys.exit(result.exit_code)
 
 

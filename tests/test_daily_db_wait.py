@@ -140,7 +140,7 @@ def test_never_reachable_on_a_dry_run_sends_no_ping(tmp_path):
 def test_cli_passes_db_wait_and_exits_with_the_result_code(monkeypatch):
     seen = {}
 
-    def fake_run_daily(skip, dry_run, db_wait):
+    def fake_run_daily(skip, dry_run, db_wait, once_per_day):
         seen.update(skip=skip, dry_run=dry_run, db_wait=db_wait)
         return daily.DailyResult(exit_code=2)
 

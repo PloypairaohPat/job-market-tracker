@@ -35,13 +35,14 @@ uv run python -m src.pipeline.daily --dry-run                 # plan only: budge
 uv run python -m src.pipeline.daily --skip adzuna             # e.g. save Adzuna calls on a re-run
 uv run python -m src.pipeline.daily --skip adzuna usajobs     # just cleaning + skills + health
 uv run python -m src.pipeline.daily --db-wait 0               # don't wait for the database: one try
+uv run python -m src.pipeline.daily --once-per-day            # skip what already ran today (what the task passes)
 ```
 
 ## Exit codes
 
 | Code | Meaning | What to do |
 |---|---|---|
-| **0** | Every step that ran succeeded (`skipped_budget` and `partial` count), or another run already held the lock | Nothing |
+| **0** | Every step that ran succeeded (`skipped_budget` and `partial` count), another run already held the lock, or `--once-per-day` found today already done | Nothing |
 | **1** | A step failed. The summary marks it `FAIL`; the other steps still ran | Read that step's line in the summary, and `ingestion_runs.error` for a source |
 | **2** | The database never became reachable within `--db-wait`. Nothing ran | See "After a reboot or wake" |
 
@@ -62,19 +63,33 @@ Compose sees the changed setting and **recreates** the container with it. Your d
 ## Registering the scheduled task (Windows)
 
 ```powershell
-.\scripts\windows\register_daily_task.ps1                # daily at 07:15 local time
-.\scripts\windows\register_daily_task.ps1 -Time "06:45"  # another time
+.\scripts\windows\register_daily_task.ps1                            # daily at 07:15, 13:15 and 19:15 local time
+.\scripts\windows\register_daily_task.ps1 -Time "06:45","12:45"      # other times
 .\scripts\windows\register_daily_task.ps1 -Unregister
 ```
 
-This creates a task named **JobMarketTracker-Daily**. It runs `scripts\windows\run_daily.ps1` as you, only while you're logged on, so no password is stored. The task settings are:
+This creates one task named **JobMarketTracker-Daily** with one daily trigger per time. It runs `scripts\windows\run_daily.ps1` as you, only while you're logged on, so no password is stored. Running the script again replaces the task, triggers included. The task settings, the same for every trigger, are:
 
 - start as soon as possible after a missed start
 - only run if the network is available
 - ignore a new instance if one is still running
 - stop after 1 hour
 
-`run_daily.ps1` uses `.venv\Scripts\python.exe` if it exists, otherwise `uv run python`.
+`run_daily.ps1` uses `.venv\Scripts\python.exe` if it exists, otherwise `uv run python`, and always passes `--once-per-day`.
+
+### Three triggers, one run a day (`--once-per-day`)
+
+The task fires at 07:15, 13:15 and 19:15, but only the first run of the UTC day does the work. With `--once-per-day`, after waiting for the database and taking the lock, the runner reads `ingestion_runs` for today's UTC `snapshot_date`:
+
+| Today already has an `ok` or `partial` run for | The runner |
+|---|---|
+| both Adzuna and USAJobs | logs `already ran for <date>; nothing to do`, prints the summary (every step `skipped`) and exits 0. No step runs, no API is called, no ping is sent |
+| one source | runs only the other source, then cleaning, skills and health |
+| neither | runs normally |
+
+A `failed` or `skipped_budget` run doesn't count, so the next trigger retries that source. A `skipped_budget` retry makes no API call: the budget guard still says no.
+
+So the later triggers only matter on a day the earlier run was missed or failed: the laptop was off at 07:15, Docker was still down (exit 2), or one API errored. On a normal day the 13:15 and 19:15 runs take a few seconds and change nothing. Running `uv run python -m src.pipeline.daily` by hand, or `make daily`, doesn't pass the flag and always runs everything.
 
 If PowerShell refuses to run the script ("running scripts is disabled"), run this once:
 
@@ -89,22 +104,28 @@ The task itself always runs with `-ExecutionPolicy Bypass`.
 ```powershell
 Get-ScheduledTaskInfo -TaskName JobMarketTracker-Daily   # LastRunTime, LastTaskResult (0 = success; see "Exit codes")
 Start-ScheduledTask   -TaskName JobMarketTracker-Daily   # run it now
-Get-ChildItem logs                                       # one daily-YYYY-MM-DD.log per UTC day
+Get-ChildItem logs                                       # one daily-YYYY-MM-DD.log per UTC day (every trigger appends)
 Get-Content logs\daily-2026-10-27.log -Tail 20           # the summary is at the end
 uv run python -m src.pipeline.health                     # or: make health
 ```
 
 For the task's own history, open **Task Scheduler → Task Scheduler Library → JobMarketTracker-Daily → History**. If the tab is empty, click *Enable All Tasks History* in the Actions pane.
 
-### Why 07:15 local
+### Why these times
 
-Snapshot dates are **UTC** dates. If a run lands near UTC midnight (about 7–9 pm US Eastern), one evening's run can fall on one UTC date and the next evening's slightly earlier run on the same date again. That gives two runs on one UTC date and none on the next: a lost day, and a broken streak.
+Snapshot dates are **UTC** dates. 07:15 anywhere in the continental US is 11:15–15:15 UTC (EDT through PST), well away from midnight on either side, even with the catch-up delay after waking the laptop. 13:15 is the same day, six hours later.
 
-07:15 anywhere in the continental US is 11:15–15:15 UTC (EDT through PST), well away from midnight on either side, even with the catch-up delay after waking the laptop.
+19:15 is close to UTC midnight: 23:15 UTC in EDT, but already the next UTC date in EST (00:15) and on the West Coast. That's safe with `--once-per-day`, because a UTC date's work is still done exactly once:
+
+- If the 19:15 run lands on the next UTC date, it finds that date empty and does that date's run early. The next morning's 07:15 and 13:15 runs fall on the same UTC date, so they find it done and exit 0.
+- Without the flag, a run near midnight could put two runs on one UTC date and none on the next: a lost day. `--once-per-day` makes the second one a no-op, and each UTC date still has later triggers of its own.
+
+One visible effect: on such a schedule your daily snapshot is usually taken in the evening rather than the morning. The counts, streak and health checks don't care. If you'd rather keep every run on the local day's UTC date, register earlier times, for example `-Time "07:15","11:15","15:15"`.
 
 ### The laptop caveat
 
-- **Asleep** at 07:15: the task runs once when the laptop wakes ("start when available"). That's fine.
+- **Asleep** at a trigger time: the task runs once when the laptop wakes ("start when available"). If several triggers were missed, it still runs once, and `--once-per-day` keeps it to one day's work.
+- **Off or away** at 07:15 but back by 13:15 or 19:15: the later trigger does the day's run.
 - **Off or away** all day: that day is lost for good. The health check will show it (H2 WARN/FAIL and a reset streak), but nothing can recover it.
 
 The durable fix is running the same pipeline on an always-on server: **Milestone D**. [docs/deploy.md](deploy.md) sets it up with a systemd timer at 11:15 UTC, and its cut-over makes sure the laptop and the server never both ingest on the same UTC day. Don't add a cron job as well.
@@ -116,6 +137,7 @@ Three things keep the 07:15 run from finding the database down:
 1. **Docker Desktop starts when you sign in.** In Docker Desktop, open **Settings → General** and tick **"Start Docker Desktop when you sign in to your computer"**. Without it, Docker isn't running after a reboot until you open it.
 2. **The database container restarts with Docker.** `docker-compose.yml` gives `db` the `restart: unless-stopped` policy (see "The database container restarts by itself" above), and `run_daily.ps1` also runs `docker compose up -d db` before the pipeline. If `docker` isn't found, it prints one line saying so and carries on.
 3. **The runner waits.** Right after a login or wake, Docker Desktop can take a minute or two to start. The runner keeps trying for 5 minutes before it gives up.
+4. **The next trigger tries again.** If a run still gives up (exit 2), the 13:15 or 19:15 trigger repeats it, and `--once-per-day` makes sure only the work still missing is done.
 
 If it still gives up, the log and the console end with:
 
@@ -141,12 +163,12 @@ Get-ChildItem logs
 ```
 
 - **Health:** H2 is PASS (or WARN before today's run), **H7 is PASS** (no day without a snapshot in the last 14), and the current streak grows by one a day.
-- **The scheduled task:** LastRunTime is today, and **LastTaskResult** is 0. **267011** means the task hasn't run yet since it was registered; that's normal until its first 07:15. 1 and 2 are the runner's exit codes (see "Exit codes"). Any other number is Task Scheduler's own error: check the task's History tab.
+- **The scheduled task:** LastRunTime is today, and **LastTaskResult** is 0. With three triggers, LastRunTime is usually the latest trigger, a no-op that ends `already ran for <date>; nothing to do` in the log. **267011** means the task hasn't run yet since it was registered; that's normal until its first trigger. 1 and 2 are the runner's exit codes (see "Exit codes"). Any other number is Task Scheduler's own error: check the task's History tab.
 - **The logs:** one `logs\daily-YYYY-MM-DD.log` per UTC day the task ran. The summary is at the end of each: `Get-Content "logs\daily-2026-10-27.log" -Tail 25`.
 
 ## If a day was missed
 
-A missed day **can't be backfilled**: a snapshot records what the APIs showed on that day, and that's gone. First, save today if it hasn't run yet:
+A missed day **can't be backfilled**: a snapshot records what the APIs showed on that day, and that's gone. First, save today if it hasn't run yet (the task passes `--once-per-day`, so this does nothing if today is already done):
 
 ```powershell
 Start-ScheduledTask -TaskName JobMarketTracker-Daily

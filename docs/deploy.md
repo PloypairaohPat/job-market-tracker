@@ -187,7 +187,7 @@ Keep that window open, and browse to **http://localhost:3000** on the laptop. Lo
 
 The import carries the month's calls so far over to the server, so the server's guard starts from the right number. Calls the laptop makes *after* the export are invisible to the server.
 
-The timings: the laptop task runs at 07:15 US Eastern, which is 11:15 UTC in summer and 12:15 UTC in winter. The server timer runs at 11:15 UTC. Check today's UTC date on the server with `date -u +%F`.
+The timings: the laptop task's first trigger is 07:15 US Eastern, which is 11:15 UTC in summer and 12:15 UTC in winter; its 13:15 and 19:15 triggers only do work that's still missing for the UTC day (`--once-per-day`, docs/daily-operation.md). The server timer runs at 11:15 UTC. Check today's UTC date on the server with `date -u +%F`.
 
 ### Rehearsal (optional, recommended)
 
@@ -315,7 +315,7 @@ If the server fails after the cut-over, the laptop can take over again. Use the 
    .\scripts\windows\register_daily_task.ps1
    ```
 
-   If the server already ran today (UTC), the laptop must not run again today. The task's first run is tomorrow at 07:15; don't start it by hand.
+   If the server already ran today (UTC), the laptop must not run again today. With the server's data restored (step 2), the task's `--once-per-day` sees the server's runs for today, so today's remaining triggers do nothing. If you skipped step 2, wait until the next UTC day to register the task. Either way, don't start it by hand.
 
 To go back to the server later, repeat the cut-over (import with `--force`).
 

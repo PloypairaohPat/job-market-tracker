@@ -1,11 +1,14 @@
 #!/bin/sh
 # Run the daily pipeline from cron (or the future Hetzner box).
 # Same logic as scripts/windows/run_daily.ps1: repo root, the venv's python
-# if present else `uv run python`, pass arguments through, and exit with
-# the pipeline's exit code. Python does the logging (logs/daily-*.log).
+# if present else `uv run python`, --once-per-day (so several cron triggers a
+# day do the work once), pass arguments through, and exit with the
+# pipeline's exit code. Python does the logging (logs/daily-*.log).
 #
-# crontab example (07:15 server-local time; see docs/daily-operation.md):
-#   15 7 * * *  /path/to/job-market-tracker/scripts/run_daily.sh
+# crontab example (07:15, 13:15 and 19:15 server-local time; only the
+# first run that finds today's UTC data missing does the work; see
+# docs/daily-operation.md):
+#   15 7,13,19 * * *  /path/to/job-market-tracker/scripts/run_daily.sh
 cd "$(dirname "$0")/.." || exit 1
 
 # Start the database container first (same as run_daily.ps1). A failure is
@@ -23,6 +26,6 @@ else
 fi
 
 if [ -x .venv/bin/python ]; then
-    exec .venv/bin/python -m src.pipeline.daily "$@"
+    exec .venv/bin/python -m src.pipeline.daily --once-per-day "$@"
 fi
-exec uv run python -m src.pipeline.daily "$@"
+exec uv run python -m src.pipeline.daily --once-per-day "$@"
