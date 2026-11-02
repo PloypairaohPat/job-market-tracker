@@ -64,6 +64,7 @@ def test_sh_starts_db_then_runs_the_pipeline(layout, docker_exit, said):
     assert (layout / "python.args").read_text().split() == [
         "-m",
         "src.pipeline.daily",
+        "--once-per-day",
         "--db-wait",
         "0",
     ]
@@ -84,7 +85,9 @@ def test_ps1_files_are_ascii_only(path):
 def test_ps1_starts_db_before_python_and_ignores_its_failure():
     text = (ROOT / "scripts" / "windows" / "run_daily.ps1").read_text()
     assert 'Get-Command "docker"' in text
-    assert text.index("& docker compose up -d db") < text.index("-m src.pipeline.daily @args")
+    assert text.index("& docker compose up -d db") < text.index(
+        "-m src.pipeline.daily --once-per-day @args"
+    )
     # docker's exit code never becomes the script's: only the pipeline's is returned
     assert text.rstrip().endswith("exit $LASTEXITCODE")
     assert [ln.strip() for ln in text.splitlines() if ln.strip().startswith("exit")] == [
@@ -95,3 +98,33 @@ def test_ps1_starts_db_before_python_and_ignores_its_failure():
 @pytest.mark.skipif(os.name != "posix", reason="POSIX sh only")
 def test_sh_is_valid_posix_sh():
     assert subprocess.run(["/bin/sh", "-n", str(SH)]).returncode == 0
+
+
+def test_both_run_scripts_pass_once_per_day_on_every_branch():
+    ps1 = (ROOT / "scripts" / "windows" / "run_daily.ps1").read_text()
+    sh = SH.read_text()
+    calls = [ln for ln in ps1.splitlines() + sh.splitlines() if "-m src.pipeline.daily" in ln]
+    calls = [ln for ln in calls if not ln.lstrip().startswith("#")]
+    assert len(calls) == 4 and all("--once-per-day" in ln for ln in calls)
+    assert '& "$venvPython" -m src.pipeline.daily' in ps1  # the path is quoted
+
+
+def test_register_task_defaults_to_three_daily_triggers_with_unchanged_settings():
+    text = (ROOT / "scripts" / "windows" / "register_daily_task.ps1").read_text()
+    assert '[string[]]$Time = @("07:15", "13:15", "19:15")' in text
+    # one trigger per time, all on the one task
+    assert "$triggers += New-ScheduledTaskTrigger -Daily -At $at" in text
+    assert "-Trigger $triggers" in text and text.count("Register-ScheduledTask") == 1
+    assert '$_ -split ","' in text  # -File passes "07:15","13:15" as one string
+    for setting in (
+        "-StartWhenAvailable",
+        "-RunOnlyIfNetworkAvailable",
+        "-MultipleInstances IgnoreNew",
+        "-ExecutionTimeLimit (New-TimeSpan -Hours 1)",
+        "-LogonType Interactive",
+        "-RunLevel Limited",
+        '$TaskName = "JobMarketTracker-Daily"',
+    ):
+        assert setting in text, setting
+    # the action still runs run_daily.ps1, with its path quoted
+    assert '-File `"$runScript`"' in text
