@@ -71,6 +71,7 @@ Compose sees the changed setting and **recreates** the container with it. Your d
 This creates one task named **JobMarketTracker-Daily** with one daily trigger per time. It runs `scripts\windows\run_daily.ps1` as you, only while you're logged on, so no password is stored. Running the script again replaces the task, triggers included. The task settings, the same for every trigger, are:
 
 - start as soon as possible after a missed start
+- start on battery, and keep running if the laptop is unplugged
 - only run if the network is available
 - ignore a new instance if one is still running
 - stop after 1 hour
@@ -176,9 +177,17 @@ Start-ScheduledTask -TaskName JobMarketTracker-Daily
 
 Then find out why, so it doesn't happen again. H7 lists the missing dates. For each one, look for its log (the file name is the **UTC** date):
 
-- **No log file for that date:** the task never started. The laptop was off, asleep all day, or not logged on, or the task is disabled. Check `Get-ScheduledTaskInfo` and the task's History tab.
+- **No log file for that date:** the task never started. The laptop was off, asleep all day, on battery with the old power settings (see "Laptop on battery"), or not logged on, or the task is disabled. Check `Get-ScheduledTaskInfo` and the task's History tab.
 - **The log ends with "database unreachable":** Docker wasn't running. See "After a reboot or wake".
 - **The log's summary has a FAIL step:** read that step's line, and `ingestion_runs.error` for a failed source.
+
+### Laptop on battery
+
+By default, Windows won't start a scheduled task on battery and stops one that's running when the laptop is unplugged, without any error. `register_daily_task.ps1` now turns both off (`-AllowStartIfOnBatteries`, `-DontStopIfGoingOnBatteries`), but a task keeps its settings until it's registered again. `uv run python -m src.doctor` warns in its scheduled task check if either default is still on. To fix it:
+
+```powershell
+.\scripts\windows\register_daily_task.ps1 -Time "07:15","11:15","15:15"
+```
 
 ## The Adzuna budget
 

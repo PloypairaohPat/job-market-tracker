@@ -17,7 +17,8 @@ plus the POSIX form where it differs). In this order:
    4 views            every sql/views/*.sql exists in the database
    5 daily clock      health checks H1, H2 and H7, the streak, snapshot days
    6 scheduled task   Windows only: the JobMarketTracker-Daily task's last
-                      run, last result and next run
+                      run, last result and next run, and whether its power
+                      settings let it start and keep running on battery
    7 LCA data         loaded? v_lca_coverage per fiscal year; a non-latest FY
                       with fewer than 12 months; files in data/lca/ whose FY
                       isn't loaded
@@ -39,6 +40,7 @@ import os
 import re
 import subprocess
 import sys
+import xml.etree.ElementTree as ET
 from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, date, datetime
@@ -56,6 +58,13 @@ CONNECT_TIMEOUT_SECONDS = 5
 SOURCE_VARS = ("ADZUNA_APP_ID", "ADZUNA_APP_KEY", "USAJOBS_API_KEY", "USAJOBS_USER_AGENT_EMAIL")
 STRAY_SUFFIXES = (".xlsx", ".csv", ".dump", ".log")
 TASK_NOT_RUN_YET = 267011  # SCHED_S_TASK_HAS_NOT_RUN (0x41303)
+TASK_REGISTER = ".\\scripts\\windows\\register_daily_task.ps1"
+TASK_POWER_FIX = TASK_REGISTER + ' -Time "07:15","11:15","15:15"'
+# task XML setting -> what it means when on (Task Scheduler's default for both)
+TASK_POWER_SETTINGS = {
+    "DisallowStartIfOnBatteries": "won't start on battery",
+    "StopIfGoingOnBatteries": "stops if it goes on battery",
+}
 
 PASS, WARN, FAIL, SKIP, INFO = "PASS", "WARN", "FAIL", "SKIP", "INFO"
 _RANK = {PASS: 0, INFO: 0, SKIP: 0, WARN: 1, FAIL: 2}
@@ -83,6 +92,7 @@ class Context:
     now: datetime = field(default_factory=lambda: datetime.now(UTC))
     engine_factory: Callable[[str], Engine] | None = None  # default: _engine
     run_schtasks: Callable[[], tuple[int, str]] | None = None  # default: _schtasks
+    run_schtasks_xml: Callable[[], tuple[int, str]] | None = None  # default: _schtasks_xml
     git_status: Callable[[Path], str | None] | None = None  # default: _git_status
     # filled in by the checks as they go
     env_values: dict[str, str] = field(default_factory=dict)
@@ -91,6 +101,7 @@ class Context:
     def __post_init__(self) -> None:
         self.engine_factory = self.engine_factory or _engine
         self.run_schtasks = self.run_schtasks or _schtasks
+        self.run_schtasks_xml = self.run_schtasks_xml or _schtasks_xml
         self.git_status = self.git_status or _git_status
 
 
@@ -110,6 +121,18 @@ def _schtasks() -> tuple[int, str]:
         timeout=30,
     )
     return done.returncode, done.stdout + done.stderr
+
+
+def _schtasks_xml() -> tuple[int, str]:
+    """The task's definition; stdout only, so a stray stderr line can't break the XML."""
+    done = subprocess.run(
+        ["schtasks", "/Query", "/TN", TASK_NAME, "/XML"],
+        capture_output=True,
+        text=True,
+        errors="replace",  # paths and names may not decode; the settings are ASCII
+        timeout=30,
+    )
+    return done.returncode, done.stdout
 
 
 def _git_status(root: Path) -> str | None:
@@ -366,15 +389,61 @@ def parse_schtasks(output: str) -> dict[str, str]:
     return fields
 
 
+def power_problems(task_xml: str) -> list[str]:
+    """What `schtasks /XML` says stops the task on battery.
+
+    A setting left out of the XML means Task Scheduler's default, which is on.
+    Raises ET.ParseError if the output isn't XML.
+    """
+    root = ET.fromstring(task_xml.strip())
+    return [
+        problem
+        for setting, problem in TASK_POWER_SETTINGS.items()
+        if root.findtext(f"{{*}}Settings/{{*}}{setting}", "true").strip().lower()
+        not in ("false", "0")
+    ]
+
+
+def _power_finding(ctx: Context) -> str:
+    """'' if the task runs on battery, else what to add to the finding."""
+    code, output = ctx.run_schtasks_xml()
+    unreadable = "couldn't read its power settings from schtasks (a run on battery may be skipped)"
+    if code != 0:
+        return unreadable
+    try:
+        problems = power_problems(output)
+    except ET.ParseError:
+        return unreadable
+    if problems:
+        return f"it {' and '.join(problems)}, so a day on battery can be silently skipped"
+    return ""
+
+
 def check_scheduled_task(ctx: Context) -> Finding:
     name = "scheduled task"
     if not ctx.platform.startswith("win"):
         return Finding(6, name, SKIP, "not Windows (on Linux, cron runs scripts/run_daily.sh)")
-    register = ".\\scripts\\windows\\register_daily_task.ps1"
     code, output = ctx.run_schtasks()
     if code != 0:
-        return Finding(6, name, FAIL, f"no task named {TASK_NAME}", fix=register)
-    fields = parse_schtasks(output)
+        return Finding(6, name, FAIL, f"no task named {TASK_NAME}", fix=TASK_REGISTER)
+    finding = _last_run_finding(parse_schtasks(output))
+    power = _power_finding(ctx)
+    if not power:
+        finding.detail += "; runs on battery"
+        return finding
+    finding.status = WARN
+    finding.detail += f"; {power}"
+    # the fix first: a last-result fix can end in a comment
+    finding.fix = (
+        f"{TASK_POWER_FIX} ; {finding.fix}"
+        if finding.fix and finding.fix != TASK_REGISTER
+        else TASK_POWER_FIX
+    )
+    return finding
+
+
+def _last_run_finding(fields: dict[str, str]) -> Finding:
+    name = "scheduled task"
     last_run = fields.get("Last Run Time", "?")
     next_run = fields.get("Next Run Time", "?")
     raw = fields.get("Last Result", "")
@@ -383,7 +452,11 @@ def check_scheduled_task(ctx: Context) -> Finding:
         result = int(raw)
     except ValueError:
         return Finding(
-            6, name, WARN, f"couldn't read the last result from schtasks ({when})", fix=register
+            6,
+            name,
+            WARN,
+            f"couldn't read the last result from schtasks ({when})",
+            fix=TASK_REGISTER,
         )
     if result == 0:
         return Finding(6, name, PASS, f"{when}; last result 0 (success)")

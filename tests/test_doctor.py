@@ -8,6 +8,7 @@ appear in the output.
 
 import json
 import os
+import subprocess
 import sys
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
@@ -56,6 +57,7 @@ def ctx(root: Path, **kwargs) -> Context:
     kwargs.setdefault("environ", {})
     kwargs.setdefault("platform", "linux")
     kwargs.setdefault("git_status", lambda r: "")
+    kwargs.setdefault("run_schtasks_xml", lambda: (0, task_xml()))
     return Context(root=root, **kwargs)
 
 
@@ -169,6 +171,33 @@ def schtasks(code=0, result="0"):
     return lambda: (code, SCHTASKS_SAMPLE.format(result=result))
 
 
+def task_xml(start="false", stop="false"):
+    """Invented `schtasks /XML` output: None leaves a setting out, as a default."""
+    settings = "".join(
+        f"    <{tag}>{value}</{tag}>\n"
+        for tag, value in (("DisallowStartIfOnBatteries", start), ("StopIfGoingOnBatteries", stop))
+        if value is not None
+    )
+    return (
+        '<?xml version="1.0" encoding="UTF-16"?>\n'
+        '<Task version="1.3" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">\n'
+        "  <RegistrationInfo><Author>FAKE-LAPTOP\\fakeuser</Author></RegistrationInfo>\n"
+        f"  <Settings>\n{settings}    <StartWhenAvailable>true</StartWhenAvailable>\n  </Settings>\n"
+        "</Task>\n"
+    )
+
+
+def power_check(tmp_path, xml_output, result="0"):
+    return doctor.check_scheduled_task(
+        ctx(
+            tmp_path,
+            platform="win32",
+            run_schtasks=schtasks(result=result),
+            run_schtasks_xml=lambda: xml_output,
+        )
+    )
+
+
 def test_scheduled_task_skips_off_windows(tmp_path):
     assert doctor.check_scheduled_task(ctx(tmp_path)).status == SKIP
 
@@ -198,6 +227,65 @@ def test_missing_scheduled_task_fails_with_register_command(tmp_path):
     missing = lambda: (1, "ERROR: The system cannot find the file specified.\n")  # noqa: E731
     f = doctor.check_scheduled_task(ctx(tmp_path, platform="win32", run_schtasks=missing))
     assert f.status == FAIL and f.fix == ".\\scripts\\windows\\register_daily_task.ps1"
+
+
+def test_task_that_runs_on_battery_passes(tmp_path):
+    f = power_check(tmp_path, (0, task_xml()))
+    assert f.status == PASS and "runs on battery" in f.detail and not f.fix
+
+
+@pytest.mark.parametrize(
+    "start,stop,says,not_says",
+    [
+        ("true", "false", "won't start on battery", "stops if it goes"),
+        ("false", "true", "stops if it goes on battery", "won't start"),
+        ("true", "true", "won't start on battery and stops if it goes on battery", "runs on"),
+        # left out of the XML: Task Scheduler's defaults
+        (None, None, "won't start on battery and stops if it goes on battery", "runs on"),
+    ],
+)
+def test_task_blocked_on_battery_warns_with_the_register_command(
+    tmp_path, start, stop, says, not_says
+):
+    f = power_check(tmp_path, (0, task_xml(start, stop)))
+    assert f.status == WARN and says in f.detail and not_says not in f.detail
+    assert f.fix == '.\\scripts\\windows\\register_daily_task.ps1 -Time "07:15","11:15","15:15"'
+
+
+@pytest.mark.parametrize(
+    "xml_output",
+    [(1, "ERROR: Access is denied.\n"), (0, "ERROR: not XML"), (0, "")],
+    ids=["schtasks-error", "not-xml", "empty"],
+)
+def test_unreadable_power_settings_warn_rather_than_pass(tmp_path, xml_output):
+    f = power_check(tmp_path, xml_output)
+    assert f.status == WARN and "couldn't read its power settings" in f.detail
+    assert f.fix.endswith('-Time "07:15","11:15","15:15"')
+
+
+def test_battery_warning_keeps_the_last_result_and_both_fixes(tmp_path):
+    f = power_check(tmp_path, (0, task_xml(start="true")), result="1")
+    assert f.status == WARN and "a step failed" in f.detail and "won't start" in f.detail
+    # the register command comes first: the other fix ends in a comment
+    assert f.fix.startswith('.\\scripts\\windows\\register_daily_task.ps1 -Time "07:15"')
+    assert "logs\\daily-YYYY-MM-DD.log" in f.fix
+
+
+def test_battery_warning_with_a_garbled_result_gives_the_register_command_once(tmp_path):
+    f = power_check(tmp_path, (0, task_xml(start="true")), result="garbled")
+    assert f.status == WARN and f.fix.count("register_daily_task.ps1") == 1
+
+
+def test_power_settings_are_read_with_a_query_only(monkeypatch):
+    seen = {}
+
+    def fake_run(args, **kwargs):
+        seen["args"] = args
+        return subprocess.CompletedProcess(args, 0, stdout=task_xml(), stderr="FAKE warning")
+
+    monkeypatch.setattr(doctor.subprocess, "run", fake_run)
+    assert doctor._schtasks_xml() == (0, task_xml())  # stdout only: stderr would break the XML
+    assert seen["args"] == ["schtasks", "/Query", "/TN", "JobMarketTracker-Daily", "/XML"]
 
 
 def test_parse_schtasks_takes_key_value_lines():

@@ -15,6 +15,9 @@
 # no password is stored. Settings (the same for every trigger):
 #   -StartWhenAvailable        run as soon as possible after a missed start
 #                              (laptop asleep at 07:15 -> runs on wake, once)
+#   -AllowStartIfOnBatteries   start on battery (Windows' default silently
+#                              skips the run when the laptop is unplugged)
+#   -DontStopIfGoingOnBatteries  keep running if it gets unplugged mid-run
 #   -RunOnlyIfNetworkAvailable
 #   -MultipleInstances IgnoreNew
 #   -ExecutionTimeLimit 1 hour
@@ -66,6 +69,8 @@ $principal = New-ScheduledTaskPrincipal `
     -RunLevel Limited
 $settings = New-ScheduledTaskSettingsSet `
     -StartWhenAvailable `
+    -AllowStartIfOnBatteries `
+    -DontStopIfGoingOnBatteries `
     -RunOnlyIfNetworkAvailable `
     -MultipleInstances IgnoreNew `
     -ExecutionTimeLimit (New-TimeSpan -Hours 1)
@@ -84,6 +89,7 @@ Write-Host "  runs   : powershell.exe -File `"$runScript`" (passes --once-per-da
 Write-Host "  daily  : $($times -join ', ') local time (each catches up once on wake if missed)"
 Write-Host "           the first run that finds today's UTC data missing does the work; the rest exit 0"
 Write-Host "  as     : $env:USERDOMAIN\$env:USERNAME, only when logged on (no stored password)"
+Write-Host "  power  : runs on battery too (-AllowStartIfOnBatteries, -DontStopIfGoingOnBatteries)"
 Write-Host ""
 Write-Host "Check it:"
 Write-Host "  Get-ScheduledTask -TaskName $TaskName | Select-Object -ExpandProperty Triggers"

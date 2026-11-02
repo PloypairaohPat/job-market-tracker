@@ -128,3 +128,12 @@ def test_register_task_defaults_to_three_daily_triggers_with_unchanged_settings(
         assert setting in text, setting
     # the action still runs run_daily.ps1, with its path quoted
     assert '-File `"$runScript`"' in text
+
+
+def test_register_task_runs_on_battery():
+    text = (ROOT / "scripts" / "windows" / "register_daily_task.ps1").read_text()
+    # in the settings call itself: the header comment names them too
+    start = text.index("$settings = New-ScheduledTaskSettingsSet")
+    settings_call = text[start : text.index("Register-ScheduledTask `", start)]
+    assert "-AllowStartIfOnBatteries `" in settings_call
+    assert "-DontStopIfGoingOnBatteries `" in settings_call
