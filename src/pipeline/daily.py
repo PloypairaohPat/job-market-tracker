@@ -1,6 +1,7 @@
 """The daily pipeline: both sources, then cleaning, then skills.
 
 Run:  python -m src.pipeline.daily [--skip adzuna usajobs cleaning skills] [--dry-run]
+          [--db-wait SECONDS]
       (or: make daily; on Windows the scheduled task runs scripts/windows/run_daily.ps1)
 
 Steps, in order, called in-process (so tests inject fixture-backed clients):
@@ -15,6 +16,12 @@ Judgment calls (docs/daily-operation.md, docs/data_dictionary.md):
   `failed` ingestion_runs row and the run continues. Cleaning and skills
   still run: they only read the database and are idempotent.
 - Missing credentials: the error names the missing variable, never a value.
+- Waits for the database first: up to `--db-wait` seconds (default
+  DB_WAIT_SECONDS, 300, so Docker Desktop can finish starting after a
+  login or wake), one attempt every DB_WAIT_INTERVAL_SECONDS. Each
+  attempt is logged with host and port only, never the URL or password.
+  Still unreachable -> a clear message, a summary with a `db` FAIL line,
+  the failure ping (not on a dry run), and exit code 2.
 - Single instance via a Postgres advisory lock (`pg_try_advisory_lock`,
   key DAILY_LOCK_KEY) held on a dedicated connection for the whole run. A
   second runner logs that and exits 0. No file locks, so Windows and
@@ -22,7 +29,8 @@ Judgment calls (docs/daily-operation.md, docs/data_dictionary.md):
 - Logs go to stdout and logs/daily-YYYY-MM-DD.log (UTC date, UTF-8,
   appended), through the secret-redaction filter. No rotation.
 - Exit 0 when every step that ran succeeded (`skipped_budget` and
-  `partial` count as success: the guard did its job); 1 otherwise.
+  `partial` count as success: the guard did its job); 1 when a step
+  failed; 2 when the database never became reachable (nothing ran).
 - Optional dead-man's switch: when HEALTHCHECK_PING_URL is set, the run
   ends with a GET to that URL (success) or `<URL>/fail` (failure) -- the
   healthchecks.io convention -- with a short timeout. A failed ping is
@@ -47,7 +55,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import requests
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, make_url, text
 
 from src.cleaning.apply_cleaning import ALL_STEPS, DEFAULT_CANDIDATES_OUT, run_steps
 from src.cleaning.extract_skills import extract_for_all_jobs, sync_taxonomy
@@ -56,7 +64,7 @@ from src.ingestion.run_log import record_terminal_run
 from src.pipeline.health import FAIL, health
 from src.utils.config import Settings, get_settings
 from src.utils.db import session_scope
-from src.utils.redaction import install_redaction, secrets_from_settings
+from src.utils.redaction import install_redaction, redact, secrets_from_settings
 
 logger = logging.getLogger("src.pipeline.daily")
 
@@ -69,6 +77,11 @@ SOURCE_MAX_CALLS = 60  # per-run cap, same default as the ingest CLIs
 LOG_DIR = Path("logs")
 LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
 PING_TIMEOUT_SECONDS = 10
+DB_WAIT_SECONDS = 300  # parked default: Docker Desktop's start-up after a login or wake
+DB_WAIT_INTERVAL_SECONDS = 10
+DB_CONNECT_TIMEOUT_SECONDS = 5
+
+EXIT_OK, EXIT_STEP_FAILED, EXIT_DB_UNREACHABLE = 0, 1, 2
 
 
 @dataclass
@@ -116,6 +129,73 @@ def daily_logging(log_dir: Path, secrets: list[str], now: datetime) -> Iterator[
             root.removeHandler(handler)
             handler.close()
         root.setLevel(old_level)
+
+
+# --------------------------------------------------------------------- #
+# waiting for the database
+
+
+def db_address(database_url: str) -> str:
+    """`host:port` of the URL -- the only part of it ever logged."""
+    url = make_url(database_url)
+    return f"{url.host or 'localhost'}:{url.port or 5432}"
+
+
+def try_connect(database_url: str) -> None:
+    """One quick connection attempt; raises if the database isn't reachable."""
+    engine = create_engine(
+        database_url, connect_args={"connect_timeout": DB_CONNECT_TIMEOUT_SECONDS}
+    )
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("select 1"))
+    finally:
+        engine.dispose()
+
+
+def wait_for_database(
+    database_url: str,
+    wait_seconds: int,
+    *,
+    connect: Callable[[str], None] = try_connect,
+    sleep: Callable[[float], None] = time.sleep,
+    interval: int = DB_WAIT_INTERVAL_SECONDS,
+) -> tuple[bool, int]:
+    """Try to connect now, then every `interval` s until `wait_seconds` have
+    passed. Returns (reachable, seconds waited). `wait_seconds` 0 = one try."""
+    where = db_address(database_url)
+    password = make_url(database_url).password
+    masked = [database_url, *([password] if password else [])]
+    waited, attempt = 0, 0
+    while True:
+        attempt += 1
+        try:
+            connect(database_url)
+        except Exception as exc:
+            reason = redact((str(exc).strip().splitlines() or [""])[0], masked)
+            logger.warning(
+                "database at %s not reachable (attempt %d, %d s waited): %s %s",
+                where,
+                attempt,
+                waited,
+                type(exc).__name__,
+                reason,
+            )
+        else:
+            logger.info("database at %s reachable (attempt %d)", where, attempt)
+            return True, waited
+        if waited >= wait_seconds:
+            return False, waited
+        step = min(interval, wait_seconds - waited)
+        sleep(step)
+        waited += step
+
+
+def db_unreachable_message(database_url: str, waited: int) -> str:
+    return (
+        f"database unreachable at {db_address(database_url)} after {waited} s; "
+        "is Docker Desktop running? Then: docker compose up -d db"
+    )
 
 
 # --------------------------------------------------------------------- #
@@ -302,6 +382,9 @@ def run_daily(
     adzuna_client_factory=None,
     usajobs_client_factory=None,
     ping_session=None,
+    db_wait: int = DB_WAIT_SECONDS,
+    db_connect: Callable[[str], None] = try_connect,
+    sleep: Callable[[float], None] = time.sleep,
 ) -> DailyResult:
     settings = settings or get_settings()
     database_url = database_url or settings.database_url
@@ -317,6 +400,20 @@ def run_daily(
     }
     with daily_logging(log_dir, secrets_from_settings(settings), now) as log_path:
         logger.info("daily run starting (UTC date %s), log %s", now.date().isoformat(), log_path)
+        reachable, waited = wait_for_database(
+            database_url, db_wait, connect=db_connect, sleep=sleep
+        )
+        if not reachable:
+            message = db_unreachable_message(database_url, waited)
+            logger.error(message)
+            result = DailyResult(
+                exit_code=EXIT_DB_UNREACHABLE,
+                steps=[StepResult("db", False, "unreachable", float(waited), message)],
+            )
+            logger.info(format_summary(result))
+            if settings.healthcheck_ping_url and not dry_run:
+                send_ping(settings.healthcheck_ping_url, False, ping_session)
+            return result
         with advisory_lock(database_url) as locked:
             if not locked:
                 logger.warning(
@@ -330,7 +427,7 @@ def run_daily(
                     result.steps.append(StepResult(name, True, "skipped", detail="--skip"))
                     continue
                 result.steps.append(_run_step(name, ctx))
-        result.exit_code = 0 if all(s.ok for s in result.steps) else 1
+        result.exit_code = EXIT_OK if all(s.ok for s in result.steps) else EXIT_STEP_FAILED
         logger.info(format_summary(result))
         if settings.healthcheck_ping_url and not dry_run:
             send_ping(settings.healthcheck_ping_url, result.exit_code == 0, ping_session)
@@ -345,8 +442,18 @@ def main() -> None:
         action="store_true",
         help="plan only: log the budget decision and steps; no API calls, no writes",
     )
+    argp.add_argument(
+        "--db-wait",
+        type=int,
+        default=DB_WAIT_SECONDS,
+        metavar="SECONDS",
+        help=f"wait up to this long for the database (default {DB_WAIT_SECONDS}; 0 = one try); "
+        "still unreachable -> exit 2",
+    )
     args = argp.parse_args()
-    result = run_daily(skip=tuple(args.skip), dry_run=args.dry_run)
+    if args.db_wait < 0:
+        argp.error("--db-wait must be 0 or more")
+    result = run_daily(skip=tuple(args.skip), dry_run=args.dry_run, db_wait=args.db_wait)
     sys.exit(result.exit_code)
 
 

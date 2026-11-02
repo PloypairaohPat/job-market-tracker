@@ -62,11 +62,10 @@ def _aliases() -> dict[str, str]:
     return {k: v for k, v in raw.items() if not k.startswith("_comment")}
 
 
-def normalize_company_name(raw: str) -> str:
-    """Reduce a raw company string to its lowercase grouping key."""
+def rule_key(raw: str) -> str:
+    """The rules alone, without the alias map: lowercase, legal suffixes, a
+    leading "The", punctuation and whitespace."""
     s = _WS.sub(" ", raw.strip()).lower()
-    if s in _aliases():
-        return _aliases()[s]
     # strip legal suffixes repeatedly ("Acme Holdings LLC" -> "acme")
     while True:
         stripped = _SUFFIX_RE.sub("", s)
@@ -74,7 +73,15 @@ def normalize_company_name(raw: str) -> str:
             break
         s = stripped
     s = _THE_PREFIX.sub("", s)
-    s = _WS.sub(" ", _PUNCT.sub(" ", s)).strip()
+    return _WS.sub(" ", _PUNCT.sub(" ", s)).strip()
+
+
+def normalize_company_name(raw: str) -> str:
+    """Reduce a raw company string to its lowercase grouping key."""
+    s = _WS.sub(" ", raw.strip()).lower()
+    if s in _aliases():
+        return _aliases()[s]
+    s = rule_key(s)
     return _aliases().get(s, s)
 
 

@@ -116,15 +116,29 @@ Near-misses ("fakeco" vs "fakeco analytics") are proposed for review:
 python -m src.visa.sponsor_match                         # -> data/sponsor_match_candidates.csv
 ```
 
-Open the CSV and mark `approved` (e.g. `y`) on pairs that are really the
-same employer. Nothing is merged automatically. For each approved pair, add
-an alias to `src/cleaning/data/company_aliases.json` that maps one key to
-the other, e.g. `"fakeco analytics": "fakeco"`. Then re-key both sides:
+Open the CSV and mark `approved` (`y`, `yes`, `x`, `1` or `true`) on pairs
+that are really the same employer. Nothing is merged automatically. Then let
+the helper promote them into `src/cleaning/data/company_aliases.json`:
+
+```bash
+python -m src.cleaning.aliases apply --from data/sponsor_match_candidates.csv          # dry run
+python -m src.cleaning.aliases apply --from data/sponsor_match_candidates.csv --write
+```
+
+The dry run shows what it would add, the rows it refuses and why, and the
+JSON diff. By default the longer key is mapped onto the shorter one (e.g.
+`"fakeco analytics": "fakeco"`); add a `keep_company` or `keep_lca` column
+and mark it to choose the key that survives. After `--write` it prints the
+commands that re-key both sides:
 
 ```bash
 python -m src.cleaning.apply_cleaning --only companies
 python -m src.visa.lca_loader --rekey
+python scripts/apply_views.py
 ```
+
+Then re-render Report 3. Fallback, by hand: add the alias to the JSON
+yourself (see `src/cleaning/README.md`) and run the same commands.
 
 Be strict: a staffing firm and a client with similar names are **not** the
 same employer, and LCA counts belong to the filer.

@@ -12,6 +12,7 @@ _Phase 5 report 1. Regenerates Phase 3 Investigation #2 (docs/phase_3_findings.m
 | Generated at | 2026-10-27 03:00:00 UTC |
 | Git commit | `golden000000` |
 | Rows in `v_skill_category_composition` | 0 |
+| Rows in `v_skill_category_composition_roles` | 0 |
 | Rows in `v_skill_text_basis` | 0 |
 | Rows in `v_skill_top_by_source` | 0 |
 | Rows in `v_federal_skill_by_admission` | 0 |
@@ -63,6 +64,22 @@ From `v_skill_category_composition`; denominators from `v_skill_text_basis.n_tag
 | database | 0.0% (0 of 300 tags) | 3.3% (4 of 120 tags) | -3.3 pp |
 
 ‡ on the chart: a category with fewer tags than the market's drill-down floor (commercial n ≥ 15, federal n ≥ 5). Shown, but read it as directional. Here: commercial cloud, commercial data_tool, commercial database, federal cloud, federal data_tool, federal database.
+
+### Sensitivity: distinct roles
+
+The same composition counted over distinct **roles** (an employer and a normalized job title) instead of postings, so a role reposted in many places counts once. A role carries a category if any of its postings is tagged with it. Postings with no company have no role and are left out. This is a sensitivity check, not a dedup: the primary numbers above and the headline don't change.
+
+By postings: share of skill tags (`v_skill_category_composition`). By roles: share of role-category pairs (`v_skill_category_composition_roles`), over 150 commercial and 30 federal roles. The two units differ (tags vs category presence), so compare each column's ranking, not its exact points.
+
+| Category | Commercial by postings | Commercial by roles | Federal by postings | Federal by roles |
+|---|---|---|---|---|
+| workflow | 33.3% (100 of 300 tags) | 20.0% (40 of 200 role-category pairs) | 10.0% (12 of 120 tags) | 10.0% (5 of 50 role-category pairs) |
+| bi_tool | 26.7% (80 of 300 tags) | 30.0% (60 of 200 role-category pairs) | 16.7% (20 of 120 tags) | 20.0% (10 of 50 role-category pairs) |
+| language | 20.0% (60 of 300 tags) | 25.0% (50 of 200 role-category pairs) | 30.0% (36 of 120 tags) | 30.0% (15 of 50 role-category pairs) |
+| ml_stats | 13.3% (40 of 300 tags) | 15.0% (30 of 200 role-category pairs) | 40.0% (48 of 120 tags) | 40.0% (20 of 50 role-category pairs) |
+| cloud | 4.0% (12 of 300 tags) | 6.0% (12 of 200 role-category pairs) | 0.0% (0 of 120 tags) | 0.0% (0 of 50 role-category pairs) |
+| data_tool | 2.7% (8 of 300 tags) | 4.0% (8 of 200 role-category pairs) | 0.0% (0 of 120 tags) | 0.0% (0 of 50 role-category pairs) |
+| database | 0.0% (0 of 300 tags) | 0.0% (0 of 200 role-category pairs) | 3.3% (4 of 120 tags) | 0.0% (0 of 50 role-category pairs) |
 
 ## 3. Skill drill-down (directional texture)
 

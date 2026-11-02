@@ -1,9 +1,9 @@
 """Markdown output that only accepts guardrail-safe numbers.
 
 A table cell is a label (str), an int (a count), None ("—"), or one of the
-guardrail types (Count, Rate, Ratio, Stat, Gap, SalarySummary). A float, or
-a label that is really a bare number ("33.8%", "1,483"), is refused: wrap it
-so it carries its n or denominator. A table holding a truncation-floored
+guardrail types (Count, Rate, Ratio, Stat, Gap, SalarySummary, FlooredSalary,
+SalaryDiff). A float, or a label that is really a bare number ("33.8%",
+"1,483"), is refused: wrap it so it carries its n or denominator. A table holding a truncation-floored
 rate must say "truncation-floored" in its caption or a header.
 
 Narrative sections the owner writes are `placeholder` blocks marked
@@ -19,10 +19,12 @@ from dataclasses import dataclass, field
 from src.reports.guardrails import (
     TRUNCATION_LABEL,
     Count,
+    FlooredSalary,
     Gap,
     GuardrailError,
     Rate,
     Ratio,
+    SalaryDiff,
     SalarySummary,
     Stat,
 )
@@ -30,7 +32,18 @@ from src.reports.lca_guardrails import FilingCount, FilingWage
 from src.reports.provenance import DEMO_BANNER, Provenance
 
 PLACEHOLDER_MARK = "TO WRITE"
-_GUARDED = (Count, Rate, Ratio, Stat, Gap, SalarySummary, FilingCount, FilingWage)
+_GUARDED = (
+    Count,
+    Rate,
+    Ratio,
+    Stat,
+    Gap,
+    SalarySummary,
+    FlooredSalary,
+    SalaryDiff,
+    FilingCount,
+    FilingWage,
+)
 _BARE_NUMBER = re.compile(r"^\s*[-+]?\$?\d[\d,]*(?:\.\d+)?\s*(?:%|pp|x)?\s*$")
 
 

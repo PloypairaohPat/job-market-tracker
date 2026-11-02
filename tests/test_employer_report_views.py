@@ -174,6 +174,80 @@ def test_wages_pool_matched_employers_analytics_filings(small):
     assert federal["n_filings"] == 0 and federal["median_offered_annual_wage"] is None
 
 
+def test_wage_robustness_columns_without_the_largest_filer_and_per_employer(db):
+    """A big filer drags the pooled median up; both robustness checks show it."""
+    big, mid, small_, d, e = (
+        company(db, n)
+        for n in (
+            "FAKE Big Filer",
+            "FAKE Mid Filer",
+            "FAKE Small Filer",
+            "FAKE Dept D",
+            "FAKE Dept E",
+        )
+    )
+    for c in (big, mid, small_):
+        job(db, "adzuna", c)
+    job(db, "usajobs", d)
+    job(db, "usajobs", e)
+    wage = lambda employer, k: lca(employer, wage_rate_of_pay_from=Decimal(k * 1000))  # noqa: E731
+    lca_rows(
+        db,
+        [wage("FAKE Big Filer", k) for k in (200, 210, 220, 230)]
+        + [wage("FAKE Mid Filer", k) for k in (80, 90)]
+        + [wage("FAKE Small Filer", 100)]
+        + [wage("FAKE Dept D", 120), wage("FAKE Dept E", 140)],  # federal: a tie at 1 filing
+    )
+    by_market = {r["market"]: r for r in rows(db, "select * from v_matched_employer_lca_wages")}
+    commercial, federal = by_market["commercial"], by_market["federal"]
+    assert commercial["median_offered_annual_wage"] == 200_000  # pooled: the big filer's level
+    assert (
+        commercial["median_excl_largest_filer"],
+        commercial["n_filings_excl_largest_filer"],
+    ) == (90_000, 3)
+    assert (
+        commercial["median_of_employer_medians"],
+        commercial["n_employers_for_median_of_medians"],
+    ) == (100_000, 3)  # medians 215k, 85k and 100k
+    # a tie for largest drops the first employer_key ("fake dept d")
+    assert (federal["median_excl_largest_filer"], federal["n_filings_excl_largest_filer"]) == (
+        140_000,
+        1,
+    )
+    assert federal["median_of_employer_medians"] == 130_000
+
+    # the new columns come last, after every existing one
+    columns = [
+        r["column_name"]
+        for r in rows(
+            db,
+            "select column_name from information_schema.columns "
+            "where table_name = 'v_matched_employer_lca_wages' order by ordinal_position",
+        )
+    ]
+    assert columns[-5:] == [
+        "largest_employer_n_filings",
+        "median_excl_largest_filer",
+        "n_filings_excl_largest_filer",
+        "median_of_employer_medians",
+        "n_employers_for_median_of_medians",
+    ]
+
+
+def test_with_one_employer_there_is_no_median_without_it(db):
+    job(db, "adzuna", company(db, "FAKE Only Filer"))
+    lca_rows(db, [lca("FAKE Only Filer"), lca("FAKE Only Filer")])
+    commercial = {r["market"]: r for r in rows(db, "select * from v_matched_employer_lca_wages")}[
+        "commercial"
+    ]
+    assert commercial["median_excl_largest_filer"] is None
+    assert commercial["n_filings_excl_largest_filer"] == 0
+    assert (
+        commercial["median_of_employer_medians"],
+        commercial["n_employers_for_median_of_medians"],
+    ) == (90_000, 1)
+
+
 def test_with_no_lca_data_every_view_still_has_a_row_per_market(db):
     job(db, "adzuna", company(db, "FAKECO Analytics"))
     job(db, "usajobs", company(db, "FAKE Agency"))
@@ -187,11 +261,75 @@ def test_with_no_lca_data_every_view_still_has_a_row_per_market(db):
     assert all(
         r["n_filings"] == 0 and r["median_offered_annual_wage"] is None for r in wages.values()
     )
+    assert all(
+        r["median_excl_largest_filer"] is None
+        and r["n_filings_excl_largest_filer"] == r["n_employers_for_median_of_medians"] == 0
+        for r in wages.values()
+    )
+
+
+def location(engine, city):
+    with engine.begin() as conn:
+        return conn.execute(
+            text(
+                "insert into locations (city, state, is_remote) values (:c, 'NY', false) returning id"
+            ),
+            {"c": city},
+        ).scalar_one()
+
+
+def titled_job(engine, source, company_id, title, normalized, location_id=None, in_scope=True):
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "insert into jobs (external_id, source, title, title_normalized, company_id, "
+                "location_id, in_scope, is_remote) values (gen_random_uuid()::text, :s, :t, :n, "
+                ":c, :l, :i, false)"
+            ),
+            {
+                "s": source,
+                "t": title,
+                "n": normalized,
+                "c": company_id,
+                "l": location_id,
+                "i": in_scope,
+            },
+        )
+
+
+def test_roles_count_distinct_titles_and_locations_per_employer(db):
+    a, b, g = (company(db, n) for n in ("FAKECO Reposts", "FAKE Variants", "FAKE Agency"))
+    places = [location(db, f"Fakeville {i}") for i in range(5)]
+    for place in places:  # one title in five locations: 5 postings, 1 role
+        titled_job(db, "adzuna", a, "Data Analyst", "data analyst", place)
+    titled_job(db, "adzuna", b, "Data Analyst", "data analyst", places[0])
+    titled_job(db, "adzuna", b, " Data Analyst ", "", places[0])  # empty normalized: falls back
+    titled_job(db, "adzuna", b, "Senior Data Analyst", "senior data analyst")  # a variant: counted
+    titled_job(db, "adzuna", b, "Sr. Data Analyst", "sr. data analyst")  # ... separately
+    titled_job(db, "adzuna", None, "Data Analyst", "data analyst", places[1])
+    titled_job(db, "adzuna", None, "BI Analyst", "bi analyst", places[2])
+    titled_job(db, "usajobs", g, "Management Analyst", "management analyst", places[3])
+    titled_job(db, "usajobs", g, "Program Analyst", "program analyst", in_scope=False)
+
+    got = {(r["market"], r["employer_key"]): r for r in rows(db, "select * from v_employer_roles")}
+    pick = ("n_postings", "n_roles", "n_locations", "market_n_postings", "market_n_roles")
+    assert {k: tuple(r[c] for c in pick) for k, r in got.items()} == {
+        ("commercial", "fakeco reposts"): (5, 1, 5, 11, 4),
+        ("commercial", "fake variants"): (4, 3, 1, 11, 4),
+        ("commercial", None): (2, 0, 2, 11, 4),  # counted, but no roles without an employer
+        ("federal", "fake agency"): (1, 1, 1, 1, 1),  # the out-of-scope posting isn't in
+    }
+    postings = {
+        (r["market"], r["employer_key"]): r["n_postings"]
+        for r in rows(db, "select * from v_employer_postings")
+    }
+    assert postings == {k: r["n_postings"] for k, r in got.items()}  # the same populations
 
 
 def test_the_new_views_carry_no_row_level_columns(db):
     for view in (
         "v_employer_postings",
+        "v_employer_roles",
         "v_employer_sponsorship_match",
         "v_visa_outlook_summary",
         "v_matched_employer_lca_wages",

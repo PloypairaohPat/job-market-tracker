@@ -7,9 +7,13 @@ with this run's numbers; the kit writes no conclusions.
 
 Views read (aggregate only; none has a job- or filing-level column):
   v_employer_postings           postings per employer, per market
+  v_employer_roles              distinct roles (employer, normalized title) and
+                                locations beside postings: a repost sensitivity
   v_employer_sponsorship_match  postings and employers matched to LCA history
   v_visa_outlook_summary        postings per visa-outlook bucket and reason
   v_matched_employer_lca_wages  offered wage on matched employers' filings
+  v_lca_coverage, v_lca_monthly how complete each fiscal year in the filing
+                                window is (Methods)
 
 Guardrails (src/reports/guardrails.py, src/reports/lca_guardrails.py):
   - every number carries its n or denominator; LCA counts are labelled as
@@ -27,12 +31,13 @@ Guardrails (src/reports/guardrails.py, src/reports/lca_guardrails.py):
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date
 from pathlib import Path
 
 import pandas as pd
 
 from src.reports.charts import grouped_barh
-from src.reports.guardrails import Count, Rate
+from src.reports.guardrails import Count, Rate, Stat
 from src.reports.lca_guardrails import (
     BUCKET_LABELS,
     BUCKETS,
@@ -52,9 +57,12 @@ SLUG = "employers-and-sponsorship"
 TITLE = "Who hires data analysts, and who has filed to sponsor them"
 VIEWS = (
     "v_employer_postings",
+    "v_employer_roles",
     "v_employer_sponsorship_match",
     "v_visa_outlook_summary",
     "v_matched_employer_lca_wages",
+    "v_lca_coverage",
+    "v_lca_monthly",
 )
 MARKETS = ("commercial", "federal")
 TOP_N = 10
@@ -62,9 +70,29 @@ TOP_N = 10
 # shown, but marked directional (parked threshold).
 WAGE_MIN_FILINGS = 15
 WAGE_MIN_EMPLOYERS = 5
+# A month with fewer decisions than this share of its fiscal year's median
+# month is flagged in Methods (parked threshold).
+SPARSE_MONTH_SHARE = 0.10
 CLOSED_BY_REQUIREMENT = ("posting restriction: citizenship", "posting restriction: clearance")
 NOT_LOADED = "LCA data not loaded"
+NO_ANALYTICS_NOTE = (
+    "matched employers' filings in this window include no analytics-SOC H-1B filings"
+)
+FEDERAL_CAVEAT = (
+    "**Federal LCA matches rarely bear on federal analyst jobs.** Federal civil-service "
+    "positions generally require US citizenship, so an agency's LCA filings say little about "
+    "its analyst postings. For the federal market the closed share, from the postings' own "
+    "words, is the more relevant number."
+)
 ANALYTICS_FILINGS = "certified analytics-SOC H-1B LCA filings"
+
+
+@dataclass(frozen=True)
+class TopEmployer:
+    name: str
+    postings: Rate
+    titles: int
+    locations: int
 
 
 @dataclass(frozen=True)
@@ -72,9 +100,12 @@ class Hiring:
     n_postings: int = 0
     n_employers: int = 0
     n_no_employer: int = 0
-    top: tuple[tuple[str, Rate], ...] = ()
+    top: tuple[TopEmployer, ...] = ()
     top_share: Rate = Rate(0, 0, unit="postings")
     tie_at_cutoff: bool = False
+    n_roles: int = 0
+    top_roles_share: Rate = Rate(0, 0, unit="roles")  # top TOP_N employers ranked by roles
+    repeats: Rate = Rate(0, 0, unit="postings with a company")  # postings - roles
 
 
 @dataclass(frozen=True)
@@ -99,12 +130,32 @@ class Wages:
     wage: FilingWage = FilingWage(0, 0)
     largest_filer: Rate = Rate(0, 0, unit="filings")
     unconvertible: int = 0
+    # robustness checks: n = filings with a wage, and employers
+    excl_largest: Stat = Stat(None, 0, prefix="$")
+    median_of_medians: Stat = Stat(None, 0, prefix="$")
 
     @property
     def directional(self) -> bool:
         if not self.wage.n_filings:
             return False  # nothing to read at all, not "directional"
         return self.wage.n_filings < WAGE_MIN_FILINGS or self.wage.n_employers < WAGE_MIN_EMPLOYERS
+
+
+@dataclass(frozen=True)
+class FyCoverage:
+    """How complete one fiscal year of LCA data is (v_lca_coverage, v_lca_monthly)."""
+
+    fiscal_year: int
+    n_cases: int = 0
+    first: date | None = None
+    last: date | None = None
+    n_months: int = 0
+    median_month: float = 0.0
+    sparse: tuple[tuple[date, int], ...] = ()  # (month, n_cases) under SPARSE_MONTH_SHARE
+
+    @property
+    def partial(self) -> bool:
+        return self.n_months < 12
 
 
 @dataclass
@@ -116,6 +167,7 @@ class EmployersReport:
     match: dict[str, Match]
     outlook: dict[str, Outlook]
     wages: dict[str, Wages]
+    coverage: tuple[FyCoverage, ...] = ()  # each FY of the filing window, oldest first
 
 
 LEVELS = (
@@ -125,29 +177,47 @@ LEVELS = (
 )
 
 
-def _hiring(frame: pd.DataFrame) -> Hiring:
+def _hiring(frame: pd.DataFrame, roles: pd.DataFrame) -> Hiring:
     if frame.empty:
         return Hiring()
     total = int(frame["market_n_postings"].iloc[0])
-    employers = frame[frame["employer_key"].notna()].sort_values(
+    employers = frame[frame["employer_key"].notna()].merge(
+        roles[["employer_key", "n_roles", "n_locations"]], on="employer_key", how="left"
+    )
+    employers[["n_roles", "n_locations"]] = employers[["n_roles", "n_locations"]].fillna(0)
+    by_postings = employers.sort_values(
         ["n_postings", "employer_name", "employer_key"], ascending=[False, True, True]
     )
-    top = employers.head(TOP_N)
+    top = by_postings.head(TOP_N)
     no_employer = int(frame.loc[frame["employer_key"].isna(), "n_postings"].sum())
     tie = (
-        len(employers) > TOP_N
-        and employers["n_postings"].iloc[TOP_N - 1] == employers["n_postings"].iloc[TOP_N]
+        len(by_postings) > TOP_N
+        and by_postings["n_postings"].iloc[TOP_N - 1] == by_postings["n_postings"].iloc[TOP_N]
     )
+    n_roles = int(roles["market_n_roles"].iloc[0]) if not roles.empty else 0
+    # its own ranking: the top TOP_N by roles can differ from the top by postings
+    by_roles = employers.sort_values(
+        ["n_roles", "employer_name", "employer_key"], ascending=[False, True, True]
+    ).head(TOP_N)
+    with_company = total - no_employer
     return Hiring(
         n_postings=total,
         n_employers=int(frame["market_n_employers"].iloc[0]),
         n_no_employer=no_employer,
         top=tuple(
-            (r.employer_name, Rate(r.n_postings, total, unit="postings"))
+            TopEmployer(
+                r.employer_name,
+                Rate(r.n_postings, total, unit="postings"),
+                int(r.n_roles),
+                int(r.n_locations),
+            )
             for r in top.itertuples(index=False)
         ),
         top_share=Rate(int(top["n_postings"].sum()), total, unit="postings"),
         tie_at_cutoff=bool(tie),
+        n_roles=n_roles,
+        top_roles_share=Rate(int(by_roles["n_roles"].sum()), n_roles, unit="roles"),
+        repeats=Rate(with_company - n_roles, with_company, unit="postings with a company"),
     )
 
 
@@ -218,12 +288,54 @@ def _wages(row) -> Wages:
         ),
         largest_filer=Rate(row.largest_employer_n_filings, row.n_filings, unit="filings"),
         unconvertible=row.n_filings - row.n_filings_with_wage,
+        excl_largest=Stat(
+            money(row.median_excl_largest_filer), row.n_filings_excl_largest_filer, prefix="$"
+        ),
+        median_of_medians=Stat(
+            money(row.median_of_employer_medians),
+            row.n_employers_for_median_of_medians,
+            prefix="$",
+        ),
     )
+
+
+def _coverage(
+    window: tuple[int, int] | None, coverage: pd.DataFrame, monthly: pd.DataFrame
+) -> tuple[FyCoverage, ...]:
+    if window is None:
+        return ()
+    rows = {int(r.fiscal_year): r for r in coverage.itertuples(index=False)}
+    out = []
+    for fy in range(window[0], window[1] + 1):
+        r = rows.get(fy)
+        if r is None:
+            out.append(FyCoverage(fy))
+            continue
+        months = monthly[monthly["fiscal_year"] == fy].sort_values("month")
+        median = float(months["n_cases"].median()) if len(months) else 0.0
+        sparse = tuple(
+            (pd.Timestamp(m.month).date(), int(m.n_cases))
+            for m in months.itertuples(index=False)
+            if m.n_cases < SPARSE_MONTH_SHARE * median
+        )
+        out.append(
+            FyCoverage(
+                fiscal_year=fy,
+                n_cases=int(r.n_cases),
+                first=None if pd.isna(r.min_decision_date) else r.min_decision_date,
+                last=None if pd.isna(r.max_decision_date) else r.max_decision_date,
+                n_months=int(r.n_months_with_decisions),
+                median_month=median,
+                sparse=sparse,
+            )
+        )
+    return tuple(out)
 
 
 def compute(frames: dict[str, pd.DataFrame]) -> EmployersReport:
     check_aggregate(frames)
     postings = frames["v_employer_postings"]
+    roles = frames["v_employer_roles"]
     match = {r.market: r for r in frames["v_employer_sponsorship_match"].itertuples(index=False)}
     outlook = frames["v_visa_outlook_summary"]
     wages = {r.market: r for r in frames["v_matched_employer_lca_wages"].itertuples(index=False)}
@@ -233,13 +345,17 @@ def compute(frames: dict[str, pd.DataFrame]) -> EmployersReport:
     if lca_rows and not pd.isna(any_match.lca_window_end_fy):
         window = (int(any_match.lca_window_start_fy), int(any_match.lca_window_end_fy))
     return EmployersReport(
-        hiring={m: _hiring(postings[postings["market"] == m]) for m in MARKETS},
+        hiring={
+            m: _hiring(postings[postings["market"] == m], roles[roles["market"] == m])
+            for m in MARKETS
+        },
         lca_loaded=lca_rows > 0,
         lca_rows=lca_rows,
         window=window,
         match={m: _match(match.get(m)) for m in MARKETS},
         outlook={m: _outlook(outlook[outlook["market"] == m]) for m in MARKETS},
         wages={m: _wages(wages.get(m)) for m in MARKETS},
+        coverage=_coverage(window, frames["v_lca_coverage"], frames["v_lca_monthly"]),
     )
 
 
@@ -262,6 +378,11 @@ def headline_numbers(data: EmployersReport) -> list[tuple[str, object]]:
                 f"{m.capitalize()} share of postings from the top {min(TOP_N, h.n_employers)} "
                 "employers",
                 h.top_share,
+            ),
+            (
+                f"{m.capitalize()} share of distinct roles from the top "
+                f"{min(TOP_N, h.n_employers)} employers by roles",
+                h.top_roles_share,
             ),
         ]
     for m in MARKETS:
@@ -380,29 +501,37 @@ def render(data: EmployersReport, provenance: Provenance, out_dir: Path) -> Path
         if not h.top:
             doc.paragraph(f"No {m} postings with a company in this data.")
             continue
+        k = min(TOP_N, h.n_employers)
         doc.bullets(
             [
+                (f"Share of {m} postings from the top {k} employers", h.top_share),
                 (
-                    f"Share of {m} postings from the top {min(TOP_N, h.n_employers)} employers",
-                    h.top_share,
-                )
+                    f"Share of distinct {m} roles from the top {k} employers by roles "
+                    "(their own ranking)",
+                    h.top_roles_share,
+                ),
+                (f"{m.capitalize()} postings that repeat a role already counted", h.repeats),
             ]
         )
         chart = grouped_barh(
             out / f"top-employers-{m}.png",
-            [name for name, _ in h.top],
-            {m: [rate for _, rate in h.top]},
+            [e.name for e in h.top],
+            {m: [e.postings for e in h.top]},
             title=f"{m.capitalize()}: top {len(h.top)} employers by postings",
             xlabel="% of the market's postings",
             demo=provenance.is_demo,
         )
         doc.image(chart.name, f"Bars: the top {m} employers' share of postings")
         doc.table(
-            ["Rank", "Employer", "Postings (share of the market)"],
-            [[f"#{i}", name, rate] for i, (name, rate) in enumerate(h.top, start=1)],
+            ["Rank", "Employer", "Postings (share of the market)", "Distinct titles", "Locations"],
+            [
+                [f"#{i}", e.name, e.postings, e.titles, e.locations]
+                for i, e in enumerate(h.top, start=1)
+            ],
             caption=(
                 "Postings with no company are never an employer; they stay in the denominator. "
-                "Concentration counts postings, not hires."
+                "Concentration counts postings, not hires. Distinct titles and locations are from "
+                "`v_employer_roles`: many postings with few titles means the same role reposted."
             ),
         )
         if h.tie_at_cutoff:
@@ -466,6 +595,11 @@ def render(data: EmployersReport, provenance: Provenance, out_dir: Path) -> Path
                 "filings loaded in all."
             ),
         )
+        notes = [
+            f"{m.capitalize()}: {NO_ANALYTICS_NOTE}." for m in MARKETS if _no_analytics(data, m)
+        ]
+        if notes:
+            doc.bullets(notes)
 
     doc.heading("4. Visa outlook buckets (counts only)")
     if not data.lca_loaded:
@@ -549,6 +683,24 @@ def render(data: EmployersReport, provenance: Provenance, out_dir: Path) -> Path
             ],
             caption="From `v_matched_employer_lca_wages`. Median and IQR, never the mean.",
         )
+        doc.table(
+            ["Robustness check", "Commercial", "Federal"],
+            [
+                [
+                    "Pooled median without the single largest filer (n = LCA filings)",
+                    *[data.wages[m].excl_largest for m in MARKETS],
+                ],
+                [
+                    "Median of each employer's median (n = employers)",
+                    *[data.wages[m].median_of_medians for m in MARKETS],
+                ],
+            ],
+            caption=(
+                "Robustness checks on the pooled median above. If they differ a lot from it, "
+                "the pooled figure mostly reflects the largest filers. The first check needs at "
+                "least 2 employers."
+            ),
+        )
 
     doc.heading("What it means")
     doc.placeholder(
@@ -574,6 +726,14 @@ def render(data: EmployersReport, provenance: Provenance, out_dir: Path) -> Path
     return path
 
 
+def _no_analytics(data: EmployersReport, market: str) -> bool:
+    """The market has matched employers, but none with an analytics-SOC filing."""
+    employers_ = data.match[market].employers
+    return bool(employers_) and (
+        employers_["matched"].numerator > 0 and employers_["analytics_soc"].numerator == 0
+    )
+
+
 def _wage_note(w: Wages) -> str:
     notes = []
     if w.directional:
@@ -583,6 +743,18 @@ def _wage_note(w: Wages) -> str:
     if w.unconvertible:
         notes.append(f"{w.unconvertible:,} filing(s) without an annual wage")
     return "; ".join(notes)
+
+
+def _coverage_line(c: FyCoverage) -> str:
+    if not c.n_cases:
+        return f"FY{c.fiscal_year}: no LCA filings loaded"
+    line = (
+        f"FY{c.fiscal_year}: {c.n_months} of 12 months with decisions, {c.first} to {c.last}; "
+        f"{c.n_cases:,} LCA filings loaded"
+    )
+    if c.partial:
+        line += " (**partial fiscal year**: fewer than 12 months)"
+    return line
 
 
 def _not_loaded_section(doc: Doc) -> None:
@@ -602,6 +774,13 @@ def _methods(doc: Doc, data: EmployersReport) -> None:
             "canonical name under it. Postings with no company are counted, never as an employer.",
             f"Concentration: the top {TOP_N} employers' share of the market's postings, ties broken "
             "by name (the share doesn't depend on the tie-break).",
+            "Distinct roles (`v_employer_roles`): a role is an (employer, normalized title) pair; "
+            "postings with no company have none. It's a sensitivity measure, not a dedup: "
+            "identical titles at one employer can be different jobs (roles undercount), and small "
+            "wording variants count separately (roles overcount). The role share ranks employers "
+            "by roles, so its top "
+            f"{TOP_N} can differ from the postings table; repeats are postings with a company "
+            "minus their roles.",
             (
                 "LCA filings loaded",
                 FilingCount(data.lca_rows) if data.lca_loaded else NOT_LOADED,
@@ -621,11 +800,37 @@ def _methods(doc: Doc, data: EmployersReport) -> None:
             f"{WAGE_MIN_EMPLOYERS} employers it's marked directional.",
             "The outlook buckets count in-scope postings (`v_job_visa_outlook`); their total can "
             "differ from the posting count above while a posting's scope isn't classified yet.",
+            FEDERAL_CAVEAT,
+            (
+                "Federal postings in the closed bucket",
+                data.outlook["federal"].buckets.get("closed", Rate(0, 0))
+                if data.lca_loaded
+                else NOT_LOADED,
+            ),
             "Privacy: employers are named only beside their posting counts. Every sponsorship "
             "number is an aggregate. No job titles, URLs or filing rows appear, and the per-job "
             "Visa outlook dashboard stays private.",
         ]
     )
+    doc.heading("LCA coverage of the filing window", level=3)
+    if not data.lca_loaded:
+        doc.paragraph(f"**{NOT_LOADED}.**")
+    else:
+        doc.paragraph(
+            "How complete each fiscal year in the window is (`v_lca_coverage`, `v_lca_monthly`). "
+            "A partial year holds fewer filings than a full one, so the window is uneven and "
+            "year-to-year comparisons aren't like for like."
+        )
+        doc.bullets([_coverage_line(c) for c in data.coverage])
+        sparse = [
+            f"FY{c.fiscal_year}, {month:%Y-%m}: {n:,} LCA filings decided, under "
+            f"{SPARSE_MONTH_SHARE:.0%} of the fiscal year's median month ({c.median_month:,.0f}): "
+            "unusually few decisions; cause not established"
+            for c in data.coverage
+            for month, n in c.sparse
+        ]
+        if sparse:
+            doc.bullets(sparse)
     doc.heading("What LCA data can't tell you", level=3)
     doc.paragraph(f'From {README_POINTER}, "What this can\'t tell you":')
     doc.bullets(list(LCA_CAVEATS.values()))

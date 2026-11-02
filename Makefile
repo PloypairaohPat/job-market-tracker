@@ -1,4 +1,4 @@
-.PHONY: up db-migrate seed-demo ingest smoke test lint notebook views daily health bi-grant bi-up bi-provision report prod-build prod-up prod-down prod-ps prod-logs prod-metabase-db prod-migrate prod-views prod-grant prod-provision prod-daily prod-health prod-report
+.PHONY: up db-migrate seed-demo ingest smoke test lint notebook views daily health doctor bi-grant bi-up bi-provision report prod-build prod-up prod-down prod-ps prod-logs prod-metabase-db prod-migrate prod-views prod-grant prod-provision prod-daily prod-health prod-report
 
 up:              ## start Postgres
 	docker compose up -d
@@ -38,6 +38,9 @@ daily:           ## the daily pipeline: adzuna (budget-guarded), usajobs, cleani
 
 health:          ## is the daily clock running? (read-only; exit 1 on any FAIL)
 	python -m src.pipeline.health
+
+doctor:          ## is this machine set up right? read-only, prints the fix for each problem
+	python -m src.doctor
 
 bi-grant:        ## create/update the read-only metabase_reader role (SELECT on v_* views only)
 	python -m src.dashboard.reader_role

@@ -50,6 +50,7 @@ SLUG = "commercial-vs-federal-skills"
 TITLE = "Commercial vs federal skill demand"
 VIEWS = (
     "v_skill_category_composition",
+    "v_skill_category_composition_roles",
     "v_skill_text_basis",
     "v_skill_top_by_source",
     "v_federal_skill_by_admission",
@@ -116,6 +117,9 @@ class SkillDemand:
     suppressed: dict[str, int]
     routes: list[tuple[str, Rate]]  # (admission route, Statistics-tagged of route jobs)
     fitted_in_federal: dict[str, int] = field(default_factory=dict)  # name -> federal jobs tagged
+    # sensitivity: the composition over distinct roles (role-category pairs)
+    roles_composition: dict[tuple[str, str], Rate] = field(default_factory=dict)
+    n_roles: dict[str, int] = field(default_factory=dict)  # market -> distinct roles
 
 
 def _basis(frame: pd.DataFrame) -> dict[str, Basis]:
@@ -199,6 +203,24 @@ def compute(frames: dict[str, pd.DataFrame]) -> SkillDemand:
             rate = Rate(0, route_n, unit="jobs")
         routes.append((route, rate))
 
+    roles = frames["v_skill_category_composition_roles"]
+    pairs = {m: int(roles.loc[roles["market"] == m, "n_tags"].sum()) for m in MARKETS}
+    n_roles = {
+        m: int(roles.loc[roles["market"] == m, "market_n_jobs"].max()) if pairs[m] else 0
+        for m in MARKETS
+    }
+    roles_composition = {
+        (r.market, r.category): Rate(
+            r.n_tags, pairs[r.market], pct=r.pct_of_tags, unit="role-category pairs"
+        )
+        for r in roles.itertuples(index=False)
+    }
+    for market in MARKETS:
+        for category in categories:
+            roles_composition.setdefault(
+                (market, category), Rate(0, pairs[market], unit="role-category pairs")
+            )
+
     return SkillDemand(
         basis=basis,
         categories=categories,
@@ -208,6 +230,8 @@ def compute(frames: dict[str, pd.DataFrame]) -> SkillDemand:
         suppressed=suppressed,
         routes=routes,
         fitted_in_federal=fitted_in_federal,
+        roles_composition=roles_composition,
+        n_roles=n_roles,
     )
 
 
@@ -420,6 +444,8 @@ def render(data: SkillDemand, provenance: Provenance, out_dir: Path) -> Path:
             + "."
         )
 
+    _roles_sensitivity(doc, data)
+
     doc.heading("3. Skill drill-down (directional texture)")
     doc.paragraph(
         "Individual skills, as a share of each market's jobs. This is texture, not the "
@@ -464,6 +490,43 @@ def render(data: SkillDemand, provenance: Provenance, out_dir: Path) -> Path:
     path = out / "report.md"
     path.write_text(doc.render())
     return path
+
+
+def _roles_sensitivity(doc: Doc, data: SkillDemand) -> None:
+    doc.heading("Sensitivity: distinct roles", level=3)
+    doc.paragraph(
+        "The same composition counted over distinct **roles** (an employer and a normalized job "
+        "title) instead of postings, so a role reposted in many places counts once. A role "
+        "carries a category if any of its postings is tagged with it. Postings with no company "
+        "have no role and are left out. This is a sensitivity check, not a dedup: the primary "
+        "numbers above and the headline don't change."
+    )
+    doc.table(
+        [
+            "Category",
+            "Commercial by postings",
+            "Commercial by roles",
+            "Federal by postings",
+            "Federal by roles",
+        ],
+        [
+            [
+                category,
+                data.composition[("commercial", category)],
+                data.roles_composition[("commercial", category)],
+                data.composition[("federal", category)],
+                data.roles_composition[("federal", category)],
+            ]
+            for category in data.categories
+        ],
+        caption=(
+            "By postings: share of skill tags (`v_skill_category_composition`). By roles: share "
+            "of role-category pairs (`v_skill_category_composition_roles`), over "
+            f"{data.n_roles.get('commercial', 0):,} commercial and "
+            f"{data.n_roles.get('federal', 0):,} federal roles. The two units differ (tags vs "
+            "category presence), so compare each column's ranking, not its exact points."
+        ),
+    )
 
 
 def _methods(doc: Doc, data: SkillDemand) -> None:

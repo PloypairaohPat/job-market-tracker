@@ -104,9 +104,27 @@ def frames(**overrides) -> dict[str, pd.DataFrame]:
             "pct_of_jobs",
         ],
     )
+    # sensitivity: role-category pairs over distinct roles (invented; 150 commercial
+    # and 30 federal roles), ranked differently from the postings
+    roles = pd.DataFrame(
+        [
+            ("commercial", "bi_tool", 60, 30.0, 150),
+            ("commercial", "language", 50, 25.0, 150),
+            ("commercial", "workflow", 40, 20.0, 150),
+            ("commercial", "ml_stats", 30, 15.0, 150),
+            ("commercial", "cloud", 12, 6.0, 150),
+            ("commercial", "data_tool", 8, 4.0, 150),
+            ("federal", "ml_stats", 20, 40.0, 30),
+            ("federal", "language", 15, 30.0, 30),
+            ("federal", "bi_tool", 10, 20.0, 30),
+            ("federal", "workflow", 5, 10.0, 30),
+        ],
+        columns=["market", "category", "n_tags", "pct_of_tags", "market_n_jobs"],
+    )
     out = {
         "v_skill_text_basis": basis,
         "v_skill_category_composition": composition,
+        "v_skill_category_composition_roles": roles,
         "v_skill_top_by_source": top,
         "v_federal_skill_by_admission": admission,
     }
@@ -153,6 +171,31 @@ def test_floors_flags_and_rounding_in_the_rendered_report(tmp_path):
         assert f"**[TO WRITE: {section}]**" in md
     assert "> - Commercial workflow + bi_tool combined: 60.0% (180 of 300 tags)" in md
     assert "> - Statistics-tagged in series:Operations Research: 85.7% (12 of 14 jobs)" in md
+
+
+def test_the_roles_sensitivity_sits_after_the_primary_and_changes_nothing_else(tmp_path):
+    md = skill_demand.render(skill_demand.compute(frames()), stamp(), tmp_path).read_text()
+    block = md[md.index("### Sensitivity: distinct roles") : md.index("## 3. Skill drill-down")]
+    assert md.index("## 2. Skill-category composition") < md.index("### Sensitivity")
+    assert (
+        "| workflow | 33.3% (100 of 300 tags) | 20.0% (40 of 200 role-category pairs) | "
+        "10.0% (12 of 120 tags) | 10.0% (5 of 50 role-category pairs) |"
+    ) in block
+    assert "| database | 0.0% (0 of 300 tags) | 0.0% (0 of 200 role-category pairs) |" in block
+    assert "over 150 commercial and 30 federal roles" in block
+
+    # the primary numbers and the headline don't depend on the roles view
+    other = frames()["v_skill_category_composition_roles"].assign(market_n_jobs=1)
+    other_md = skill_demand.render(
+        skill_demand.compute(frames(v_skill_category_composition_roles=other)), stamp(), tmp_path
+    ).read_text()
+    cut = md.index("### Sensitivity")
+    head = md[: md.index("| Rows in")] + md[md.index("## Headline") : cut]
+    other_head = (
+        other_md[: other_md.index("| Rows in")]
+        + other_md[other_md.index("## Headline") : other_md.index("### Sensitivity")]
+    )
+    assert head == other_head
 
 
 def test_a_composition_rate_against_the_wrong_denominator_is_refused():

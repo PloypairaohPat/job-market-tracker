@@ -11,6 +11,22 @@
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 Set-Location -Path $repoRoot
 
+# Start the database container first. docker-compose.yml restarts it with
+# Docker, but a container created before that policy (or stopped by hand)
+# stays down. A failure here is ignored on purpose: right after a login or
+# wake Docker Desktop may still be starting, and the Python runner waits for
+# the database (--db-wait, default 300 s) before giving up with exit code 2.
+if (Get-Command "docker" -ErrorAction SilentlyContinue) {
+    & docker compose up -d db
+    if ($LASTEXITCODE -eq 0) {
+        Write-Output "run_daily: ran 'docker compose up -d db'"
+    } else {
+        Write-Output "run_daily: 'docker compose up -d db' failed (exit $LASTEXITCODE); the runner will wait for the database"
+    }
+} else {
+    Write-Output "run_daily: docker not found on PATH; not starting the database container"
+}
+
 # Job titles can contain non-ASCII text; make Python's stdout UTF-8 so a
 # console-less scheduled run never fails on encoding.
 $env:PYTHONUTF8 = "1"

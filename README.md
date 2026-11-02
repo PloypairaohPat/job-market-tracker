@@ -4,7 +4,7 @@ A self-hosted analytics platform that ingests live job posting data, extracts sk
 
 **Why it exists**: job seekers in analytics face information asymmetry — hidden salary bands, inconsistent skill descriptions, no visibility into market shape. This project builds a transparent, queryable view of that market, and in doing so demonstrates the full analyst workflow: **ingestion → cleaning → modeling → analysis → visualization → storytelling**.
 
-> **Status:** two sources (Adzuna and USAJobs) ingested by a daily runner with a budget guard and a health check; a cleaning layer, skill tagging and a visa-sponsorship layer; sixteen SQL views with three investigations written up; six Metabase dashboards defined as code. A deploy kit for an always-on server is ready but not yet used. A report kit renders the first three written reports' tables, charts and methods from the views; their narrative comes next. See the [roadmap](#roadmap).
+> **Status:** two sources (Adzuna and USAJobs) ingested by a daily runner with a budget guard and a health check; a cleaning layer, skill tagging and a visa-sponsorship layer; twenty-two SQL views with three investigations written up; six Metabase dashboards defined as code. A deploy kit for an always-on server is ready but not yet used. A report kit renders four written reports' tables, charts and methods from the views; their narrative comes next. See the [roadmap](#roadmap).
 
 ## In three minutes
 
@@ -143,7 +143,7 @@ uv run python -m src.pipeline.daily      # or: make daily
 uv run python -m src.pipeline.health     # is the clock running? exit 1 on any FAIL (make health)
 ```
 
-On Windows, `scripts/windows/register_daily_task.ps1` registers it as a daily scheduled task; on the server, a systemd timer runs it in the pipeline container ([`docs/deploy.md`](docs/deploy.md)). Setup, what each health check means, and the budget arithmetic: [`docs/daily-operation.md`](docs/daily-operation.md).
+On Windows, `scripts/windows/register_daily_task.ps1` registers it as a daily scheduled task; on the server, a systemd timer runs it in the pipeline container ([`docs/deploy.md`](docs/deploy.md)). Setup, what each health check means, and the budget arithmetic: [`docs/daily-operation.md`](docs/daily-operation.md). On the laptop, `uv run python -m src.doctor` (or `make doctor`) checks the whole setup read-only and prints the command that fixes each problem; the routine after every `git pull` and a troubleshooting table are in [`docs/laptop-runbook.md`](docs/laptop-runbook.md).
 
 ### Dashboards
 
@@ -225,13 +225,14 @@ docs/            project guide, data dictionary, findings, runbooks
 | — | Daily clock: daily runner, run log, Adzuna budget guard, health check, CI | ✅ done (Task Scheduler on the laptop until the server cut-over) |
 | 4 | Metabase dashboards | ✅ six dashboards defined as code; public links after the server cut-over |
 | 6 | Productionize: scheduling, monitoring, deployment | deploy kit ready ([`docs/deploy.md`](docs/deploy.md)), not yet deployed; scheduling is the daily runner plus a timer, not Prefect |
-| 5 | Written reports: the portfolio centerpiece | report kit ready ([`docs/reports.md`](docs/reports.md)): three reports (commercial vs federal skill demand; how much employers disclose; who hires data analysts and who has filed to sponsor them) render their tables, charts and methods from the views with one command; the narrative is next, written on real data |
+| 5 | Written reports: the portfolio centerpiece | report kit ready ([`docs/reports.md`](docs/reports.md)): four reports (commercial vs federal skill demand; how much employers disclose; who hires data analysts and who has filed to sponsor them; what commercial data-analyst postings pay) render their tables, charts and methods from the views with one command; the narrative is next, written on real data |
 
 ## Documentation
 
 - [`docs/PROJECT_GUIDE.md`](docs/PROJECT_GUIDE.md) — full project rationale, architecture, decisions
 - [`docs/data_dictionary.md`](docs/data_dictionary.md) — every table, every column, every judgment call
 - [`docs/daily-operation.md`](docs/daily-operation.md) — running the daily clock and reading its health check
+- [`docs/laptop-runbook.md`](docs/laptop-runbook.md) — the laptop routine (after every pull, weekly) and a troubleshooting table; `python -m src.doctor` checks the setup
 - [`docs/dashboard.md`](docs/dashboard.md) — the Metabase dashboards: setup, caveats, changing a card
 - [`docs/deploy.md`](docs/deploy.md) — running on a server: bootstrap, cut-over, backups, updating
 - [`docs/reports.md`](docs/reports.md) — the written reports: rendering one from the views, the guardrails, writing the narrative

@@ -497,6 +497,23 @@ def test_coverage_of_two_quarterly_files_and_v_lca_coverage(db, tmp_path):
             "n_months_with_decisions": 2,
         },
     }
+    # v_lca_monthly: one row per month with decisions; C-7 (no date) is left out
+    with db.connect() as conn:
+        monthly = conn.execute(
+            text("select fiscal_year, month, n_cases from v_lca_monthly order by 1, 2")
+        ).all()
+    assert [tuple(r) for r in monthly] == [
+        (2025, date(2025, 8, 1), 1),
+        (2025, date(2025, 9, 1), 1),
+        (2026, date(2025, 10, 1), 1),
+        (2026, date(2025, 11, 1), 1),
+        (2026, date(2025, 12, 1), 1),
+        (2026, date(2026, 1, 1), 1),
+        (2026, date(2026, 2, 1), 1),
+        (2026, date(2026, 3, 1), 1),
+    ]
+    per_fy = {fy: sum(1 for f, _, _ in monthly if f == fy) for fy in got}
+    assert per_fy == {fy: r["n_months_with_decisions"] for fy, r in got.items()}
 
 
 def test_months_with_no_decisions_show_as_zero(tmp_path):
