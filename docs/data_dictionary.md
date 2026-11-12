@@ -645,7 +645,7 @@ Notes:
 
 ## Snapshots and the search window *(added with the portfolio-readiness work)*
 
-Each daily search stops at a fixed window (Adzuna: at most 5 pages of 50 per query), and the APIs report how many results each query matched in total. A posting outside the window that day is not in that day's snapshot, so **"seen" means "returned inside that day's search window", not "live"**. These views measure the window and read the snapshots with that in mind.
+Each daily search stops at a fixed window (Adzuna: at most 5 pages of 50 per query), and the APIs report how many results each query matched in total. A posting outside the window that day is not in that day's snapshot, so **"seen" means "returned inside that day's search window", not "live"**. These views measure the window and read the snapshots with that in mind. What the snapshot data can and can't support, and the checks to run before trusting a trend: [`docs/time-series-readiness.md`](time-series-readiness.md).
 
 ### `v_search_window_coverage`
 

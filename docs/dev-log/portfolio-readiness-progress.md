@@ -27,6 +27,7 @@ into `docs/dev-log/portfolio-readiness.md` when Parts A to F are done.
 | D2 optional ADZUNA_SORT_BY | done | D2 |
 | D3 v_job_observation_spans, v_daily_market_flow | done | D3 |
 | D4 removed_at documented as reserved | done | D3 (same commit) |
+| D5 docs/time-series-readiness.md | done | D5 |
 
 ## Latest test count
 

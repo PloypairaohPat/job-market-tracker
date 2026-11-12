@@ -167,6 +167,7 @@ Running it every day, reading the health check and the budget arithmetic: [`docs
 - [`docs/laptop-runbook.md`](docs/laptop-runbook.md) — the laptop routine (after every pull, weekly) and a troubleshooting table; `python -m src.doctor` checks the setup
 - [`docs/dashboard.md`](docs/dashboard.md) — the Metabase dashboards: setup, caveats, changing a card
 - [`docs/deploy.md`](docs/deploy.md) — running on a server: bootstrap, cut-over, backups, updating
+- [`docs/time-series-readiness.md`](docs/time-series-readiness.md) — what the daily snapshots can and can't support, and the checks to run before trusting a trend
 - [`docs/reports.md`](docs/reports.md) — the written reports: rendering, the guardrails, writing and publishing the narrative
 - [`docs/phase_1_findings.md`](docs/phase_1_findings.md) — what Phase 1 revealed about the data
 - [`docs/dev-log/`](docs/dev-log/README.md) — work logs from AI-assisted build sessions
