@@ -22,10 +22,12 @@ into `docs/dev-log/portfolio-readiness.md` when Parts A to F are done.
 | C2 MIT LICENSE | done | C2 |
 | C1 README restructure | done | C1 |
 | C3 PROJECT_GUIDE truth pass | done | C3 |
+| C6 lock file (report only) | in the final report | - |
+| D1 v_search_window_coverage | done | D1 |
 
 ## Latest test count
 
-764 passed, 1 skipped (after B).
+773 passed, 1 skipped (after D1).
 
 ## Parked questions
 

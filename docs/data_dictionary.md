@@ -642,3 +642,21 @@ Notes:
 - **An LCA is a filing,** not an approval or a hire.
 - **Large filers dominate pooled wages.** The wage describes filings, not what postings pay.
 - **The rules repeat `v_employer_sponsorship.sql`.** `v_matched_employer_lca_wages` copies its SOC list, certified-H-1B rule, 3-FY window and wage annualization; a test keeps the copies identical.
+
+## Snapshots and the search window *(added with the portfolio-readiness work)*
+
+Each daily search stops at a fixed window (Adzuna: at most 5 pages of 50 per query), and the APIs report how many results each query matched in total. A posting outside the window that day is not in that day's snapshot, so **"seen" means "returned inside that day's search window", not "live"**. These views measure the window and read the snapshots with that in mind.
+
+### `v_search_window_coverage`
+
+One row per (`source`, `fetch_date` (UTC), `query`), from `raw_responses` only. Adzuna's query is `params->>'what'` and its total is the response's `count`; USAJobs' query is `params->>'Keyword'` or `series:<JobCategoryCode>`, and its total is `SearchResult.SearchResultCountAll`.
+
+| Column | Meaning |
+|---|---|
+| `n_responses` | raw responses stored that day for the query (more than `pages_stored` when a page was fetched twice, e.g. a retried run) |
+| `pages_stored` | distinct page numbers stored |
+| `results_captured` | results on those pages, each page counted once (its latest fetch that day) |
+| `api_total` | the largest total the API reported that day |
+| `pct_captured` | `100 * results_captured / api_total`, one decimal; NULL when the total is missing or 0. Can exceed 100 if the total shrank during the run |
+
+A share below 100 means every snapshot-based measure for that query and day describes the captured slice only, and a job missing from a day may have moved outside the window rather than been taken down. A query with no row on a day was not run that day (a gap, never a zero row).

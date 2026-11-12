@@ -33,7 +33,7 @@ The pitch is yours to write. These are the true, checkable facts it can draw on,
 - Two public APIs, ingested daily: Adzuna (commercial postings) and USAJobs (federal postings). `src/ingestion/`, `src/pipeline/daily.py`.
 - Every API response is stored verbatim before parsing, so history can be re-parsed. `raw_responses` in `docs/data_dictionary.md`.
 - A cleaning layer: company names, salary quality, seniority, remote status, metro, and skill tags from a curated taxonomy. `src/cleaning/`.
-- SQL views are the source of truth for every metric. `sql/views/` (22 views).
+- SQL views are the source of truth for every metric. `sql/views/`.
 - Six Metabase dashboards defined as code. `dashboards/`, `docs/dashboard.md`.
 - Four reports render their tables, charts and methods from the views; the narratives are not written yet. `src/reports/`, `docs/reports.md`.
 - Three investigations written up, including one whose clean data refused the original question (the skill salary premium). `docs/phase_3_findings.md`, `docs/findings_skill_premium_deferred.md`.
@@ -212,7 +212,7 @@ Each bullet names where it is shown.
 
 ### Technical
 
-- **SQL**: 22 views with CTEs, window functions and multi-table joins as the source of truth for every metric (`sql/views/`).
+- **SQL**: views with CTEs, window functions and multi-table joins as the source of truth for every metric (`sql/views/`).
 - **Python analytics stack**: pandas for the report kit's computations (`src/reports/`).
 - **Text extraction**: a curated regex skill taxonomy with precision-first patterns and trap tests (`src/cleaning/skill_extractor.py`, `tests/`).
 - **Data modeling**: a normalized Postgres schema with daily snapshots (`src/models/`, `docs/data_dictionary.md`).
