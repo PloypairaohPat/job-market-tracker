@@ -38,6 +38,18 @@ uv run python -m src.pipeline.daily --db-wait 0               # don't wait for t
 uv run python -m src.pipeline.daily --once-per-day            # skip what already ran today (what the task passes)
 ```
 
+### Running one source by hand
+
+The runner is the normal way in. To ingest Adzuna alone (for example a smaller test run), the ingestion CLI takes:
+
+```powershell
+uv run python -m src.ingestion.ingest_adzuna --help
+#   --queries [Q ...]   override the default six analyst-role queries
+#   --max-pages N       pages per query (default 5, so at most 250 jobs per query)
+#   --max-calls N       hard API budget for this run (default 60)
+#   --dry-run           fetch and count, write nothing
+```
+
 ## Exit codes
 
 | Code | Meaning | What to do |

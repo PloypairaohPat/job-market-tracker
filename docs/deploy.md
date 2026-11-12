@@ -2,6 +2,18 @@
 
 Today the laptop runs everything: Postgres in Docker, the daily task, and Metabase on localhost. A day the laptop is off is a day of snapshots lost for good, and the dashboards can't be public. This page moves the whole stack to one small Linux server. It's written for doing it from Windows, one step at a time.
 
+Laptop today vs server after the cut-over:
+
+| | Laptop (today) | Server (after the cut-over) |
+|---|---|---|
+| Postgres | Docker (`docker-compose.yml`), port 5432 on the laptop | Docker (`deploy/docker-compose.prod.yml`), no published port |
+| Daily run | Task Scheduler, 07:15 local, with 13:15 and 19:15 catch-up triggers (`--once-per-day`) | systemd timer, 11:15 UTC |
+| Dashboards | Metabase on http://localhost:3000 | Metabase behind Caddy (HTTPS); only public-dashboard links are reachable, and admin goes through an SSH tunnel |
+| Backups | not automated | nightly `pg_dump`, newest 14 kept |
+| Guide | [`docs/daily-operation.md`](daily-operation.md), [`docs/dashboard.md`](dashboard.md) | this page |
+
+Exactly one machine ingests on any UTC day. The cut-over below moves the clock to the server without losing a day or spending Adzuna calls twice, and only then turns on public dashboard links.
+
 What runs on the server (all in Docker, defined in `deploy/`):
 
 | Piece | What it does | Reachable from |

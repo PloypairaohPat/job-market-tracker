@@ -20,6 +20,7 @@ into `docs/dev-log/portfolio-readiness.md` when Parts A to F are done.
 | C4 work logs moved to docs/dev-log/ | done | C4 |
 | C5 Jupyter out of the pipeline image | done | C5 |
 | C2 MIT LICENSE | done | C2 |
+| C1 README restructure | done | C1 |
 
 ## Latest test count
 
@@ -87,3 +88,25 @@ Dockerfile is unchanged).
 
 `verify_image.sh` now fails if any of jupyter, notebook, jupyterlab or
 ipykernel is importable in the image.
+
+### C1: README figure-to-source table
+
+All three bullets quote `docs/phase_3_findings.md`, whose last commit on
+main is 34ad172 (2026-09-03): the "as of" date. Each figure is one the
+doc presents as its key result and clears the doc's own floors (salary
+n >= 15; composition shares come with counts). None is marked
+"directional only".
+
+| README figure | Source line | Population and n as stated there |
+|---|---|---|
+| median $98,500, IQR $87,013–$111,425, n=178 | `docs/phase_3_findings.md:39` | commercial, `salary_quality='ok'`, USD, year, `salary_is_predicted=false` |
+| 12.1% (180) commercial, 100.0% (70) federal employer-disclosed salary | `docs/phase_3_findings.md:268` | commercial n=1,483; federal in-scope n=70 (header line 265) |
+| workflow + bi_tool 56.7% combined; ml_stats + language 67.0% combined | `docs/phase_3_findings.md:184-185` (table header line 174: n=1,483 / n=70 jobs, confidence >= 0.8) | share of each market's own skill tags |
+
+Moved out of the README (not duplicated): the laptop-vs-server table and
+"exactly one machine ingests" to `docs/deploy.md`; the ingestion CLI
+flags to `docs/daily-operation.md`; dashboard commands were already in
+`docs/dashboard.md`. The status paragraph and roadmap became the Status
+table. "In three minutes" lost only the dashboard list that the
+Dashboards section now carries; the owner's other sentences are kept
+as written.
