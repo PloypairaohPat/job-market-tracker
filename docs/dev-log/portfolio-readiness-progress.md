@@ -16,10 +16,11 @@ into `docs/dev-log/portfolio-readiness.md` when Parts A to F are done.
 | A1 one engine per URL | done | A1 |
 | A2 skills step converges | done | A2 |
 | A3 remote reads full text | done | A3 |
+| B1-B4 narrative files, publish, README block, docs | done | B1-B4 |
 
 ## Latest test count
 
-731 passed, 1 skipped (after A3).
+764 passed, 1 skipped (after B).
 
 ## Parked questions
 
@@ -27,6 +28,8 @@ into `docs/dev-log/portfolio-readiness.md` when Parts A to F are done.
 |---|---|---|---|
 | Q1 | A2 | Should `sync_taxonomy` delete `skills` rows that left the taxonomy? | No: keep the row, log how many are orphaned |
 | Q2 | A3 | Should federal remote become a reported rate once the owner has checked a sample on real data? | No change now; Report 2 keeps "not measurable" |
+| Q3 | B | Should `--publish` refuse when `sql/views/` or `src/reports/` has uncommitted changes? | Warn, don't refuse |
+| Q4 | B | Should published reports also be exported as HTML or PDF? | Not built; Markdown only |
 
 ## Evidence collected so far
 
@@ -51,3 +54,18 @@ into `docs/dev-log/portfolio-readiness.md` when Parts A to F are done.
   reason text. Old: "the classifier scans `jobs.description` only ...".
   New: "the classifier reads `description_full` when present ... federal
   is not measurable". No number changed.
+
+### B: changed test expectations
+
+- All four golden files (`tests/fixtures/reports/*.md`), line 1 only. Old:
+  "... and the file is overwritten: write narrative in a copy
+  (docs/reports.md)." New: "... write the narrative in
+  docs/reports/<slug>/narrative.md and publish (docs/reports.md)."
+- Each report module now declares `SECTIONS` (heading -> purpose) and its
+  placeholders read from it; the goldens prove the rendered text is
+  otherwise unchanged.
+- Report 3's narrative rule is built (not parked): `employers.check_published`
+  refuses a narrative paragraph that uses sponsorship vocabulary (sponsor,
+  LCA, H-1B, visa, filing, filed, certified, outlook) and names an employer
+  from the top-employers tables, and re-runs `check_sponsorship_text` and
+  `check_caveats` over the merged text.

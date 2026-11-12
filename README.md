@@ -6,6 +6,12 @@ A self-hosted analytics platform that ingests live job posting data, extracts sk
 
 > **Status:** two sources (Adzuna and USAJobs) ingested by a daily runner with a budget guard and a health check; a cleaning layer, skill tagging and a visa-sponsorship layer; twenty-two SQL views with three investigations written up; six Metabase dashboards defined as code. A deploy kit for an always-on server is ready but not yet used. A report kit renders four written reports' tables, charts and methods from the views; their narrative comes next. See the [roadmap](#roadmap).
 
+## Published reports
+
+<!-- published-reports:start -->
+The reports are rendered from the SQL views and published here as each narrative is written; see [docs/reports.md](docs/reports.md).
+<!-- published-reports:end -->
+
 ## In three minutes
 
 I built a job-market analytics platform for data-analyst roles. Every day it pulls postings from two public APIs: Adzuna for commercial jobs and USAJobs for federal ones. It stores every raw response in Postgres, so history can be replayed. Then it cleans the messy parts: company names, salary formats, locations, seniority, remote status and skill mentions.

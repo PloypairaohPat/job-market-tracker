@@ -65,6 +65,24 @@ NO_DATA = "no data"
 PREMIUM_DOC = "docs/findings_skill_premium_deferred.md"
 
 
+# The narrative sections the owner writes (docs/reports/<slug>/narrative.md):
+# heading -> what the section is for. Rendered as `[TO WRITE: ...]` placeholders.
+SECTIONS: dict[str, str] = {
+    "Headline": (
+        "One or two sentences on what employer-disclosed commercial postings pay. The "
+        "employer-disclosed median is the only salary figure to quote here."
+    ),
+    "What it means": (
+        "What the disclosed figure says about analyst pay, how far predicted salaries differ, "
+        "and what the measurement can't show (who discloses, title-only seniority, the metro list)."
+    ),
+    "What to do about it": (
+        "What a job seeker should take from this, at aggregate level: a range to expect, never a "
+        "promise about one posting."
+    ),
+}
+
+
 @dataclass(frozen=True)
 class Population:
     n_commercial: int = 0
@@ -304,8 +322,7 @@ def render(data: SalaryReport, provenance: Provenance, out_dir: Path) -> Path:
     doc.heading("Headline")
     doc.placeholder(
         "Headline",
-        "One or two sentences on what employer-disclosed commercial postings pay. The "
-        "employer-disclosed median is the only salary figure to quote here.",
+        SECTIONS["Headline"],
         headline_numbers(data),
     )
 
@@ -320,15 +337,13 @@ def render(data: SalaryReport, provenance: Provenance, out_dir: Path) -> Path:
     doc.heading("What it means")
     doc.placeholder(
         "What it means",
-        "What the disclosed figure says about analyst pay, how far predicted salaries differ, "
-        "and what the measurement can't show (who discloses, title-only seniority, the metro list).",
+        SECTIONS["What it means"],
         meaning_numbers(data),
     )
     doc.heading("What to do about it")
     doc.placeholder(
         "What to do about it",
-        "What a job seeker should take from this, at aggregate level: a range to expect, never a "
-        "promise about one posting.",
+        SECTIONS["What to do about it"],
         action_numbers(data),
     )
 
@@ -532,3 +547,8 @@ def _methods(doc: Doc, data: SalaryReport) -> None:
             ("Commercial postings read", Count(data.population.n_commercial)),
         ]
     )
+
+
+def check_published(data: SalaryReport, sections: dict[str, str], text: str) -> None:
+    """The rendered text guardrail, run again over the merged narrative."""
+    check_salary_wording(text)

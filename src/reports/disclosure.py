@@ -39,6 +39,23 @@ VIEWS = ("v_field_completeness", "v_field_completeness_counts")
 MARKETS = ("commercial", "federal")
 
 
+# The narrative sections the owner writes (docs/reports/<slug>/narrative.md):
+# heading -> what the section is for. Rendered as `[TO WRITE: ...]` placeholders.
+SECTIONS: dict[str, str] = {
+    "Headline": (
+        "One or two sentences on how much a posting tells a candidate. Base it on the "
+        "measured fields (section 2), never the instrument-limited ones."
+    ),
+    "What it means": (
+        "What the gap between present and disclosed (and between measured and "
+        "instrument-limited) says about what a candidate can learn from a posting."
+    ),
+    "What to do about it": (
+        "What a job seeker (or this project's instruments) should do about it."
+    ),
+}
+
+
 @dataclass(frozen=True)
 class Field:
     key: str  # n_<key> in the counts view, pct_<key> in the percentage view
@@ -211,8 +228,7 @@ def render(data: Disclosure, provenance: Provenance, out_dir: Path) -> Path:
     doc.heading("Headline")
     doc.placeholder(
         "Headline",
-        "One or two sentences on how much a posting tells a candidate. Base it on the "
-        "measured fields (section 2), never the instrument-limited ones.",
+        SECTIONS["Headline"],
         headline_numbers(data),
     )
 
@@ -282,14 +298,13 @@ def render(data: Disclosure, provenance: Provenance, out_dir: Path) -> Path:
     doc.heading("What it means")
     doc.placeholder(
         "What it means",
-        "What the gap between present and disclosed (and between measured and "
-        "instrument-limited) says about what a candidate can learn from a posting.",
+        SECTIONS["What it means"],
         meaning_numbers(data),
     )
     doc.heading("What to do about it")
     doc.placeholder(
         "What to do about it",
-        "What a job seeker (or this project's instruments) should do about it.",
+        SECTIONS["What to do about it"],
         action_numbers(data),
     )
 

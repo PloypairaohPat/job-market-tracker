@@ -26,7 +26,7 @@ uv run python -m src.reports commercial-vs-federal-skills     # or: make report 
 
 It writes `reports\commercial-vs-federal-skills\report.md` and its chart(s), `composition.png`, next to it. Open the `.md` in VS Code's Markdown preview (Ctrl+Shift+V).
 
-- `reports\` is **gitignored** and overwritten on every run: rendered reports carry real numbers.
+- `reports\` is **gitignored** and overwritten on every run. Publishing (below) is how a report enters the repo.
 - `--out <folder>` writes somewhere else.
 - It reads `DATABASE_URL` from `.env`, like every other command.
 
@@ -60,22 +60,60 @@ The image has no `.git`, so the provenance stamp's commit is the server checkout
 2. **Demo banner.** If the database name contains `demo` or `test`, a banner reads **"Synthetic demo data, not market findings."** above the title and in every chart title.
 3. **Tables and charts**, all from the views.
 4. **Methods and caveats**, generated from the data and the guardrails.
-5. **Narrative placeholders** marked `[TO WRITE: ...]`: headline, what it means, what to do about it. Each lists the numbers from this run to draw on.
+5. **Narrative placeholders** marked `[TO WRITE: ...]`: headline, what it means, what to do about it. Each lists the numbers from this run to draw on. A published report has your narrative in their place (below).
 
 The kit writes no conclusions: those are yours.
 
 ## Writing the narrative
 
-The rendered file is overwritten on every run, so don't write in it. The workflow:
+The narrative lives in `docs\reports\<slug>\narrative.md`, one `##` section per placeholder (Headline, What it means, What to do about it). You write it and commit it; the kit merges it into the report when you publish. The rendered file under `reports\` is still overwritten on every run, so don't write in it.
 
-1. Render the report on real data.
-2. Copy `report.md` and its PNGs to wherever you're writing the piece (a blog draft, or a folder you choose).
-3. Replace each `[TO WRITE: ...]` block with your text. The numbers listed under each one are this run's, with their n and denominators. Quote them as they are.
-4. When the data has grown, render again and compare the new numbers with your copy. Update the text where they moved.
+Four steps, shown for `employers-and-sponsorship`. Run them from the repo root, with `DATABASE_URL` in `.env` pointing at the real database.
 
-Find any block you haven't written yet with `Select-String -Path <your copy> -Pattern "TO WRITE"`.
+**1. Init.** Create the narrative file (it is never overwritten if it exists):
 
-(Where the narrative should live, and whether regeneration should keep it, is parked: `docs/overnight-report-kit.md`.)
+```powershell
+uv run python -m src.reports employers-and-sponsorship --init-narrative
+```
+
+Each section starts with an HTML comment saying what it is for and where its numbers are. Comments are dropped when publishing, so you can leave them.
+
+**2. Write.** Render the report to see this run's numbers, then write each section in the narrative file:
+
+```powershell
+uv run python -m src.reports employers-and-sponsorship
+code reports\employers-and-sponsorship\report.md
+code docs\reports\employers-and-sponsorship\narrative.md
+```
+
+The list under each `[TO WRITE: ...]` block in the render is this run's numbers, with their n and denominators. Quote them as they are.
+
+**3. Publish.** Render with the narrative merged in:
+
+```powershell
+uv run python -m src.reports employers-and-sponsorship --publish
+```
+
+It writes `docs\reports\employers-and-sponsorship\report.md` and its PNGs (tracked by git, unlike `reports\`), keeps the provenance stamp at the top, leaves out the "numbers from this run" lists, and refreshes the published-reports block in `README.md`. It refuses, naming the reason, when:
+
+- the database name contains `demo` or `test`: synthetic numbers are never published as findings
+- `narrative.md` is missing, a section is missing or empty (or holds only the init comment), or the text still contains `TO WRITE`
+- any guardrail fails, as in a normal render. For Report 3 that includes the narrative: a paragraph about sponsorship (LCA, H-1B, visa, filing, sponsor) may not name an employer from the top-employers tables, and the sponsorship wording rules apply to your text too. For Report 4 the salary wording rule does.
+
+It warns, without refusing, about every percentage or dollar figure in the narrative that this run's render doesn't contain, with its line number in `narrative.md`. That usually means the narrative quotes an older run: check each one. It also warns when `sql\views\` or `src\reports\` has uncommitted changes, because the provenance commit then doesn't describe the code that rendered the report.
+
+**4. Commit.** Read the published file, then commit the folder and the README:
+
+```powershell
+code docs\reports\employers-and-sponsorship\report.md
+git add docs\reports\employers-and-sponsorship README.md
+git commit -m "Publish: employers and sponsorship"
+git push
+```
+
+When the data has grown, publish again and read the warnings: they list the narrative's figures that moved.
+
+`uv run python -m src.reports --index` refreshes only the README block (for example after deleting a published report).
 
 ## Guardrails (enforced by code)
 
@@ -105,9 +143,11 @@ If a report stops with a guardrail error, the message names the rule. It almost 
 2. **A module** in `src/reports/`, exposing:
    - `SLUG`, `TITLE` and `VIEWS`
    - `compute(frames)`: view frames in, plain data out
-   - `render(data, provenance, out_dir)`: Markdown and PNGs out, every number through the guardrails, narrative as `doc.placeholder(...)` blocks with their numbers
+   - `SECTIONS`: the narrative sections, heading -> what the section is for
+   - `render(data, provenance, out_dir)`: Markdown and PNGs out, every number through the guardrails, narrative as `doc.placeholder(name, SECTIONS[name], numbers)` blocks
+   - optionally `check_published(data, sections, text)`: the report's text guardrails, run again over the published text with the narrative merged in
 3. **Register it** in `src/reports/catalog.py`.
 4. **Tests:** a golden file rendered from hand-built frames (`tests/fixtures/reports/`; regenerate with `UPDATE_GOLDEN=1` and review the diff), plus an end-to-end run on the demo seed.
 5. **Document it:** add a row to the table at the top of this page.
 
-Never commit rendered output. The only rendered Markdown in the repo is the golden fixtures, built from invented numbers.
+What is committed: published reports (`docs/reports/<slug>/`, from the real database, with the owner's narrative) and the golden fixtures (`tests/fixtures/reports/`, from invented numbers). What is never committed: output rendered from a demo or test database, and anything under `reports/`.

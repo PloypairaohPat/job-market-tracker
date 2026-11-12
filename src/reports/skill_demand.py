@@ -76,6 +76,24 @@ HEADLINE_GAPS = 3
 ACTION_SKILLS = 5
 
 
+# The narrative sections the owner writes (docs/reports/<slug>/narrative.md):
+# heading -> what the section is for. Rendered as `[TO WRITE: ...]` placeholders.
+SECTIONS: dict[str, str] = {
+    "Headline": (
+        "One or two sentences on how the two markets' skill mix differs. "
+        "Base it on the composition comparison (section 2), not the drill-down."
+    ),
+    "What it means": (
+        "Why the mixes differ, and how far the measurement itself can explain it "
+        "(text basis, truncation, taxonomy provenance, the Statistics check)."
+    ),
+    "What to do about it": (
+        "What a job seeker (or this project) should do with the contrast. Keep skill-level "
+        "advice at drill-down confidence."
+    ),
+}
+
+
 @dataclass(frozen=True)
 class Basis:
     """One market's row of v_skill_text_basis (zeros if the market is absent)."""
@@ -353,8 +371,7 @@ def render(data: SkillDemand, provenance: Provenance, out_dir: Path) -> Path:
     doc.heading("Headline")
     doc.placeholder(
         "Headline",
-        "One or two sentences on how the two markets' skill mix differs. "
-        "Base it on the composition comparison (section 2), not the drill-down.",
+        SECTIONS["Headline"],
         headline_numbers(data),
     )
 
@@ -474,15 +491,13 @@ def render(data: SkillDemand, provenance: Provenance, out_dir: Path) -> Path:
     doc.heading("What it means")
     doc.placeholder(
         "What it means",
-        "Why the mixes differ, and how far the measurement itself can explain it "
-        "(text basis, truncation, taxonomy provenance, the Statistics check).",
+        SECTIONS["What it means"],
         meaning_numbers(data),
     )
     doc.heading("What to do about it")
     doc.placeholder(
         "What to do about it",
-        "What a job seeker (or this project) should do with the contrast. Keep skill-level "
-        "advice at drill-down confidence.",
+        SECTIONS["What to do about it"],
         action_numbers(data),
     )
 

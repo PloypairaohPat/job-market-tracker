@@ -30,6 +30,7 @@ Guardrails (src/reports/guardrails.py, src/reports/lca_guardrails.py):
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
@@ -37,7 +38,7 @@ from pathlib import Path
 import pandas as pd
 
 from src.reports.charts import grouped_barh
-from src.reports.guardrails import Count, Rate, Stat
+from src.reports.guardrails import Count, GuardrailError, Rate, Stat
 from src.reports.lca_guardrails import (
     BUCKET_LABELS,
     BUCKETS,
@@ -85,6 +86,24 @@ FEDERAL_CAVEAT = (
     "words, is the more relevant number."
 )
 ANALYTICS_FILINGS = "certified analytics-SOC H-1B LCA filings"
+
+
+# The narrative sections the owner writes (docs/reports/<slug>/narrative.md):
+# heading -> what the section is for. Rendered as `[TO WRITE: ...]` placeholders.
+SECTIONS: dict[str, str] = {
+    "Headline": (
+        "One or two sentences on who hires data analysts and how concentrated that is, and, "
+        "separately, how many of those employers have a record of LCA filings."
+    ),
+    "What it means": (
+        "What concentration and the filing record say about where analyst hiring is, and what "
+        "the measurement can't show (unmatched names, truncated text, filings vs hires)."
+    ),
+    "What to do about it": (
+        "What a job seeker on F-1 OPT should do with this, at aggregate level. Never a promise "
+        "about one employer."
+    ),
+}
 
 
 @dataclass(frozen=True)
@@ -474,8 +493,7 @@ def render(data: EmployersReport, provenance: Provenance, out_dir: Path) -> Path
     doc.heading("Headline")
     doc.placeholder(
         "Headline",
-        "One or two sentences on who hires data analysts and how concentrated that is, and, "
-        "separately, how many of those employers have a record of LCA filings.",
+        SECTIONS["Headline"],
         headline_numbers(data),
     )
 
@@ -705,15 +723,13 @@ def render(data: EmployersReport, provenance: Provenance, out_dir: Path) -> Path
     doc.heading("What it means")
     doc.placeholder(
         "What it means",
-        "What concentration and the filing record say about where analyst hiring is, and what "
-        "the measurement can't show (unmatched names, truncated text, filings vs hires).",
+        SECTIONS["What it means"],
         meaning_numbers(data),
     )
     doc.heading("What to do about it")
     doc.placeholder(
         "What to do about it",
-        "What a job seeker on F-1 OPT should do with this, at aggregate level. Never a promise "
-        "about one employer.",
+        SECTIONS["What to do about it"],
         action_numbers(data),
     )
 
@@ -834,3 +850,32 @@ def _methods(doc: Doc, data: EmployersReport) -> None:
     doc.heading("What LCA data can't tell you", level=3)
     doc.paragraph(f'From {README_POINTER}, "What this can\'t tell you":')
     doc.bullets(list(LCA_CAVEATS.values()))
+
+
+# --------------------------------------------------------------------- #
+# publishing (src/reports/publish.py)
+
+_SPONSORSHIP_WORDS = re.compile(
+    r"\b(sponsor\w*|LCAs?|H-?1B|visas?|filings?|filed|certified|outlook)\b", re.IGNORECASE
+)
+
+
+def check_published(data: EmployersReport, sections: dict[str, str], text: str) -> None:
+    """The rendered text guardrails, run again over the merged narrative, plus
+    the privacy rule for narrative text: a paragraph that talks about
+    sponsorship never names an employer from the top-employers tables."""
+    check_sponsorship_text(text)
+    check_caveats(text)
+    names = sorted({e.name for h in data.hiring.values() for e in h.top if e.name}, key=len)
+    for section, body in sections.items():
+        for paragraph in re.split(r"\n\s*\n", body):
+            if not _SPONSORSHIP_WORDS.search(paragraph):
+                continue
+            named = [
+                n for n in names if re.search(rf"(?<!\w){re.escape(n)}(?!\w)", paragraph, re.I)
+            ]
+            if named:
+                raise GuardrailError(
+                    f"narrative section {section!r} names {named} in a paragraph about "
+                    "sponsorship: employers are named only beside their posting counts"
+                )
