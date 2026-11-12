@@ -1,6 +1,6 @@
 #!/bin/sh
 # Check a built pipeline image: nothing private or test-only inside, a
-# non-root user, no dev tools, and the code imports and runs.
+# non-root user, no dev tools or Jupyter, and the code imports and runs.
 # Usage: scripts/verify_image.sh [image]   (default job-market-tracker:local)
 set -eu
 image="${1:-job-market-tracker:local}"
@@ -21,6 +21,8 @@ echo "runs as uid $uid"
 
 run python -c "import importlib.util as u, sys; sys.exit(any(u.find_spec(m) for m in ('pytest', 'ruff')))" \
     || fail "dev tools (pytest/ruff) are installed"
+run python -c "import importlib.util as u, sys; sys.exit(any(u.find_spec(m) for m in ('jupyter', 'notebook', 'jupyterlab', 'ipykernel')))" \
+    || fail "Jupyter is installed (it belongs to the notebook extra, not the image)"
 run sh -c 'touch /var/lib/jobmarket/.write-test && rm /var/lib/jobmarket/.write-test' \
     || fail "working directory /var/lib/jobmarket is not writable"
 run python -c "import src.pipeline.daily, src.pipeline.health, src.dashboard.provision, src.dashboard.reader_role"

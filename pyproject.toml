@@ -14,13 +14,17 @@ dependencies = [
     "openpyxl>=3.1",  # .xlsx reader for DOL LCA disclosure files
     "plotly>=5.18",
     "matplotlib>=3.8",
-    "jupyter>=1.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=7.4",
     "ruff>=0.4",
+]
+# The exploration notebooks only; kept out of the pipeline image (Dockerfile
+# installs the base dependencies).  uv sync --extra notebook
+notebook = [
+    "jupyter>=1.0",
 ]
 
 [tool.ruff]

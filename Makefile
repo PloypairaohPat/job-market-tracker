@@ -21,7 +21,7 @@ test:            ## run all tests (integration tests need TEST_DATABASE_URL)
 lint:            ## lint + format check
 	ruff check . && ruff format --check .
 
-notebook:        ## open the exploration notebook
+notebook:        ## open the exploration notebook (needs the extra: pip install -e ".[notebook]")
 	jupyter lab notebooks/01_initial_exploration.ipynb
 
 extract-skills:  ## sync taxonomy + extract job skills

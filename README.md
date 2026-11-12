@@ -113,7 +113,7 @@ uv run python scripts/smoke_adzuna.py                 # 1 API call — sanity ch
 uv run python -m src.ingestion.ingest_adzuna          # full ingestion
 
 # 4. Explore
-uv run jupyter lab notebooks/01_initial_exploration.ipynb
+uv run --extra notebook jupyter lab notebooks/01_initial_exploration.ipynb   # the notebook extra
 ```
 
 **Adzuna credentials**: register free at [developer.adzuna.com](https://developer.adzuna.com/), create an app, and put `ADZUNA_APP_ID` / `ADZUNA_APP_KEY` in `.env`. Free tier is 1,000 calls/month; the ingestion CLI enforces a per-run budget (`--max-calls`, default 60) so development iteration can't burn the month.

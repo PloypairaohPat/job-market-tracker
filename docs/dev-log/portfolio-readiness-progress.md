@@ -18,6 +18,7 @@ into `docs/dev-log/portfolio-readiness.md` when Parts A to F are done.
 | A3 remote reads full text | done | A3 |
 | B1-B4 narrative files, publish, README block, docs | done | B1-B4 |
 | C4 work logs moved to docs/dev-log/ | done | C4 |
+| C5 Jupyter out of the pipeline image | done | C5 |
 
 ## Latest test count
 
@@ -70,3 +71,17 @@ into `docs/dev-log/portfolio-readiness.md` when Parts A to F are done.
   LCA, H-1B, visa, filing, filed, certified, outlook) and names an employer
   from the top-employers tables, and re-runs `check_sponsorship_text` and
   `check_caveats` over the merged text.
+
+### C5: image check
+
+Built locally with Docker (base image pulled from mirror.gcr.io because
+Docker Hub returned 429, then tagged with the Dockerfile's name; the
+Dockerfile is unchanged).
+
+| Image | Disk usage | Content size | Jupyter inside | `scripts/verify_image.sh` |
+|---|---|---|---|---|
+| before (main's pyproject) | 985MB | 212MB | jupyter, notebook, jupyterlab, ipykernel | OK before the new check; FAIL with it |
+| after (`notebook` extra) | 675MB | 148MB | none | OK |
+
+`verify_image.sh` now fails if any of jupyter, notebook, jupyterlab or
+ipykernel is importable in the image.
