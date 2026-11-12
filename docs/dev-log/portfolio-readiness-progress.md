@@ -19,6 +19,7 @@ into `docs/dev-log/portfolio-readiness.md` when Parts A to F are done.
 | B1-B4 narrative files, publish, README block, docs | done | B1-B4 |
 | C4 work logs moved to docs/dev-log/ | done | C4 |
 | C5 Jupyter out of the pipeline image | done | C5 |
+| C2 MIT LICENSE | done | C2 |
 
 ## Latest test count
 
@@ -32,6 +33,7 @@ into `docs/dev-log/portfolio-readiness.md` when Parts A to F are done.
 | Q2 | A3 | Should federal remote become a reported rate once the owner has checked a sample on real data? | No change now; Report 2 keeps "not measurable" |
 | Q3 | B | Should `--publish` refuse when `sql/views/` or `src/reports/` has uncommitted changes? | Warn, don't refuse |
 | Q4 | B | Should published reports also be exported as HTML or PDF? | Not built; Markdown only |
+| Q5 | C2 | Licence and holder: MIT / Apache-2.0 / none; holder "Pat Ploypairaoh" (the name on the merge commits) | MIT, 2026, Pat Ploypairaoh; confirm before merging |
 
 ## Evidence collected so far
 
