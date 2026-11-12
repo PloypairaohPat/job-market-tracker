@@ -76,7 +76,7 @@ grep -qxF -- "$key" "${home}/.ssh/authorized_keys" || printf '%s\n' "$key" >>"${
 chown "${user}:${user}" "${home}/.ssh/authorized_keys"
 chmod 600 "${home}/.ssh/authorized_keys"
 # The docker group is already root-equivalent, so a sudo password would add
-# friction, not safety (parked in docs/overnight-deploy-kit.md).
+# friction, not safety (parked in docs/dev-log/overnight-deploy-kit.md).
 echo "${user} ALL=(ALL) NOPASSWD:ALL" >"/etc/sudoers.d/90-${user}"
 chmod 440 "/etc/sudoers.d/90-${user}"
 visudo -cf "/etc/sudoers.d/90-${user}" >/dev/null

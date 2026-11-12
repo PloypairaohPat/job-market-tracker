@@ -438,7 +438,7 @@ Milestone C: Metabase dashboards that read the same SQL views as the written rep
 
 ## Open questions
 
-10 parked decisions are in `docs/overnight-dashboards.md`, each with the default that was built:
+10 parked decisions are in `docs/dev-log/overnight-dashboards.md`, each with the default that was built:
 - the app database (H2 vs Postgres)
 - when to turn on public links
 - the small-n flag

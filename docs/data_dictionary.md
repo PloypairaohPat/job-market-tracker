@@ -310,7 +310,7 @@ Lowercase **grouping key** from the three-tier normalization layer: deterministi
 
 ## Visa-sponsorship layer *(added with the visa layer)*
 
-How open each in-scope job is to someone on **F-1 OPT who will later need H-1B sponsorship**, with the evidence. Three independent signals: the employer's DOL LCA filing history, what the posting text says, and a name-only cap-exempt hint. How-to and caveats: [`src/visa/README.md`](../src/visa/README.md). Open product decisions: [`docs/overnight-visa-layer.md`](overnight-visa-layer.md).
+How open each in-scope job is to someone on **F-1 OPT who will later need H-1B sponsorship**, with the evidence. Three independent signals: the employer's DOL LCA filing history, what the posting text says, and a name-only cap-exempt hint. How-to and caveats: [`src/visa/README.md`](../src/visa/README.md). Open product decisions: [`docs/dev-log/overnight-visa-layer.md`](dev-log/overnight-visa-layer.md).
 
 ### `lca_cases` — DOL Labor Condition Applications
 

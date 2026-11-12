@@ -55,7 +55,7 @@ services:
       MB_DB_PASS: ${METABASE_APP_DB_PASSWORD:?set METABASE_APP_DB_PASSWORD in .env}
       MB_SITE_URL: ${MB_SITE_URL:?set MB_SITE_URL in .env}
       MB_ANON_TRACKING_ENABLED: "false"
-      # heap for a 4 GB server (parked: docs/overnight-deploy-kit.md)
+      # heap for a 4 GB server (parked: docs/dev-log/overnight-deploy-kit.md)
       JAVA_OPTS: "-Xmx${METABASE_JAVA_HEAP:-1536m}"
     ports:
       - "127.0.0.1:3000:3000"  # server-local only: admin through an SSH tunnel

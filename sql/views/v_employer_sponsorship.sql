@@ -23,7 +23,7 @@
 -- Analytics SOC list (matched on the first 7 characters of soc_code, so
 -- 15-2051.01 Business Intelligence Analysts counts under 15-2051). A
 -- default pending the owner's confirmation -- parked in
--- docs/overnight-visa-layer.md. Edit ONLY here:
+-- docs/dev-log/overnight-visa-layer.md. Edit ONLY here:
 --   15-2051 Data Scientists (incl. .01 Business Intelligence Analysts)
 --   15-2041 Statisticians
 --   15-2031 Operations Research Analysts

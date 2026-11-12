@@ -85,7 +85,7 @@ Caddy is the only thing the internet can reach. What you put in `SITE_ADDRESS` d
 | b. The bare IP address | `SITE_ADDRESS=203.0.113.10`<br>`MB_SITE_URL=https://203.0.113.10` | Let's Encrypt issues short-lived certificates for IP addresses, but Caddy's docs say IP addresses don't qualify for its automatic public certificates. It serves them with its own local certificate, so browsers show a warning. Not recommended. |
 | c. HTTP only, while testing | `SITE_ADDRESS=:80`<br>`MB_SITE_URL=http://203.0.113.10` | No certificate and no encryption. Fine for a first look; don't share links like this. |
 
-This is still an open question (see `docs/overnight-deploy-kit.md`). Option (a) is the default the files are written for.
+This is still an open question (see `docs/dev-log/overnight-deploy-kit.md`). Option (a) is the default the files are written for.
 
 ## 5. Bootstrap the server
 
@@ -340,7 +340,7 @@ deploy/backup.sh                                  # a backup right now
 scp deploy@203.0.113.10:/var/backups/jobmarket/jobmarket_<stamp>.dump $HOME\jobmarket-export\
 ```
 
-Off-server copies are an open question (`docs/overnight-deploy-kit.md`).
+Off-server copies are an open question (`docs/dev-log/overnight-deploy-kit.md`).
 
 **Restore the pipeline database** (replaces it; the counts print at the end):
 

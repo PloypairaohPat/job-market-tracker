@@ -510,7 +510,7 @@ Milestone E: the machinery that turns the SQL views into a written report with o
 
 ## Open questions
 
-13 parked decisions are in `docs/overnight-report-kit.md`, each with the default that was built:
+13 parked decisions are in `docs/dev-log/overnight-report-kit.md`, each with the default that was built:
 - where the narrative lives
 - the placeholder marker
 - the near-cap threshold

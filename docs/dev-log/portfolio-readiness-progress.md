@@ -17,6 +17,7 @@ into `docs/dev-log/portfolio-readiness.md` when Parts A to F are done.
 | A2 skills step converges | done | A2 |
 | A3 remote reads full text | done | A3 |
 | B1-B4 narrative files, publish, README block, docs | done | B1-B4 |
+| C4 work logs moved to docs/dev-log/ | done | C4 |
 
 ## Latest test count
 

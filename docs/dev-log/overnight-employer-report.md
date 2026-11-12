@@ -494,7 +494,7 @@ Milestone F: Phase 5's third report. It covers which employers post analyst jobs
 
 ## Open questions
 
-11 parked decisions are in `docs/overnight-employer-report.md`, each with the default that was built:
+11 parked decisions are in `docs/dev-log/overnight-employer-report.md`, each with the default that was built:
 - whether to publish (aggregate version publishable; decide when written)
 - the "sponsorship history" level
 - the match denominator

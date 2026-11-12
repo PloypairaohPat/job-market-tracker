@@ -493,11 +493,11 @@ Milestone D: everything needed to move the stack from the laptop to one small Li
 - Backup/drop/restore and export/import round trips give matching row counts. `export_db.ps1` was parse-checked and run under PowerShell 7.4.6.
 - No live job or government API was called.
 
-Full results: `docs/overnight-deploy-kit.md`.
+Full results: `docs/dev-log/overnight-deploy-kit.md`.
 
 ## Open questions
 
-12 parked decisions are in `docs/overnight-deploy-kit.md`, each with the default that was built:
+12 parked decisions are in `docs/dev-log/overnight-deploy-kit.md`, each with the default that was built:
 - the HTTPS address
 - x86 vs ARM
 - Metabase's heap

@@ -727,7 +727,7 @@ An overnight batch in six parts, each in small commits that stand on their own. 
 
 ## Open questions
 
-26 parked decisions, each with the default that was built, are in `docs/overnight-batch.md`. Among them:
+26 parked decisions, each with the default that was built, are in `docs/dev-log/overnight-batch.md`. Among them:
 - the `--db-wait` default, and a second daily trigger after an exit 2
 - a doctor `--fix`
 - which concentration number is primary
@@ -736,7 +736,7 @@ An overnight batch in six parts, each in small commits that stand on their own. 
 
 ## After merging
 
-`docs/overnight-batch.md` has the laptop steps:
+`docs/dev-log/overnight-batch.md` has the laptop steps:
 - `uv sync`, `alembic upgrade head`, `apply_views.py` (22 views)
 - `docker compose up -d db` (applies the restart policy, keeps the data)
 - the doctor

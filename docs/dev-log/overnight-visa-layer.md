@@ -265,7 +265,7 @@ Also:
 - `make views` applies all six views to a fresh alembic-built DB, twice
 
 ## Open questions
-11 parked product decisions are in `docs/overnight-visa-layer.md`, each with options and the default that was built. They cover the SOC list, bucket thresholds, the window anchor, Public Trust, cap-exempt scope, the USCIS Data Hub, HigherEdJobs, and views via migrations.
+11 parked product decisions are in `docs/dev-log/overnight-visa-layer.md`, each with options and the default that was built. They cover the SOC list, bucket thresholds, the window anchor, Public Trust, cap-exempt scope, the USCIS Data Hub, HigherEdJobs, and views via migrations.
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 

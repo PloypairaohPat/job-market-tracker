@@ -291,7 +291,7 @@ Makes the daily ingestion clock real, safe and observable (Milestone A). The por
 
 ## Open questions
 
-10 parked decisions are in `docs/overnight-daily-clock.md`, each with the default that was built: Prefect, the billing month and reserve, health thresholds, the `removed_at` lifecycle, Task Scheduler options, ruff pinning, log retention, the meaning of dry-run, and two exit-code semantics.
+10 parked decisions are in `docs/dev-log/overnight-daily-clock.md`, each with the default that was built: Prefect, the billing month and reserve, health thresholds, the `removed_at` lifecycle, Task Scheduler options, ruff pinning, log retention, the meaning of dry-run, and two exit-code semantics.
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 

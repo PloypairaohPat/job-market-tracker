@@ -12,7 +12,7 @@
 -- `make views` (file-name order) creates it first.
 --
 -- Buckets, applied IN THIS ORDER (first match wins). Thresholds are defaults
--- parked for the owner's confirmation in docs/overnight-visa-layer.md:
+-- parked for the owner's confirmation in docs/dev-log/overnight-visa-layer.md:
 --   closed    restriction is citizenship or clearance, or the posting says
 --             will_not_sponsor -- a "no" in the posting beats any history
 --   strong    will_sponsor, OR >= 3 certified analytics-SOC H-1B LCAs with

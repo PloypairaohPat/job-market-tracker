@@ -201,8 +201,8 @@ Each has the default that was built.
 
 ### Q10. Older overnight reports
 - **What I found:**
-  - `docs/overnight-visa-layer.md` still describes a "Cumulative reload" check (Q3 then Q4 should equal the Q4 file's row count), which is wrong for one-quarter files.
-  - `docs/overnight-employer-report.md` still says to download the latest quarter of each fiscal year.
+  - `docs/dev-log/overnight-visa-layer.md` still describes a "Cumulative reload" check (Q3 then Q4 should equal the Q4 file's row count), which is wrong for one-quarter files.
+  - `docs/dev-log/overnight-employer-report.md` still says to download the latest quarter of each fiscal year.
   - Both spell the status `Certified-Withdrawn`.
 - **Options:**
   - (a) Leave them as dated records. `src/visa/README.md` is the live instruction.
@@ -345,11 +345,11 @@ Dry runs on the real DOL LCA disclosure files (FY2024 Q4, FY2025 Q4, FY2026 Q3) 
 
 ## Open questions
 
-10 parked decisions are in `docs/overnight-lca-loader-fix.md`, each with the default that was built. Among them: the 1% threshold, `N/A` as NULL, whether Report 3's Methods should cite `v_lca_coverage`, and the uneven 3-FY window.
+10 parked decisions are in `docs/dev-log/overnight-lca-loader-fix.md`, each with the default that was built. Among them: the 1% threshold, `N/A` as NULL, whether Report 3's Methods should cite `v_lca_coverage`, and the uneven 3-FY window.
 
 ## After merging
 
-`docs/overnight-lca-loader-fix.md` has the laptop steps: `apply_views.py`, download FY2024 and FY2025 Q1–Q3, dry-run and then load every file oldest first, check `v_lca_coverage` (12 / 12 / 9 months), then `apply_cleaning --only companies visa` and re-render Report 3.
+`docs/dev-log/overnight-lca-loader-fix.md` has the laptop steps: `apply_views.py`, download FY2024 and FY2025 Q1–Q3, dry-run and then load every file oldest first, check `v_lca_coverage` (12 / 12 / 9 months), then `apply_cleaning --only companies visa` and re-render Report 3.
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
