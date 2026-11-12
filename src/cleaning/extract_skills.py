@@ -4,13 +4,21 @@ Run:  python -m src.cleaning.extract_skills [--min-confidence 0.5] [--rebuild]
 
 Steps:
   1. Sync the taxonomy JSON into the `skills` table (upsert by name).
-  2. For every job, run the extractor over title + description and
-     upsert (job_id, skill_id, confidence) rows into `job_skills`.
+     Skills that have left the taxonomy keep their `skills` row; their
+     number is logged as "orphaned".
+  2. For every job, run the extractor over title + the full description
+     (`description_full`, else `description`) and make the job's
+     `job_skills` rows exactly the extractor's matches at or above
+     `min_confidence`: new links are inserted, changed confidences
+     updated, and links that no longer match are deleted (including
+     links to a skill that has left the taxonomy, and every link of a
+     job with no text).
 
-Idempotent: re-running converges on the same state. `--rebuild` first
-clears `job_skills`, for when the taxonomy changes shape (e.g. a skill
-was removed) — this is the raw-then-normalized pattern in action:
-extraction is a *derived layer* that can always be recomputed from the
+Converges: after a run, `job_skills` is a pure function of the stored
+text, the taxonomy and `min_confidence`, and a second run changes
+nothing. `--rebuild` still clears `job_skills` first; it is no longer
+needed for convergence, but it remains a simple way to start over.
+Extraction is a *derived layer* that can always be recomputed from the
 stored descriptions.
 """
 
@@ -23,7 +31,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
-from src.cleaning.skill_extractor import SkillExtractor, load_taxonomy
+from src.cleaning.skill_extractor import SkillDef, SkillExtractor, load_taxonomy
 from src.models import Job, JobSkill, Skill
 from src.utils.db import session_scope
 
@@ -45,17 +53,38 @@ def sync_taxonomy(session: Session) -> dict[str, int]:
         )
         session.execute(stmt)
     rows = session.execute(select(Skill.name, Skill.id)).all()
+    orphaned = count_orphaned_skills(session)
+    if orphaned:
+        logger.info(
+            "%d skills rows are no longer in the taxonomy (kept; their links are removed "
+            "by extraction).",
+            orphaned,
+        )
     return dict(rows)
+
+
+def count_orphaned_skills(session: Session, taxonomy: list[SkillDef] | None = None) -> int:
+    """How many `skills` rows name a skill the taxonomy no longer has."""
+    names = {sdef.name for sdef in (taxonomy if taxonomy is not None else load_taxonomy())}
+    existing = session.execute(select(Skill.name)).scalars().all()
+    return sum(1 for n in existing if n not in names)
 
 
 def extract_for_all_jobs(
     session: Session,
     skill_ids: dict[str, int],
     min_confidence: float = 0.0,
+    extractor: SkillExtractor | None = None,
 ) -> tuple[int, int]:
-    """Run extraction over every job. Returns (jobs_processed, links_written)."""
-    extractor = SkillExtractor()
-    jobs_processed = links_written = 0
+    """Run extraction over every job and converge `job_skills` on it.
+
+    Returns (jobs_processed, links_written), where links_written is the
+    number of current links (matches at or above `min_confidence`), as
+    before. Stale links are deleted; their count is logged. `extractor`
+    defaults to one built from the taxonomy file (tests pass their own).
+    """
+    extractor = extractor or SkillExtractor()
+    jobs_processed = links_written = links_deleted = 0
     offset = 0
     while True:
         batch = session.execute(
@@ -66,14 +95,23 @@ def extract_for_all_jobs(
         ).all()
         if not batch:
             break
+        batch_ids = [row[0] for row in batch]
+        existing: dict[int, set[int]] = {}
+        for job_id, skill_id in session.execute(
+            select(JobSkill.job_id, JobSkill.skill_id).where(JobSkill.job_id.in_(batch_ids))
+        ):
+            existing.setdefault(job_id, set()).add(skill_id)
         for job_id, title, description, description_full in batch:
             text = f"{title or ''}\n{description_full or description or ''}"
+            wanted: set[int] = set()
             for skill_name, confidence in extractor.extract(text).items():
                 if confidence < min_confidence:
                     continue
+                skill_id = skill_ids[skill_name]
+                wanted.add(skill_id)
                 stmt = (
                     pg_insert(JobSkill)
-                    .values(job_id=job_id, skill_id=skill_ids[skill_name], confidence=confidence)
+                    .values(job_id=job_id, skill_id=skill_id, confidence=confidence)
                     .on_conflict_do_update(
                         index_elements=[JobSkill.job_id, JobSkill.skill_id],
                         set_={"confidence": confidence},
@@ -81,8 +119,18 @@ def extract_for_all_jobs(
                 )
                 session.execute(stmt)
                 links_written += 1
+            stale = existing.get(job_id, set()) - wanted
+            if stale:
+                session.execute(
+                    delete(JobSkill).where(
+                        JobSkill.job_id == job_id, JobSkill.skill_id.in_(sorted(stale))
+                    )
+                )
+                links_deleted += len(stale)
             jobs_processed += 1
         offset += BATCH_SIZE
+    if links_deleted:
+        logger.info("Removed %d job-skill links that no longer match.", links_deleted)
     return jobs_processed, links_written
 
 
@@ -107,7 +155,7 @@ def main() -> None:
     argp.add_argument(
         "--rebuild",
         action="store_true",
-        help="clear job_skills before extracting (taxonomy shape changed)",
+        help="clear job_skills before extracting (not needed for convergence; a clean start)",
     )
     args = argp.parse_args()
 

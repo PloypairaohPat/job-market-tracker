@@ -4,8 +4,9 @@ Everything here derives from stored raw values and is recomputable — the
 raw-then-normalized pattern applied to cleaning. Two entry points:
 
 - `python -m src.cleaning.extract_skills` — sync the skill taxonomy and
-  extract job↔skill links from descriptions (`--rebuild` after taxonomy
-  shape changes)
+  extract job↔skill links from descriptions. Each run converges: links
+  that no longer match (changed text, a skill removed from the taxonomy)
+  are deleted. `--rebuild` clears `job_skills` first for a clean start
 - `python -m src.cleaning.apply_cleaning` — seniority, salary quality,
   remote upgrade, metro assignment, company normalization (`--only STEP`
   to run a subset)

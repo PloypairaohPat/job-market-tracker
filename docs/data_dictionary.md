@@ -132,7 +132,7 @@ Materialization of the curated taxonomy in `src/cleaning/data/skills.json` — *
 
 ## `job_skills` — job ↔ skill links *(added in Phase 2 prep)*
 
-Written by regex-based extraction over `title + description`. **A derived layer**: it can always be rebuilt from stored descriptions (`--rebuild`), which is the raw-then-normalized pattern applied to NLP.
+Written by regex-based extraction over `title + description_full` (falling back to `description`). **A derived layer**: every run makes each job's links exactly the extractor's current matches, deleting links that no longer match, and it can always be rebuilt from stored descriptions (`--rebuild`), which is the raw-then-normalized pattern applied to NLP.
 
 | Column | Type | Meaning / judgment calls |
 |---|---|---|

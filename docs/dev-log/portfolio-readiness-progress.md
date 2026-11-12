@@ -14,11 +14,14 @@ into `docs/dev-log/portfolio-readiness.md` when Parts A to F are done.
 | Part | Status | Commits |
 |---|---|---|
 | A1 one engine per URL | done | A1 |
+| A2 skills step converges | done | A2 |
 
 ## Latest test count
 
-711 passed, 1 skipped (after A1).
+716 passed, 1 skipped (after A2).
 
 ## Parked questions
 
-(none yet)
+| Q | Part | Question | Default built |
+|---|---|---|---|
+| Q1 | A2 | Should `sync_taxonomy` delete `skills` rows that left the taxonomy? | No: keep the row, log how many are orphaned |
