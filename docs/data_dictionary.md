@@ -89,7 +89,7 @@ Natural key: **`(source, external_id)`** — Adzuna IDs are only guaranteed uniq
 | `posted_at` | timestamptz, null | Adzuna's `created` — may reflect aggregation time rather than original posting time; treat with suspicion until compared against `first_seen_at` |
 | `first_seen_at` | timestamptz | when *our* pipeline first observed the job; immutable after insert |
 | `last_seen_at` | timestamptz | refreshed on every re-observation |
-| `removed_at` | timestamptz, null | set by a future lifecycle job when a posting stops appearing; **cleared** if the job reappears |
+| `removed_at` | timestamptz, null | **reserved, never set** (always NULL). Absence is derived from snapshots in `v_job_observation_spans`, because a job leaving the search window is not evidence of removal (see "Snapshots and the search window" below) |
 | `raw_response_id` | int FK | the raw page this row was last parsed from — the audit trail back to source |
 
 Fields refreshed on re-observation: title, description, salary fields, remote flag, category, contract fields, URL. Identity fields and `first_seen_at` are never updated.
@@ -664,3 +664,26 @@ A share below 100 means every snapshot-based measure for that query and day desc
 ### `ADZUNA_SORT_BY` and what a snapshot captures
 
 Unset (the default), Adzuna searches send no `sort_by`, as before. Set, the value is sent as Adzuna's `sort_by` and recorded in each page's `raw_responses.params` (`sort_by` key) and the run's `ingestion_runs.params`. Changing the sort order changes which results fall inside the window, so snapshot series from before and after the change are different samples: record the date of the change and don't compare across it naively. See `docs/daily-operation.md`.
+
+### `v_job_observation_spans`
+
+One row per analysis-population job (commercial = `adzuna`; federal = `usajobs` and `in_scope`) with at least one snapshot. A source's **snapshot days** are the UTC dates on which any of its jobs has a `job_snapshots` row.
+
+| Column | Meaning |
+|---|---|
+| `job_id`, `market`, `source` | |
+| `first_seen_date`, `last_seen_date` | first and last `snapshot_date` for the job |
+| `days_seen` | snapshot rows for the job |
+| `source_days_in_span` | the source's snapshot days from first to last seen, inclusive; more than `days_seen` when the job left the window and came back |
+| `entry_is_exact` | the source has a snapshot on the day before `first_seen_date`, so the job appeared that day (false on the series' first day and after a missed day) |
+| `exit_state` | `still_listed` (seen on the source's latest snapshot day), `exit_exact` (the source has a snapshot the next day and the job isn't in it), `exit_in_gap` (the next day has no snapshot) |
+
+A span is an observation span, not a posting lifetime: "seen" means returned inside the search window.
+
+### `v_daily_market_flow`
+
+One row per (`market`, snapshot day of the market's source): `jobs_seen`, `jobs_first_seen`, `jobs_last_seen` (NULL on the source's latest snapshot day, not known yet) and `prev_day_has_snapshot`. A day the source ran but returned no population job is a row of zeros; a day it didn't run has no row. When `prev_day_has_snapshot` is false, `jobs_first_seen` includes arrivals from the missed day(s), or, on the series' first day, everything already listed.
+
+### `jobs.removed_at`
+
+Reserved and never set. Absence is derived from snapshots in `v_job_observation_spans` (`exit_state`), and leaving the search window is not evidence of removal. Parked for the owner: leave it unset (current), set it after N consecutive unseen snapshot days, or drop it in a later migration.

@@ -73,6 +73,11 @@ class Job(Base):
     last_seen_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+    # Reserved: nothing sets it, and the job upserts write NULL. Absence is
+    # derived from snapshots instead (sql/views/v_job_observation_spans.sql),
+    # because a job leaving a day's search window is not evidence that the
+    # posting was removed (v_search_window_coverage). Parked for the owner:
+    # keep it unset (current), set it after N unseen snapshot days, or drop it.
     removed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     raw_response_id: Mapped[int | None] = mapped_column(ForeignKey("raw_responses.id"))
