@@ -179,14 +179,22 @@ def upsert_snapshot(session: Session, job_id: int, fields: dict, snapshot_date: 
 # --------------------------------------------------------------------- #
 
 
-def ingest_page(session: Session, query: str, page: int, response: dict) -> int:
-    """Persist one raw page + all its jobs. Returns jobs processed."""
+def ingest_page(
+    session: Session, query: str, page: int, response: dict, sort_by: str | None = None
+) -> int:
+    """Persist one raw page + all its jobs. Returns jobs processed.
+
+    `sort_by` (when the search used one) is recorded in the page's params,
+    so every stored page says how it was sorted."""
     now = datetime.now(UTC)
     today = now.date()
+    params: dict = {"what": query, "page": page}
+    if sort_by:
+        params["sort_by"] = sort_by
     raw_id = save_raw_response(
         session,
         endpoint=f"/jobs/us/search/{page}",
-        params={"what": query, "page": page},
+        params=params,
         response=response,
     )
     processed = 0
@@ -212,10 +220,15 @@ def run_ingestion(
     dry_run: bool = False,
     database_url: str | None = None,
     stats: RunStats | None = None,
+    sort_by: str | None = None,
 ) -> dict[str, int]:
-    """Full ingestion across all target queries. Returns per-query counts."""
+    """Full ingestion across all target queries. Returns per-query counts.
+
+    `sort_by` is sent as Adzuna's `sort_by` parameter only when set; unset,
+    the requests are exactly what they were before the option existed."""
     queries = queries or TARGET_QUERIES
     counts: dict[str, int] = {}
+    filters = {"sort_by": sort_by} if sort_by else {}
     for query in queries:
         counts[query] = 0
         try:
@@ -223,6 +236,7 @@ def run_ingestion(
                 query,
                 max_results=max_pages_per_query * results_per_page,
                 results_per_page=results_per_page,
+                **filters,
             ):
                 if dry_run:
                     n = len(response.get("results", []))
@@ -230,7 +244,7 @@ def run_ingestion(
                     counts[query] += n
                     continue
                 with session_scope(database_url) as session:
-                    n = ingest_page(session, query, page, response)
+                    n = ingest_page(session, query, page, response, sort_by=sort_by)
                 counts[query] += n
                 if stats is not None:
                     stats.pages_fetched += 1
@@ -259,14 +273,17 @@ def run_logged(
     max_pages_per_query: int = 5,
     database_url: str | None = None,
     extra_params: dict | None = None,
+    sort_by: str | None = None,
 ) -> tuple[dict[str, int], RunStats]:
     """run_ingestion wrapped in an ingestion_runs row (see run_log.py).
-    Re-raises after recording a failure."""
+    Re-raises after recording a failure. A `sort_by` is recorded in the
+    run's params."""
     params = {
         "queries": queries or TARGET_QUERIES,
         "max_pages": max_pages_per_query,
         "max_calls": client.max_calls,
         "dry_run": False,
+        **({"sort_by": sort_by} if sort_by else {}),
         **(extra_params or {}),
     }
     with recorded_run(
@@ -282,6 +299,7 @@ def run_logged(
             max_pages_per_query=max_pages_per_query,
             database_url=database_url,
             stats=stats,
+            sort_by=sort_by,
         )
     return counts, stats
 
@@ -324,6 +342,7 @@ def run_guarded(
         "max_calls": decision.cap,
         "requested_max_calls": max_calls,
         "dry_run": False,
+        **({"sort_by": settings.adzuna_sort_by} if settings.adzuna_sort_by else {}),
     }
     if decision.skip:
         logger.warning("Skipping Adzuna run: monthly budget exhausted (%s)", decision.describe())
@@ -342,6 +361,7 @@ def run_guarded(
         max_pages_per_query=max_pages_per_query,
         database_url=database_url,
         extra_params={"requested_max_calls": max_calls},
+        sort_by=settings.adzuna_sort_by or None,
     )
     logger.info("API calls used this run: %d / %d", client.calls_made, decision.cap)
     return ("partial" if stats.budget_cut else "ok"), counts, decision
@@ -393,7 +413,11 @@ def main() -> None:
             return
         client = build_client(settings, decision.cap)
         counts = run_ingestion(
-            client, queries=args.queries, max_pages_per_query=args.max_pages, dry_run=True
+            client,
+            queries=args.queries,
+            max_pages_per_query=args.max_pages,
+            dry_run=True,
+            sort_by=settings.adzuna_sort_by or None,
         )
         logger.info("API calls used this run: %d / %d", client.calls_made, decision.cap)
     else:

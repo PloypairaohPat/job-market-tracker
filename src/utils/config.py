@@ -39,6 +39,10 @@ class Settings:
     adzuna_min_request_interval: float = 1.5
     adzuna_monthly_call_budget: int = 1000
     adzuna_monthly_reserve: int = 25  # held back from the daily cap for manual/smoke calls
+    # Adzuna's `sort_by` for every search; "" (the default) sends no sort_by
+    # at all, exactly as before the setting existed. Changing it changes
+    # what a day's search window captures (docs/daily-operation.md).
+    adzuna_sort_by: str = ""
     usajobs_api_key: str = field(repr=False, default="")
     usajobs_user_agent_email: str = field(repr=False, default="")
     usajobs_min_request_interval: float = 1.0
@@ -67,6 +71,7 @@ def get_settings(require_adzuna: bool = False, require_usajobs: bool = False) ->
         ),
         adzuna_monthly_call_budget=int(os.environ.get("ADZUNA_MONTHLY_CALL_BUDGET", "1000")),
         adzuna_monthly_reserve=int(os.environ.get("ADZUNA_MONTHLY_RESERVE", "25")),
+        adzuna_sort_by=os.environ.get("ADZUNA_SORT_BY", "").strip(),
         usajobs_api_key=(
             _require("USAJOBS_API_KEY")
             if require_usajobs

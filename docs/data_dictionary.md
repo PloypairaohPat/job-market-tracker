@@ -660,3 +660,7 @@ One row per (`source`, `fetch_date` (UTC), `query`), from `raw_responses` only. 
 | `pct_captured` | `100 * results_captured / api_total`, one decimal; NULL when the total is missing or 0. Can exceed 100 if the total shrank during the run |
 
 A share below 100 means every snapshot-based measure for that query and day describes the captured slice only, and a job missing from a day may have moved outside the window rather than been taken down. A query with no row on a day was not run that day (a gap, never a zero row).
+
+### `ADZUNA_SORT_BY` and what a snapshot captures
+
+Unset (the default), Adzuna searches send no `sort_by`, as before. Set, the value is sent as Adzuna's `sort_by` and recorded in each page's `raw_responses.params` (`sort_by` key) and the run's `ingestion_runs.params`. Changing the sort order changes which results fall inside the window, so snapshot series from before and after the change are different samples: record the date of the change and don't compare across it naively. See `docs/daily-operation.md`.

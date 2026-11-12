@@ -24,10 +24,11 @@ into `docs/dev-log/portfolio-readiness.md` when Parts A to F are done.
 | C3 PROJECT_GUIDE truth pass | done | C3 |
 | C6 lock file (report only) | in the final report | - |
 | D1 v_search_window_coverage | done | D1 |
+| D2 optional ADZUNA_SORT_BY | done | D2 |
 
 ## Latest test count
 
-773 passed, 1 skipped (after D1).
+780 passed, 1 skipped (after D2).
 
 ## Parked questions
 
@@ -37,6 +38,7 @@ into `docs/dev-log/portfolio-readiness.md` when Parts A to F are done.
 | Q2 | A3 | Should federal remote become a reported rate once the owner has checked a sample on real data? | No change now; Report 2 keeps "not measurable" |
 | Q3 | B | Should `--publish` refuse when `sql/views/` or `src/reports/` has uncommitted changes? | Warn, don't refuse |
 | Q4 | B | Should published reports also be exported as HTML or PDF? | Not built; Markdown only |
+| Q6 | D2 | Turn on `ADZUNA_SORT_BY`? | Owner decides after looking at `v_search_window_coverage` on real data; the earlier the better |
 | Q5 | C2 | Licence and holder: MIT / Apache-2.0 / none; holder "Pat Ploypairaoh" (the name on the merge commits) | MIT, 2026, Pat Ploypairaoh; confirm before merging |
 
 ## Evidence collected so far

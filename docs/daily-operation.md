@@ -209,6 +209,25 @@ cap  = min( --max-calls, (1000 - used - reserve) // days left in the month, toda
 
 Each run logs a line like `used 420 of 1000 this month, cap for this run 30`. Health check H4 warns at 85% used and fails at 100%.
 
+## Adzuna sort order (`ADZUNA_SORT_BY`)
+
+Each Adzuna query stops after 5 pages of 50 results, and on most days a query matches far more postings than that. `v_search_window_coverage` shows, per query and day, how many results the stored pages captured against the total the API reported. Which 250 results land in the window depends on the API's sort order, and today the runner sends none, so the API's default applies.
+
+`ADZUNA_SORT_BY` in `.env` (unset by default) sends its value as Adzuna's `sort_by` parameter on every search, and records it in each stored page's `raw_responses.params` and in the run's `ingestion_runs.params`. Unset, the requests are exactly what they were before the setting existed.
+
+Before turning it on:
+
+1. Look up the accepted values in Adzuna's API documentation. This project can't check them for you.
+2. Check that the API accepts the value with one call (it counts against the monthly budget):
+
+   ```powershell
+   uv run python scripts/smoke_adzuna.py --sort-by date
+   ```
+
+3. Write down the date you set it. **Changing the sort order changes what a snapshot captures**, so a series before the change and a series after it are different samples: never compare them naively (first and last seen dates, daily flow, posting lifetimes). The same holds for any later change of value. `raw_responses.params->>'sort_by'` shows which pages were sorted how.
+
+Whether to turn it on is your decision: look at `v_search_window_coverage` on real data first. If it's turned on, the earlier in the series the better.
+
 ## The health check
 
 ```powershell
