@@ -21,6 +21,7 @@ into `docs/dev-log/portfolio-readiness.md` when Parts A to F are done.
 | C5 Jupyter out of the pipeline image | done | C5 |
 | C2 MIT LICENSE | done | C2 |
 | C1 README restructure | done | C1 |
+| C3 PROJECT_GUIDE truth pass | done | C3 |
 
 ## Latest test count
 
@@ -110,3 +111,33 @@ flags to `docs/daily-operation.md`; dashboard commands were already in
 table. "In three minutes" lost only the dashboard list that the
 Dashboards section now carries; the owner's other sentences are kept
 as written.
+
+### C3: PROJECT_GUIDE claims removed or changed
+
+| Claim (before) | Change | Why |
+|---|---|---|
+| 30-second pitch: insights "about which skills carry salary premiums, how demand shifts over time, and where the strongest hiring markets are"; "runs a daily ingestion job ... presents the analysis through a Metabase dashboard and a series of written reports" | Replaced by a list of checkable facts with file paths | The premium was deferred; no time-series or metro-demand finding exists; reports have no narrative yet |
+| Two-minute pitch: "extracts skills ... using spaCy"; "Jupyter investigations"; "skill-salary correlations, geographic demand patterns, and how the market shifts over time"; "runs on a Hetzner VPS with Prefect for orchestration" | Replaced by facts list | Extraction is a regex taxonomy; investigations are SQL views + findings docs; deploy kit unused; no Prefect |
+| Tech stack: NLP = spaCy; Orchestration = Prefect; Deployment = Hetzner VPS; Visualization = Plotly + matplotlib | Table rewritten to what exists, with file paths | spaCy/Prefect not used; deploy kit unused; Plotly is a dependency no code imports |
+| "Why Python": "pandas, spaCy, scikit-learn, and Jupyter" | spaCy dropped from the sentence | not used |
+| Data sources: Greenhouse/Lever "Optional (Phase 3+)" | Marked "Planned, not built" | not built |
+| Target roles include "Data Scientist (for comparison)" | Replaced by the six real `TARGET_QUERIES` and a note | Data Scientist is not queried |
+| Target geographies "..., Austin, Remote" | Replaced by the real metro list (adds DC; remote is a flag) | matches `src/cleaning/metro.py` |
+| Architecture diagram: "Python + Prefect", "pandas + spaCy", Greenhouse/Lever source | Replaced by a numbered description pointing to the README diagram | diagram described unbuilt parts |
+| "This pattern is borrowed directly from my finance dashboard project where it proved invaluable." | Removed | an anecdote no file in the repo backs; restore if true |
+| Database schema (v1) listing (`job_snapshots` with `id SERIAL` and a composite key, `skills.category` values 'tool'/'soft', no `description_full`, `in_scope`, visa or run-log tables) | Replaced by a table of the real tables, pointing to `docs/data_dictionary.md` | listing no longer matched the models |
+| Phased roadmap with week estimates, "spaCy-based skill extraction", "Jupyter notebook portfolio ... Each notebook is publication-quality", "Prefect orchestration, ... public deployment to Hetzner" | Replaced by a phase/status table; the plans moved to "Planned, not built" | not built |
+| Skills demonstrated: "NLP: spaCy", "Orchestration: Prefect", "Production deployment: ... self-hosted on Hetzner VPS", "Statistical analysis: ... correlation, cohort analysis, basic clustering", "Plotly" | Rewritten, each bullet with the file that shows it | none of these exists |
+| Talking point "hardest part": the Meta / Facebook / FB normalization story, regional subsidiaries, recruiting agencies, "hybrid approach ... raw_names array" | Replaced by documented candidates with file paths | the story can't be traced to a file; the real approach (normalized_name + fuzzy candidates for manual review) is listed |
+| "Messy data" answer in first person | Turned into fact bullets with paths | answers are the owner's to write |
+| "What insights": "SQL + Python + Tableau ... about a [X]% salary premium" | Removed; points to README findings and published reports | no such finding; premium deferred |
+| "What would you do differently": taxonomy rework in Phase 3; "an upstream ingestion bug that had been silently double-counting some postings" | Removed; points to parked decisions and open threads | no file records either story |
+| "How does this scale" answer (DuckDB/ClickHouse, partitioning) | Replaced by facts to start from | first-person answer; nothing in the repo backs the plan |
+| "What did you learn": "30% / 70%" judgment answer | Replaced by pointers to findings docs | first-person answer, and the split is not measured anywhere |
+| Glossary entries for Prefect and spaCy | Removed; LCA added | not used; LCA is |
+| Risks: "add spaCy patterns iteratively" | Says spaCy was planned and deferred | not built |
+
+Kept as written (the owner's own motivation, not claims about the repo):
+"Why this project exists", the Python and Metabase rationale, "Why not
+LinkedIn / Indeed", the risks table (one cell changed) and the success
+metrics checklist.

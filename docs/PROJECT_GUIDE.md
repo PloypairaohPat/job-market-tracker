@@ -1,39 +1,54 @@
 # Data Analytics Job Market Tracker
-## Project Guide & Interview Reference
+## Project guide and interview reference
 
-> A self-hosted analytics platform that ingests live job posting data, extracts skill and salary intelligence, and surfaces trends in the data analytics labor market through a dashboard and written analytical reports.
+> A self-hosted analytics platform that ingests live job posting data, extracts skill and salary intelligence, and surfaces trends in the data analytics labor market through dashboards and written analytical reports.
+
+Every claim about the repository on this page names the file that backs it. What was planned and not built is listed separately under [Planned, not built](#planned-not-built), so the original intent isn't lost.
 
 ---
 
-## Table of Contents
-1. [Elevator Pitch](#elevator-pitch)
-2. [Why This Project Exists](#why-this-project-exists)
-3. [Tech Stack](#tech-stack)
-4. [Data Sources](#data-sources)
+## Table of contents
+1. [Elevator pitch](#elevator-pitch)
+2. [Why this project exists](#why-this-project-exists)
+3. [Tech stack](#tech-stack)
+4. [Data sources](#data-sources)
 5. [Architecture](#architecture)
-6. [Database Schema (v1)](#database-schema-v1)
-7. [Phased Roadmap](#phased-roadmap)
-8. [Skills Demonstrated](#skills-demonstrated)
-9. [Interview Talking Points](#interview-talking-points)
-10. [Risks & Mitigations](#risks--mitigations)
-11. [Success Metrics](#success-metrics)
-12. [Glossary](#glossary)
+6. [Database schema](#database-schema)
+7. [Phases](#phases)
+8. [Planned, not built](#planned-not-built)
+9. [Skills demonstrated](#skills-demonstrated)
+10. [Interview talking points](#interview-talking-points)
+11. [Risks and mitigations](#risks-and-mitigations)
+12. [Success metrics](#success-metrics)
+13. [Glossary](#glossary)
 
 ---
 
-## Elevator Pitch
+## Elevator pitch
 
-**30-second version (for recruiter screens):**
+The pitch is yours to write. These are the true, checkable facts it can draw on, with where each is shown.
 
-> "I built a job market analytics platform that pulls thousands of data analytics job postings from public APIs, normalizes the messy real-world data — company names, salary formats, locations, skill mentions — and surfaces insights about which skills carry salary premiums, how demand shifts over time, and where the strongest hiring markets are. It runs a daily ingestion job, stores everything in Postgres, and presents the analysis through a Metabase dashboard and a series of written reports. I built it because I wanted to understand the market I'm entering — and to demonstrate the full analyst workflow end-to-end."
+**For a 30-second version:**
 
-**Two-minute version (for technical conversations):**
+- Two public APIs, ingested daily: Adzuna (commercial postings) and USAJobs (federal postings). `src/ingestion/`, `src/pipeline/daily.py`.
+- Every API response is stored verbatim before parsing, so history can be re-parsed. `raw_responses` in `docs/data_dictionary.md`.
+- A cleaning layer: company names, salary quality, seniority, remote status, metro, and skill tags from a curated taxonomy. `src/cleaning/`.
+- SQL views are the source of truth for every metric. `sql/views/` (22 views).
+- Six Metabase dashboards defined as code. `dashboards/`, `docs/dashboard.md`.
+- Four reports render their tables, charts and methods from the views; the narratives are not written yet. `src/reports/`, `docs/reports.md`.
+- Three investigations written up, including one whose clean data refused the original question (the skill salary premium). `docs/phase_3_findings.md`, `docs/findings_skill_premium_deferred.md`.
 
-> "It's a Python-based data pipeline and analytics platform built around a single question: what does the data analytics job market actually look like, quantitatively? I ingest job postings daily from Adzuna and USAJobs, store raw responses in Postgres for replay-ability, then run a cleaning pipeline that normalizes companies, parses salary ranges, standardizes locations, and extracts skills from job descriptions using spaCy. On top of that sits an analytics layer — SQL views, Jupyter investigations, and a Metabase dashboard — that surfaces things like skill-salary correlations, geographic demand patterns, and how the market shifts over time. The whole stack runs on a Hetzner VPS with Prefect for orchestration. The deliverables are the dashboard plus a series of written reports answering specific market questions. The reports are arguably the most important part — they're what an analyst actually produces, and they're what differentiates this from a pure engineering project."
+**For a two-minute version, add:**
+
+- A visa-sponsorship layer joining postings to Department of Labor LCA filing records, kept private at the posting level. `src/visa/README.md`.
+- A daily runner with a monthly API budget guard, a run log and a read-only health check; it runs under Windows Task Scheduler today. `docs/daily-operation.md`.
+- Guardrails as code: a report can't print a rate without its denominator or a salary median below n = 15. `src/reports/guardrails.py`, `docs/reports.md`.
+- CI on every push: lint, format, a migration round trip and the full test suite against real Postgres. `.github/workflows/ci.yml`.
+- A deploy kit for a small server exists and has not been used yet. `docs/deploy.md`.
 
 ---
 
-## Why This Project Exists
+## Why this project exists
 
 ### The Problem
 
@@ -56,26 +71,29 @@ Tools like LinkedIn Insights, Levels.fyi, and Glassdoor exist, but each is locke
 
 ---
 
-## Tech Stack
+## Tech stack
 
-| Layer | Choice | Rationale |
+What the repository uses today.
+
+| Layer | Choice | Where |
 |---|---|---|
-| Language | **Python 3.11+** | Industry standard for analytics; rich ecosystem (pandas, spaCy, scikit-learn) |
-| Database | **PostgreSQL 16** | Mature, JSONB support for raw API responses, strong analytics SQL features |
-| ORM | **SQLAlchemy 2.0** | Professional standard; type-safe; declarative models |
-| Migrations | **Alembic** | Reversible migrations, integrates with SQLAlchemy |
-| NLP | **spaCy** | Production-grade skill extraction without ML training complexity |
-| Analysis | **pandas, numpy, Jupyter** | Notebook-driven analysis is the analyst's primary workflow |
-| Visualization | **Plotly + matplotlib** | Plotly for interactive, matplotlib for publication-quality figures |
-| BI Dashboard | **Metabase** | Free, self-hosted, used by real companies — table-stakes BI exposure |
-| Orchestration | **Prefect** (cron initially) | Schedule daily ingestion, monitor failures, retry on errors |
-| Container | **Docker + Docker Compose** | Reproducible local dev, clean deploys |
-| Deployment | **Hetzner VPS** | Self-hosted, full control, ~€4/month |
-| Version Control | **Git + GitHub** | Public repo as portfolio artifact |
+| Language | **Python 3.11+** | `pyproject.toml` |
+| Database | **PostgreSQL 16**, JSONB for raw API responses | `docker-compose.yml`, `src/models/` |
+| ORM | **SQLAlchemy 2** | `src/models/`, `src/utils/db.py` |
+| Migrations | **Alembic**, tested down and up in CI | `migrations/`, `.github/workflows/ci.yml` |
+| Skill extraction | **Curated regex taxonomy**: one pattern per skill, precision first, with trap tests | `src/cleaning/data/skills.json`, `src/cleaning/skill_extractor.py` |
+| Analysis | **SQL views**, then **pandas** | `sql/views/`, `src/reports/` |
+| Exploration | **Jupyter** (one notebook, an optional extra) | `notebooks/01_initial_exploration.ipynb` |
+| Charts | **matplotlib** (report charts) | `src/reports/charts.py` |
+| BI dashboard | **Metabase**, dashboards as code, read-only database role | `dashboards/`, `src/dashboard/` |
+| Scheduling | **The daily runner** under Windows Task Scheduler; a systemd timer in the unused deploy kit | `src/pipeline/daily.py`, `scripts/windows/`, `deploy/systemd/` |
+| Containers | **Docker Compose** locally; a pipeline image for the server | `docker-compose.yml`, `Dockerfile` |
+| Deployment | **A deploy kit** (compose, Caddy, systemd, backups) for one small server: **not yet used** | `deploy/`, `docs/deploy.md` |
+| Tests and CI | **pytest**, **ruff**, **GitHub Actions** | `tests/`, `.github/workflows/ci.yml` |
 
 ### Why Python and not TypeScript/Node
 
-My previous project used TypeScript. For analytics work, Python's ecosystem is non-negotiable — pandas, spaCy, scikit-learn, and Jupyter have no real Node equivalents. Using Python here signals to employers that I select tools for the job rather than defaulting to what I already know.
+My previous project used TypeScript. For analytics work, Python's ecosystem is non-negotiable — pandas, scikit-learn, and Jupyter have no real Node equivalents. Using Python here signals to employers that I select tools for the job rather than defaulting to what I already know.
 
 ### Why Metabase and not a custom React dashboard
 
@@ -83,7 +101,7 @@ Most data analyst roles require BI tool fluency (Tableau, Looker, Power BI, Meta
 
 ---
 
-## Data Sources
+## Data sources
 
 ### Primary: Adzuna API
 - **What it is**: Job aggregator with an official developer API
@@ -99,261 +117,175 @@ Most data analyst roles require BI tool fluency (Tableau, Looker, Power BI, Meta
 - **Auth**: Free API key + email header
 - **Why include**: Government roles are absent from most aggregators; adds a sector the dataset would otherwise miss
 
-### Optional (Phase 3+): Greenhouse / Lever Public Boards
-Many companies use Greenhouse or Lever as their applicant tracking system, and the resulting public job board pages are scrape-friendly (predictable URL patterns, structured data in HTML). Adding a scraping layer here demonstrates web scraping skills without crossing any ToS lines.
+### Planned, not built: Greenhouse / Lever public boards
+Not built. Many companies use Greenhouse or Lever as their applicant tracking system, and the resulting public job board pages are scrape-friendly (predictable URL patterns, structured data in HTML). A scraping layer was planned here; `docs/phase_3_findings.md` names a full-text source like this as the cleaner way to unblock the skill salary premium.
 
 ### Why Not LinkedIn / Indeed
 LinkedIn's ToS prohibits scraping, their anti-bot detection is aggressive, and the engineering effort to bypass it would consume weeks better spent on actual analysis. Indeed is similar. A portfolio piece shouldn't open with a ToS violation, and the time tradeoff favors using legitimate sources well over scraping illegitimate ones poorly.
 
-### Target Roles (Initial Search Queries)
-- Data Analyst
-- Senior Data Analyst
-- Analytics Engineer
-- Business Intelligence Analyst
-- Marketing Analyst
-- Product Analyst
-- Data Scientist (for comparison / seniority crossover)
+### Search queries (`TARGET_QUERIES` in `src/ingestion/ingest_adzuna.py`)
+- data analyst
+- senior data analyst
+- analytics engineer
+- business intelligence analyst
+- marketing analyst
+- product analyst
 
-### Target Geographies (Phase 1)
-US-wide via Adzuna, with focus on major metros for cross-comparison: NYC, SF Bay Area, LA, Chicago, Boston, Seattle, Austin, Remote.
+"Data Scientist" was planned as a comparison query and is not in the list. USAJobs adds keyword queries and three occupational series (1560, 1515, 1530; `docs/daily-operation.md`).
+
+### Geographies
+US-wide. The tracked metro list (`src/cleaning/metro.py`) is NYC, SF Bay Area, LA, Chicago, Boston, Seattle, Austin and DC; remote is a separate flag (`jobs.is_remote`), not a metro.
 
 ---
 
 ## Architecture
 
-```
-┌─────────────────┐
-│  Adzuna API     │──┐
-└─────────────────┘  │
-                     │  ┌──────────────────┐    ┌─────────────────────┐
-┌─────────────────┐  ├─▶│  Ingestion       │───▶│ raw_responses       │
-│  USAJobs API    │──┤  │  (Python + Prefect)│  │ (JSONB)             │
-└─────────────────┘  │  └──────────────────┘    └──────────┬──────────┘
-                     │                                     │
-┌─────────────────┐  │                                     ▼
-│ Greenhouse/Lever│──┘                          ┌──────────────────────┐
-│ (optional)      │                             │  Cleaning + NLP      │
-└─────────────────┘                             │  pipeline            │
-                                                │  (pandas + spaCy)    │
-                                                └──────────┬───────────┘
-                                                           │
-                                                           ▼
-                                                ┌──────────────────────┐
-                                                │  Normalized tables   │
-                                                │  jobs, companies,    │
-                                                │  skills, locations   │
-                                                └──────────┬───────────┘
-                                                           │
-                            ┌──────────────────────────────┼───────────────────────────┐
-                            ▼                              ▼                           ▼
-                ┌────────────────────┐         ┌────────────────────┐    ┌────────────────────┐
-                │  Jupyter notebooks │         │  Metabase dashboard│    │  Written reports   │
-                │  (exploration)     │         │  (interactive BI)  │    │  (the storytelling)│
-                └────────────────────┘         └────────────────────┘    └────────────────────┘
-```
+The diagram in the [README](../README.md#how-it-works) is the current one. In words:
 
-### Key Architectural Decisions
+1. **Sources.** Adzuna and USAJobs APIs, called by the daily runner; DOL LCA disclosure files, loaded by hand (`src/visa/lca_loader.py`).
+2. **Raw.** Every response is stored verbatim in `raw_responses` before parsing.
+3. **Core tables.** `jobs`, `companies`, `locations`, and `job_snapshots` (one row per job per UTC day it was returned).
+4. **Enrichment.** Cleaning (`src/cleaning/apply_cleaning.py`), skills (`src/cleaning/extract_skills.py`) and visa signals (`src/visa/posting_signals.py`), run by the daily runner after ingestion.
+5. **Views.** `sql/views/v_*`, the source of truth for every metric.
+6. **Outputs.** Metabase dashboards (read-only role) and the report kit (`src/reports/`).
 
-**Raw-then-normalized pattern**: Every API response is stored as JSONB in `raw_responses` *before* being parsed into normalized tables. This means schema changes don't require re-fetching from the API — I can re-parse historical raw responses. This pattern is borrowed directly from my finance dashboard project where it proved invaluable.
+### Key architectural decisions
 
-**Idempotent ingestion**: The ingestion script uses each job's external ID as a natural key, so re-running the sync never creates duplicates and always brings the dataset to the latest state.
+**Raw-then-normalized pattern**: Every API response is stored as JSONB in `raw_responses` *before* being parsed into normalized tables. Schema changes and parser fixes don't require re-fetching from the API: `python -m src.ingestion.ingest_usajobs --backfill-from-raw` re-parses stored responses.
 
-**Daily snapshots, not just current state**: A `job_snapshots` table records the state of every job each day it's observed. This is what enables time-series analysis (when did a job appear/disappear, did the salary change, etc.).
+**Idempotent ingestion**: Jobs are keyed by `(source, external_id)`, so re-running the sync never creates duplicates and always brings the dataset to the latest state (`tests/test_ingestion.py`).
 
-**Analytics in SQL first, Python second**: SQL views are the source of truth for derived metrics. Python notebooks pull from those views rather than reimplementing logic. This keeps the dashboard and notebooks consistent.
+**Daily snapshots, not just current state**: `job_snapshots` records each job on each UTC day the search returned it. This is what will enable time-series analysis once enough days accumulate; what it can and can't support is in `docs/data_dictionary.md`.
+
+**Analytics in SQL first, Python second**: SQL views are the source of truth for derived metrics. The report kit reads whole views only (`src/reports/views.py`), so the dashboards and reports stay consistent.
 
 ---
 
-## Database Schema (v1)
+## Database schema
 
-### Core Tables
+The schema is defined by the SQLAlchemy models in `src/models/` and the Alembic migrations in `migrations/`; every column and judgment call is in [`docs/data_dictionary.md`](data_dictionary.md). The tables:
 
-**`raw_responses`** — every API call result, stored verbatim
-```
-id              SERIAL PRIMARY KEY
-source          TEXT  -- 'adzuna' | 'usajobs' | 'greenhouse'
-fetched_at      TIMESTAMPTZ
-endpoint        TEXT
-params          JSONB
-response        JSONB
-```
-
-**`companies`** — normalized company entity
-```
-id              SERIAL PRIMARY KEY
-canonical_name  TEXT UNIQUE  -- e.g., 'Meta'
-raw_names       TEXT[]       -- ['Facebook', 'Meta Platforms Inc', 'FB']
-industry        TEXT
-size_bucket     TEXT          -- '1-50' | '51-200' | etc.
-created_at      TIMESTAMPTZ
-```
-
-**`locations`** — normalized location
-```
-id              SERIAL PRIMARY KEY
-city            TEXT
-state           TEXT
-country         TEXT
-metro_area      TEXT          -- 'NYC' | 'SF Bay Area' | etc.
-is_remote       BOOLEAN
-latitude        DECIMAL
-longitude       DECIMAL
-```
-
-**`jobs`** — one row per unique job posting
-```
-id                  SERIAL PRIMARY KEY
-external_id         TEXT UNIQUE   -- ID from source system
-source              TEXT
-company_id          INT REFERENCES companies
-location_id         INT REFERENCES locations
-title               TEXT
-title_normalized    TEXT          -- 'data analyst' (lowercased, cleaned)
-seniority           TEXT          -- 'junior' | 'mid' | 'senior' | 'lead'
-description         TEXT
-salary_min          INT
-salary_max          INT
-salary_currency     TEXT
-salary_period       TEXT          -- 'year' | 'hour' | 'month'
-is_remote           BOOLEAN
-posted_at           TIMESTAMPTZ
-first_seen_at       TIMESTAMPTZ
-last_seen_at        TIMESTAMPTZ
-removed_at          TIMESTAMPTZ NULL
-raw_response_id     INT REFERENCES raw_responses
-```
-
-**`skills`** — skill taxonomy
-```
-id              SERIAL PRIMARY KEY
-name            TEXT UNIQUE   -- 'Python', 'SQL', 'Tableau'
-category        TEXT          -- 'language' | 'tool' | 'cloud' | 'soft'
-aliases         TEXT[]        -- ['py'] for Python
-```
-
-**`job_skills`** — many-to-many
-```
-job_id          INT REFERENCES jobs
-skill_id        INT REFERENCES skills
-confidence      DECIMAL       -- extraction confidence 0–1
-PRIMARY KEY (job_id, skill_id)
-```
-
-**`job_snapshots`** — daily state for time-series analysis
-```
-id              SERIAL PRIMARY KEY
-job_id          INT REFERENCES jobs
-snapshot_date   DATE
-is_active       BOOLEAN
-salary_min      INT
-salary_max      INT
-PRIMARY KEY (job_id, snapshot_date)
-```
-
-This schema will evolve through Alembic migrations. Phase 1 only requires `raw_responses`, `companies`, `locations`, and `jobs`.
+| Table | One row per |
+|---|---|
+| `raw_responses` | API response, stored verbatim (JSONB) |
+| `companies` | employer as the source names it, with `normalized_name` for grouping variants |
+| `locations` | (city, state, country), with `metro_area` from a tracked list |
+| `jobs` | posting, keyed by `(source, external_id)`, with cleaned fields (seniority, salary quality, remote, scope) |
+| `job_snapshots` | job per UTC day it was returned |
+| `skills`, `job_skills` | taxonomy skill; job-skill link with a confidence |
+| `job_visa_signals` | job's visa-related posting signals |
+| `lca_cases` | DOL LCA filing, loaded from disclosure files |
+| `ingestion_runs` | ingestion run per source (the run log) |
 
 ---
 
-## Phased Roadmap
+## Phases
 
-### Phase 1 — Foundation & First Ingestion (2–3 weeks)
-Set up project, Postgres, schema v1, Adzuna client, first ingestion of 1,000+ jobs, initial Jupyter exploration. *See separate `PHASE_1_MILESTONE.md` for step-by-step.*
-
-### Phase 2 — Cleaning & Skill Extraction (2–3 weeks)
-Company name normalization, salary parsing, location standardization, skill taxonomy construction, spaCy-based skill extraction from job descriptions, seniority classification. **This is the analyst-defining phase** — document every cleaning decision because *that* is the portfolio.
-
-### Phase 3 — Analytics Layer (3–4 weeks)
-SQL views for all key metrics. Jupyter notebook portfolio with investigations: skill co-occurrence networks, salary distributions by skill/location/seniority, hiring velocity, geographic patterns. Each notebook is publication-quality.
-
-### Phase 4 — Dashboard (3–4 weeks)
-Metabase deployment. Build dashboards: market overview, skill explorer, salary analyzer, geographic view, company leaderboard. Optionally embed in a custom React landing page.
-
-### Phase 5 — Storytelling (2–3 weeks)
-Pick 3–5 sharp analytical questions and write them up as blog posts or a report:
-- *Which skills carry the biggest salary premium for data analysts?*
-- *How has AI/ML demand shifted in analyst roles over [N] months?*
-- *Remote vs onsite salary delta by metro area*
-- *What kinds of "data analyst" roles actually exist? (skill-based clustering)*
-- *Which companies hire the most aggressively, and what are they looking for?*
-
-These reports are the portfolio centerpiece.
-
-### Phase 6 — Productionize (2 weeks)
-Prefect orchestration, data quality monitoring, public deployment to Hetzner, README polish, automated tests, public GitHub repo finalization.
-
-**Total estimated duration: 5–6 months**
+| Phase | Scope | Status |
+|---|---|---|
+| 1 | Foundation, schema, Adzuna ingestion, first exploration | done (`docs/phase_1_findings.md`) |
+| 2 | Cleaning: company normalization, salary quality, seniority, remote, metro; skill taxonomy and extractor | done; the extractor is a curated regex taxonomy |
+| 3 | SQL views and investigations | three investigations written up (`docs/phase_3_findings.md`); the skill salary premium is deferred |
+| — | Second source (USAJobs), visa-sponsorship layer, daily clock | done |
+| 4 | Metabase dashboards | six dashboards defined as code; public links after the server cut-over |
+| 5 | Written reports | the report kit renders four reports from the views; the narratives are not written |
+| 6 | Productionize | the daily runner, health check and CI exist; the deploy kit has not been used |
 
 ---
 
-## Skills Demonstrated
+## Planned, not built
 
-### Technical Skills (resume-ready bullets)
+Kept so the original plan stays visible. None of these exists in the repository.
 
-- **SQL**: Complex queries with CTEs, window functions, joins across 6+ tables; SQL views as source of truth for analytics
-- **Python (analytics stack)**: pandas, numpy, Jupyter for data wrangling and analysis
-- **NLP**: spaCy for skill extraction from unstructured job descriptions
-- **Data modeling**: Designed normalized PostgreSQL schema supporting both current-state queries and historical time-series analysis
-- **ETL pipeline design**: Idempotent ingestion with raw-then-normalized pattern; daily snapshots for change tracking
-- **Data cleaning**: Real-world messy data — company name deduplication, multi-format salary parsing, location standardization
-- **BI tools**: Metabase dashboard design and deployment
-- **Statistical analysis**: Distribution analysis, correlation, cohort analysis, basic clustering
-- **Data visualization**: Plotly, matplotlib, Metabase
-- **Orchestration**: Prefect for scheduled ingestion and monitoring
-- **Production deployment**: Docker, self-hosted on Hetzner VPS
-- **Version control**: Git, public GitHub repo with documentation
-
-### Analytical Skills
-
-- Framing vague questions as answerable analytical investigations
-- Choosing appropriate visualizations for different question types
-- Communicating quantitative findings in writing for non-technical audiences
-- Recognizing data quality issues and documenting their impact on conclusions
-- Tradeoff thinking (e.g., data freshness vs. API rate limits)
+- **spaCy skill extraction.** Planned for Phase 2; deferred. Extraction is the regex taxonomy above.
+- **Prefect orchestration.** Planned for Phase 6; not used. Scheduling is the daily runner under Task Scheduler (and a systemd timer in the deploy kit).
+- **Running on a Hetzner VPS.** The deploy kit targets a small server like this; it has not been deployed.
+- **Skill salary premium** ("which skills pay more"). Attempted in Phase 3 and deferred: the clean data couldn't support it (`docs/findings_skill_premium_deferred.md`).
+- **Greenhouse / Lever scraping**, a custom React frontend, skill co-occurrence clustering, a salary prediction model, and the remaining stretch goals under [Success metrics](#success-metrics).
+- **Phase 3 investigation notebooks.** The investigations live in SQL views and findings docs; the only notebook is the Phase 1 exploration.
 
 ---
 
-## Interview Talking Points
+## Skills demonstrated
+
+Each bullet names where it is shown.
+
+### Technical
+
+- **SQL**: 22 views with CTEs, window functions and multi-table joins as the source of truth for every metric (`sql/views/`).
+- **Python analytics stack**: pandas for the report kit's computations (`src/reports/`).
+- **Text extraction**: a curated regex skill taxonomy with precision-first patterns and trap tests (`src/cleaning/skill_extractor.py`, `tests/`).
+- **Data modeling**: a normalized Postgres schema with daily snapshots (`src/models/`, `docs/data_dictionary.md`).
+- **ETL design**: idempotent ingestion keyed by `(source, external_id)`, raw-then-normalized storage, and replay from raw responses (`src/ingestion/`).
+- **Data cleaning**: company name normalization with fuzzy merge candidates for manual review, salary quality flags, seniority from titles, metro assignment (`src/cleaning/`).
+- **BI tools**: six Metabase dashboards defined as code and provisioned through the API (`dashboards/`, `src/dashboard/`).
+- **Statistical reporting discipline**: medians with IQR, n beside every grouped number, floors below which a figure is withheld (`src/reports/guardrails.py`).
+- **Data visualization**: matplotlib report charts (`src/reports/charts.py`) and Metabase cards.
+- **Scheduling and monitoring**: a daily runner with a budget guard, run log, health check and laptop doctor (`src/pipeline/`, `src/doctor.py`).
+- **Containers and CI**: Docker Compose, a pipeline image checked by `scripts/verify_image.sh`, GitHub Actions running lint, format, a migration round trip and the test suite.
+- **Version control**: a public GitHub repo with documentation.
+
+### Analytical
+
+- Framing vague questions as answerable investigations, and recording when the data refuses one (`docs/phase_3_findings.md`, Investigation #1).
+- Separating measured fields from instrument-limited ones (`docs/findings_field_completeness.md`).
+- Recognizing data quality issues and documenting their effect on conclusions (`docs/phase_1_findings.md`, `docs/findings_commercial_vs_federal_skills.md`).
+- Tradeoff thinking, for example data freshness vs API limits (the budget guard in `docs/daily-operation.md`).
+
+---
+
+## Interview talking points
+
+Prompts for your own answers. Under each question are the facts and files you can draw on; the answers are yours to write.
 
 ### "Tell me about a data project you've built."
 
-> *Start with the elevator pitch above, then offer to go deeper on any specific aspect.* The interviewer's follow-up will tell you what they care about — technical depth, business impact, or methodology.
+- Start from the elevator-pitch facts above, then offer to go deeper on one part.
 
 ### "What was the hardest part?"
 
-> "Company name normalization. The raw data had 'Meta', 'Meta Platforms Inc.', 'Facebook', and 'FB' all referring to the same employer, and that's an easy case. The harder cases were small companies with regional subsidiaries, name changes over time, and recruiting agencies posting on behalf of unnamed clients. I ended up with a hybrid approach: deterministic rules for the obvious cases, fuzzy matching with manual review for ambiguous ones, and a `raw_names` array on the companies table so I never lose the source-of-truth strings."
+Candidates, each documented:
+
+- The skill salary premium the clean data couldn't support, and why: too few disclosed salaries carry skill tags, and pooling Adzuna's predicted salaries would make the premium partly Adzuna's own model (`docs/phase_3_findings.md`, Investigation #1).
+- Truncated commercial descriptions (Adzuna's ~500 characters) vs full federal text, and why a truncation-matched comparison was dropped (`docs/phase_3_findings.md`, Investigation #2).
+- Two "built but never run" capabilities found in Phase 3: the USAJobs series-code ingest and taxonomy gaps (`docs/phase_3_findings.md`, "Prep that made the investigation valid").
+- Company name normalization: deterministic normalization plus fuzzy merge candidates written to a CSV for manual review, never auto-merged (`src/cleaning/README.md`, `src/cleaning/company_normalizer.py`).
 
 ### "How did you handle messy data?"
 
-> "Three principles. First, always store raw before normalized — every API response goes into a `raw_responses` table as JSONB before any parsing, so I can re-run cleaning logic on historical data without re-fetching. Second, document every cleaning decision in a `data_dictionary.md` file — what counts as 'remote', how I bucket seniority levels, etc. Third, flag rather than discard — if a salary is ambiguous, I store it as null with a `salary_quality` flag rather than guessing. That way every downstream analysis can decide for itself how to handle uncertain values."
+- Raw before normalized: `raw_responses` (`docs/data_dictionary.md`).
+- Every cleaning decision documented in `docs/data_dictionary.md`.
+- Flag, don't guess: no signal means NULL, never a default bucket; `salary_quality` flags instead of guessed salaries (`src/cleaning/README.md`, design rule 1).
 
 ### "What insights did you find?"
 
-> *Reference your written reports here. Be ready with 2–3 specific findings with numbers.* Example: "One thing that surprised me was that 'SQL + Python + Tableau' as a skill combo carried about a [X]% salary premium over any pair of the three. I expected the premium to be roughly additive — it wasn't."
+- The figures in the README's "Findings so far" section, quoted from `docs/phase_3_findings.md` with their n.
+- The published reports, once their narratives are written (`docs/reports.md`).
 
 ### "Walk me through your tech stack choices."
 
-> *Use the rationale column from the tech stack table.* Emphasize: Python for ecosystem fit, Metabase because it's what real companies use, raw-then-normalized as the pattern that protects against schema changes.
+- The tech stack table above, and the three architectural decisions.
 
 ### "What would you do differently?"
 
-> "Two things. First, I'd start the skill taxonomy earlier — I let it grow organically and ended up with messy categorization that needed a rework in Phase 3. Second, I'd build the data quality dashboard before the analytics dashboard. I had several Phase 3 conclusions I had to revise once I noticed an upstream ingestion bug that had been silently double-counting some postings."
+- The parked decisions in each work log under `docs/dev-log/` and the open threads in `docs/phase_3_findings.md` are the documented candidates.
 
 ### "How does this scale?"
 
-> "For the current scope — daily ingestion of low-thousands of new postings — Postgres on a single VPS is comfortably over-provisioned. The next scaling step would be partitioning `raw_responses` and `job_snapshots` by date, because those grow monotonically and most queries are time-bounded. Beyond that I'd consider a columnar store like DuckDB or ClickHouse for the analytics layer while keeping Postgres as the operational store."
+- Facts to start from: daily volume is a few hundred postings per source (`docs/daily-operation.md`); `raw_responses` and `job_snapshots` grow every day; the report kit reads whole views (`src/reports/views.py`).
 
 ### "What did you learn?"
 
-> "The biggest lesson was how much of analytics work is judgment under ambiguity. The 'analysis' I imagined I'd be doing — running queries, making charts — was maybe 30% of the time. The other 70% was deciding things like 'what counts as a senior role?' and 'how do I count a job that was reposted under a slightly different title?' Those decisions are invisible in the final dashboard but they determine whether the conclusions are trustworthy. That's the part of analytics I didn't appreciate until I built something end-to-end."
+- Material: `docs/phase_1_findings.md` and the "Why" sections of each Phase 3 investigation.
 
 ---
 
-## Risks & Mitigations
+## Risks and mitigations
 
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
 | Adzuna rate limits hit too early | Medium | High | Cache aggressively; pre-compute target searches; supplement with USAJobs |
-| Skill extraction has poor precision | High | Medium | Start with regex for top 50 skills (high precision); add spaCy patterns iteratively; manually audit a sample |
+| Skill extraction has poor precision | High | Medium | A curated regex taxonomy with precision-first patterns and a trap test per ambiguous pattern (built); spaCy patterns were planned and deferred |
 | Company name normalization is too lossy | High | Medium | Keep raw names always; build normalization as a *layer*, not a destructive transform |
 | Project scope creeps | High | High | Strict phase gates with written acceptance criteria; resist new features until current phase ships |
 | Data volume too small for time-series analysis | Medium | Medium | Gate Phase 3 time-series work on having 60+ days of snapshots accumulated |
@@ -361,7 +293,7 @@ Prefect orchestration, data quality monitoring, public deployment to Hetzner, RE
 
 ---
 
-## Success Metrics
+## Success metrics
 
 ### Project is "done enough for portfolio" when:
 - [ ] 10,000+ unique jobs in database
@@ -385,9 +317,8 @@ Prefect orchestration, data quality monitoring, public deployment to Hetzner, RE
 - **Adzuna**: Public job aggregator with developer API used as primary data source
 - **Idempotent ingestion**: Pipeline design where re-running the same sync produces the same end state (no duplicates)
 - **JSONB**: PostgreSQL's binary JSON column type — supports indexing and querying inside JSON values
+- **LCA**: Labor Condition Application, the Department of Labor filing an employer makes before an H-1B petition (`src/visa/README.md`)
 - **Metabase**: Open-source business intelligence tool; like Tableau but free and self-hosted
 - **Normalization (data)**: Cleaning raw values into canonical forms (e.g., 'Meta Platforms Inc' → 'Meta')
-- **Prefect**: Python-native workflow orchestration tool; alternative to Airflow with less ceremony
 - **Raw-then-normalized**: Pattern of storing API responses verbatim before parsing, enabling schema evolution without re-fetching
-- **Snapshot**: A point-in-time record of a job's state, captured daily; enables time-series analysis
-- **spaCy**: Production-grade Python NLP library
+- **Snapshot**: A record of a job on a day the search returned it; enables time-series analysis
