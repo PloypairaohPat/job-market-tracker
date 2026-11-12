@@ -77,8 +77,9 @@ FIELDS = (
         "Remote",
         "flagged remote",
         False,
-        "the classifier scans `jobs.description` only (src/cleaning/apply_cleaning.py); "
-        "federal telework policy sits in `description_full`, so federal is not measurable",
+        "the classifier reads `description_full` when present (src/cleaning/apply_cleaning.py), "
+        "but situational and ad-hoc telework count as not remote and the federal rate has "
+        "not been checked against a hand-read sample, so federal is not measurable",
     ),
 )
 BY_KEY = {f.key: f for f in FIELDS}

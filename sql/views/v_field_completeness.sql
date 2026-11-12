@@ -38,14 +38,19 @@
 --                          our tracked list", not "no location given" -- see
 --                          pct_location_present for the real disclosure rate.
 --   pct_remote_true        market fact for commercial; INSTRUMENT-LIMITED for
---                          federal -- apply_remote() (src/cleaning/apply_cleaning.py)
---                          scans jobs.description only, never description_full,
---                          for every source. Harmless for commercial (description
---                          IS the only text available) but federal's telework
---                          policy lives in description_full's boilerplate
---                          ("Telework: Ad-hoc" etc): 12/70 federal jobs mention
---                          remote/telework there and nowhere the classifier reads.
---                          Federal's 0% is not a measured market rate.
+--                          federal. apply_remote() (src/cleaning/apply_cleaning.py)
+--                          reads description_full when present, else description
+--                          (commercial has only description, so its values are
+--                          unchanged). Federal telework text lives in
+--                          description_full, and the policy in
+--                          src/cleaning/remote.py counts situational / ad-hoc
+--                          telework as NOT remote, so federal's rate reflects
+--                          only explicit fully-remote language. Until a sample of
+--                          real federal postings has been checked by hand, it is
+--                          not reported as a market rate (Report 2 labels it
+--                          "not measurable"). Before this change the classifier
+--                          read description only and federal was 0% by
+--                          construction; see docs/findings_field_completeness.md.
 --   pct_company_present,
 --   pct_posted_at_present  market fact, near-100% both sources, not a focus.
 

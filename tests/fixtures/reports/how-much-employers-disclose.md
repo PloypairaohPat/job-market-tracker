@@ -66,7 +66,7 @@ Instrument-limited: from `v_field_completeness_counts`, checked against `v_field
 |---|---|---|---|---|
 | Seniority | title carries an explicit level | 50.0% (400 of 800 jobs) | 8.0% (4 of 50 jobs) | the classifier reads the job title only (src/cleaning/seniority.py); a level stated only in the description is invisible to it |
 | Metro | in the tracked 8-city + DC list | 9.0% (72 of 800 jobs) | 22.0% (11 of 50 jobs) | a lookup against a curated allowlist (src/cleaning/metro.py), never a default; real cities outside the list count as absent. Location present is the disclosure rate |
-| Remote | flagged remote | 4.0% (32 of 800 jobs) | not measurable | the classifier scans `jobs.description` only (src/cleaning/apply_cleaning.py); federal telework policy sits in `description_full`, so federal is not measurable |
+| Remote | flagged remote | 4.0% (32 of 800 jobs) | not measurable | the classifier reads `description_full` when present (src/cleaning/apply_cleaning.py), but situational and ad-hoc telework count as not remote and the federal rate has not been checked against a hand-read sample, so federal is not measurable |
 
 ## What it means
 

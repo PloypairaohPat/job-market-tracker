@@ -12,7 +12,14 @@ Signals, in precedence order (documented policy — see tests):
 Policy: **hybrid is not remote.** This metric tracks fully-remote
 eligibility; hybrid gets its own treatment if/when a hybrid flag is
 added. is_remote=False therefore means "not fully remote OR no signal",
-which is why Phase 1 called this number a floor.
+which is why Phase 1 called this number a floor. The same goes for
+federal situational / ad-hoc telework ("Telework: Ad hoc", "situational
+telecommuting"): occasional telework is not fully remote, so those
+phrases count as NEGATION.
+
+`description` here is the fullest text available: `apply_remote` passes
+`description_full` when present (USAJobs, where telework text lives in
+the duties and requirements) and `description` otherwise (Adzuna).
 """
 
 from __future__ import annotations
@@ -27,7 +34,9 @@ _POSITIVE = re.compile(
 )
 _NEGATION = re.compile(
     r"\b(not?\s+(?:a\s+)?remote|no\s+remote\s+work|on[- ]?site\s+(?:only|required)"
-    r"|hybrid|in[- ]office\s+required|must\s+be\s+on[- ]?site)\b",
+    r"|hybrid|in[- ]office\s+required|must\s+be\s+on[- ]?site"
+    r"|(?:situational|ad[- ]?hoc|episodic|occasional)\s+tele(?:work|commut)\w*"
+    r"|telework\w*\s*:\s*(?:ad[- ]?hoc|situational))\b",
     re.IGNORECASE,
 )
 

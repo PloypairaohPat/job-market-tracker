@@ -91,6 +91,13 @@ field that structurally doesn't carry the answer for this source. Federal's `pct
 = 0.0%` is not a measured market rate and must not be charted beside commercial's 4.2%
 as if the two were comparable.
 
+*Methods note (added after this analysis; the figures above are unchanged and describe
+the classifier as it was when they were measured):* `apply_remote()` now passes
+`description_full` when present and `description` otherwise, so commercial results are
+unchanged and federal telework text is read. Situational and ad-hoc telework phrasing
+counts as not remote (the policy in `src/cleaning/remote.py`). Federal's rate stays
+unreported until a sample of real federal postings has been checked by hand.
+
 ## Skills — present vs truncation-floored (pointer, not a re-derivation)
 
 Full mechanism and the ~70x federal truncation-collapse number are established in

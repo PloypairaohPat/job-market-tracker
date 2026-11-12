@@ -71,7 +71,9 @@ def apply_remote(session: Session) -> dict[str, int]:
     changed = flagged = 0
     for job in session.execute(select(Job)).scalars():
         loc_display = None  # Adzuna display name lives in the raw response; title+description carry the signal
-        new_value = detect_remote(job.title, loc_display, job.description)
+        # Fullest text available, as scope and skills use: USAJobs keeps its
+        # telework language in description_full; Adzuna has only description.
+        new_value = detect_remote(job.title, loc_display, job.description_full or job.description)
         if new_value != job.is_remote:
             changed += 1
         job.is_remote = new_value
