@@ -32,10 +32,11 @@ into `docs/dev-log/portfolio-readiness.md` when Parts A to F are done.
 | E0 reference module, equality test, benchmark | done | E0 |
 | E1 one pass over jobs | done | E1 |
 | E2 visa signals in bulk | done | E2 |
+| E3 skills in bulk | done | E3 |
 
 ## Latest test count
 
-807 passed, 1 skipped (after E2).
+808 passed, 1 skipped (after E3).
 
 ## Parked questions
 

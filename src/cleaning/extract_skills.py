@@ -26,8 +26,9 @@ from __future__ import annotations
 
 import argparse
 import logging
+from decimal import ROUND_HALF_UP, Decimal
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, tuple_
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
@@ -82,56 +83,68 @@ def extract_for_all_jobs(
     number of current links (matches at or above `min_confidence`), as
     before. Stale links are deleted; their count is logged. `extractor`
     defaults to one built from the taxonomy file (tests pass their own).
+
+    Jobs are read in keyset batches (`WHERE id > :last ORDER BY id LIMIT
+    BATCH_SIZE`). Per batch, at most one multi-row upsert writes the links
+    that are new or whose confidence changed, and at most one DELETE
+    removes the stale ones; links already correct are not rewritten.
     """
     extractor = extractor or SkillExtractor()
     jobs_processed = links_written = links_deleted = 0
-    offset = 0
+    last_id = 0
     while True:
         batch = session.execute(
             select(Job.id, Job.title, Job.description, Job.description_full)
+            .where(Job.id > last_id)
             .order_by(Job.id)
-            .offset(offset)
             .limit(BATCH_SIZE)
         ).all()
         if not batch:
             break
-        batch_ids = [row[0] for row in batch]
-        existing: dict[int, set[int]] = {}
-        for job_id, skill_id in session.execute(
-            select(JobSkill.job_id, JobSkill.skill_id).where(JobSkill.job_id.in_(batch_ids))
-        ):
-            existing.setdefault(job_id, set()).add(skill_id)
+        last_id = batch[-1][0]
+        existing: dict[tuple[int, int], Decimal] = {
+            (job_id, skill_id): confidence
+            for job_id, skill_id, confidence in session.execute(
+                select(JobSkill.job_id, JobSkill.skill_id, JobSkill.confidence).where(
+                    JobSkill.job_id.in_([row[0] for row in batch])
+                )
+            )
+        }
+        upserts: list[dict] = []
+        wanted: set[tuple[int, int]] = set()
         for job_id, title, description, description_full in batch:
             text = f"{title or ''}\n{description_full or description or ''}"
-            wanted: set[int] = set()
             for skill_name, confidence in extractor.extract(text).items():
                 if confidence < min_confidence:
                     continue
-                skill_id = skill_ids[skill_name]
-                wanted.add(skill_id)
-                stmt = (
-                    pg_insert(JobSkill)
-                    .values(job_id=job_id, skill_id=skill_id, confidence=confidence)
-                    .on_conflict_do_update(
-                        index_elements=[JobSkill.job_id, JobSkill.skill_id],
-                        set_={"confidence": confidence},
-                    )
-                )
-                session.execute(stmt)
+                key = (job_id, skill_ids[skill_name])
+                wanted.add(key)
                 links_written += 1
-            stale = existing.get(job_id, set()) - wanted
-            if stale:
-                session.execute(
-                    delete(JobSkill).where(
-                        JobSkill.job_id == job_id, JobSkill.skill_id.in_(sorted(stale))
-                    )
-                )
-                links_deleted += len(stale)
+                if existing.get(key) != _stored(confidence):
+                    upserts.append({"job_id": key[0], "skill_id": key[1], "confidence": confidence})
             jobs_processed += 1
-        offset += BATCH_SIZE
+        if upserts:
+            stmt = pg_insert(JobSkill).values(upserts)
+            session.execute(
+                stmt.on_conflict_do_update(
+                    index_elements=[JobSkill.job_id, JobSkill.skill_id],
+                    set_={"confidence": stmt.excluded.confidence},
+                )
+            )
+        stale = sorted(existing.keys() - wanted)
+        if stale:
+            session.execute(
+                delete(JobSkill).where(tuple_(JobSkill.job_id, JobSkill.skill_id).in_(stale))
+            )
+            links_deleted += len(stale)
     if links_deleted:
         logger.info("Removed %d job-skill links that no longer match.", links_deleted)
     return jobs_processed, links_written
+
+
+def _stored(confidence: float) -> Decimal:
+    """A confidence as job_skills.confidence (numeric(3, 2)) stores it."""
+    return Decimal(str(confidence)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
 def report_top_skills(session: Session, limit: int = 15) -> None:

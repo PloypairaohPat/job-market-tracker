@@ -182,3 +182,83 @@ def test_visa_reads_raw_pages_once_per_batch_not_per_job(engine, monkeypatch):
     assert dist["restriction:citizenship"] == 3  # the first job on each page
     with engine.connect() as conn:
         assert conn.execute(text("select count(*) from job_visa_signals")).scalar() == 10
+
+
+# --------------------------------------------------------------------- #
+# E3 skills
+
+
+def tiny_taxonomy(sql_conf: float = 0.9):
+    import re as _re
+
+    from src.cleaning.skill_extractor import SkillDef, SkillExtractor
+
+    return SkillExtractor(
+        [
+            SkillDef("sql", "language", sql_conf, _re.compile(r"\bsql\b", _re.I)),
+            SkillDef("tableau", "bi_tool", 0.8, _re.compile(r"\btableau\b", _re.I)),
+        ]
+    )
+
+
+def skill_ids(engine) -> dict[str, int]:
+    with engine.begin() as conn:
+        for name in ("sql", "tableau"):
+            conn.execute(
+                text("insert into skills (name, category, aliases) values (:n, 'x', '{}')"),
+                {"n": name},
+            )
+        return dict(conn.execute(text("select name, id from skills")).all())
+
+
+def links(engine) -> set[tuple[str, str, str]]:
+    with engine.connect() as conn:
+        return {
+            (ext, name, str(conf))
+            for ext, name, conf in conn.execute(
+                text(
+                    "select j.external_id, s.name, js.confidence from job_skills js "
+                    "join jobs j on j.id = js.job_id join skills s on s.id = js.skill_id"
+                )
+            )
+        }
+
+
+def test_skills_keyset_batches_converge_and_update_confidence(engine, monkeypatch):
+    from src.cleaning import extract_skills
+
+    monkeypatch.setattr(extract_skills, "BATCH_SIZE", 2)
+    ids = skill_ids(engine)
+    add_jobs(
+        [
+            {"external_id": f"s{i}", "source": "adzuna", "title": "Analyst", "description": d}
+            for i, d in enumerate(["SQL", "Tableau", "SQL and Tableau", None, "sql"])
+        ]
+    )
+    with session_scope(TEST_DB_URL) as s:
+        assert extract_skills.extract_for_all_jobs(s, ids, 0.0, tiny_taxonomy()) == (5, 5)
+    assert links(engine) == {
+        ("s0", "sql", "0.90"),
+        ("s1", "tableau", "0.80"),
+        ("s2", "sql", "0.90"),
+        ("s2", "tableau", "0.80"),
+        ("s4", "sql", "0.90"),
+    }
+
+    # a changed confidence is rewritten; a dropped match is deleted
+    with engine.begin() as conn:
+        conn.execute(text("update jobs set description = 'SQL' where external_id = 's2'"))
+    with session_scope(TEST_DB_URL) as s:
+        extract_skills.extract_for_all_jobs(s, ids, 0.0, tiny_taxonomy(sql_conf=0.7))
+    assert links(engine) == {
+        ("s0", "sql", "0.70"),
+        ("s1", "tableau", "0.80"),
+        ("s2", "sql", "0.70"),
+        ("s4", "sql", "0.70"),
+    }
+
+    # converged: a second run writes nothing
+    with statements() as seen, session_scope(TEST_DB_URL) as s:
+        assert extract_skills.extract_for_all_jobs(s, ids, 0.0, tiny_taxonomy(0.7)) == (5, 4)
+    writes = [q for q in touching(seen, "job_skills") if not q.lstrip().startswith("SELECT")]
+    assert writes == []
