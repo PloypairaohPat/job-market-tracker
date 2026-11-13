@@ -34,10 +34,11 @@ into `docs/dev-log/portfolio-readiness.md` when Parts A to F are done.
 | E2 visa signals in bulk | done | E2 |
 | E3 skills in bulk | done | E3 |
 | E4 statement-count test, after timings | done | E4 |
+| F1, F2 private shortlist, tests and docs | done | F1-F2 |
 
 ## Latest test count
 
-809 passed, 1 skipped (after E4).
+835 passed, 1 skipped (after F).
 
 ## Parked questions
 
@@ -50,6 +51,7 @@ into `docs/dev-log/portfolio-readiness.md` when Parts A to F are done.
 | Q6 | D2 | Turn on `ADZUNA_SORT_BY`? | Owner decides after looking at `v_search_window_coverage` on real data; the earlier the better |
 | Q7 | D4 | `jobs.removed_at`: (a) leave unset and documented, (b) set after N unseen snapshot days, (c) drop in a later migration | (a), built |
 | Q8 | D6 | Threshold for doctor check 11's WARN (any query's captured share on the latest day) | 50% (`WINDOW_WARN_PCT` in `src/doctor.py`) |
+| Q9 | F | Location semantics: with `metros` empty, should `include_remote = false` drop remote postings (built) or have no effect? | Drop them: the option then means the same thing in both cases |
 | Q5 | C2 | Licence and holder: MIT / Apache-2.0 / none; holder "Pat Ploypairaoh" (the name on the merge commits) | MIT, 2026, Pat Ploypairaoh; confirm before merging |
 
 ## Evidence collected so far

@@ -168,6 +168,7 @@ Running it every day, reading the health check and the budget arithmetic: [`docs
 - [`docs/dashboard.md`](docs/dashboard.md) — the Metabase dashboards: setup, caveats, changing a card
 - [`docs/deploy.md`](docs/deploy.md) — running on a server: bootstrap, cut-over, backups, updating
 - [`docs/time-series-readiness.md`](docs/time-series-readiness.md) — what the daily snapshots can and can't support, and the checks to run before trusting a trend
+- [`docs/shortlist.md`](docs/shortlist.md) — a private shortlist of recent postings that fit a profile; its output names postings and is never committed
 - [`docs/reports.md`](docs/reports.md) — the written reports: rendering, the guardrails, writing and publishing the narrative
 - [`docs/phase_1_findings.md`](docs/phase_1_findings.md) — what Phase 1 revealed about the data
 - [`docs/dev-log/`](docs/dev-log/README.md) — work logs from AI-assisted build sessions

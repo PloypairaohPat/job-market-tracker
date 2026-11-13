@@ -1,0 +1,48 @@
+# Shortlist profile: copy to shortlist.toml (gitignored) and edit.
+#   Copy-Item "shortlist.example.toml" "shortlist.toml"
+# Then:  uv run python -m src.shortlist      (docs/shortlist.md)
+#
+# Every option is optional; a commented-out option uses the default shown.
+# Unknown options and unknown values are errors, so a typo can't silently
+# empty the shortlist.
+
+# Postings first seen in the last N days (on jobs.first_seen_at).
+# lookback_days = 7
+
+# Title keywords, case-insensitive substrings. include: keep a posting if its
+# title contains ANY of these (empty = keep all). exclude: drop it if its
+# title contains any of these.
+# title_include = ["analyst", "analytics"]
+# title_exclude = ["intern", "principal"]
+
+# Skills, matched on job_skills at confidence >= 0.8, by taxonomy name
+# (src/cleaning/data/skills.json; case doesn't matter). any: at least one;
+# all: every one of them. Commercial descriptions are truncated, so a
+# skill filter can drop a commercial posting that does ask for the skill.
+# skills_any = ["SQL", "Python"]
+# skills_all = ["SQL"]
+
+# Tracked metros (src/cleaning/metro.py): "NYC", "SF Bay Area", "LA",
+# "Chicago", "Boston", "Seattle", "Austin", "DC". Empty = any location.
+# With metros set, include_remote = true also keeps remote postings anywhere.
+# With metros empty, include_remote = false drops remote postings.
+# metros = ["NYC", "DC"]
+# include_remote = true
+
+# Seniority from the title: "junior", "mid", "senior", "lead". Empty = any.
+# Postings whose title has no seniority signal are kept and labelled
+# "no title signal" unless include_no_seniority_signal = false.
+# seniority = ["junior", "mid"]
+# include_no_seniority_signal = true
+
+# Minimum annual salary (top of the posted range, annualized). Applied only
+# to employer-disclosed salaries that passed the quality check; postings
+# without a salary are kept. Adzuna's predicted salaries are shown and
+# labelled as its estimate, and only used to exclude when
+# min_salary_uses_predicted = true.
+# min_salary = 70000
+# min_salary_uses_predicted = false
+
+# Visa outlook buckets from v_job_visa_outlook: "strong", "possible",
+# "unknown", "closed". Empty = any. "unknown" is not "no".
+# visa_buckets = ["strong", "possible", "unknown"]

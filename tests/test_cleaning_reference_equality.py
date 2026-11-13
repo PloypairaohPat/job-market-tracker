@@ -140,7 +140,7 @@ def scramble(engine) -> None:
             text(
                 "insert into job_skills (job_id, skill_id, confidence) "
                 "select j.id, s.id, 0.9 from jobs j cross join skills s "
-                "where j.id % 7 = 0 and s.name in ('zz_left_the_taxonomy', 'sas') "
+                "where j.id % 7 = 0 and s.name in ('zz_left_the_taxonomy', 'SAS') "
                 "on conflict do nothing"
             )
         )
