@@ -143,6 +143,15 @@ def test_seniority_and_the_no_signal_rule():
     assert entry.seniority == "no title signal"
 
 
+def test_no_signal_rule_applies_without_a_seniority_list():
+    # the example profile and docs say no-signal postings are kept "unless
+    # include_no_seniority_signal = false", with no condition on `seniority`
+    p = Profile(include_no_seniority_signal=False)
+    assert not sl.keep(row(seniority=None), p)
+    assert sl.keep(row(seniority="senior"), p)
+    assert sl.keep(row(seniority=None), Profile())
+
+
 def test_salary_minimum_applies_to_disclosed_salaries_only():
     p = Profile(min_salary=80000)
     low = {"salary_min": 60000, "salary_max": 70000, "salary_period": "year"}
@@ -213,6 +222,16 @@ def test_reposts_collapse_per_employer_and_title_newest_first():
     assert first.job_ids == [5, 3, 2]
     assert first.locations == ["Boston, MA (Boston)", "New York, New York (NYC)", "remote"]
     assert first.skills == ["SQL"] and first.first_seen == "2026-03-09"
+
+
+def test_postings_without_an_employer_are_never_merged():
+    rows = [
+        row(job_id=7, employer_key=None, employer=None, redirect_url="https://example.invalid/7"),
+        row(job_id=6, employer_key=None, employer=None, redirect_url="https://example.invalid/6"),
+    ]
+    entries = sl.collapse(rows)
+    assert [(e.job_ids, e.postings) for e in entries] == [([7], 1), ([6], 1)]
+    assert [e.link for e in entries] == ["https://example.invalid/7", "https://example.invalid/6"]
 
 
 def test_markdown_and_csv_for_entries_and_for_an_empty_result(tmp_path):

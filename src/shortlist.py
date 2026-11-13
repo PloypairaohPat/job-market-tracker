@@ -238,13 +238,14 @@ def keep(row: dict[str, Any], p: Profile) -> bool:
             return False
     elif not p.include_remote and row.get("is_remote"):
         return False
-    if p.seniority:
-        level = row.get("seniority")
-        if level is None:
-            if not p.include_no_seniority_signal:
-                return False
-        elif level not in p.seniority:
+    level = row.get("seniority")
+    if level is None:
+        # applies whether or not `seniority` lists levels, as the example
+        # profile and docs/shortlist.md describe
+        if not p.include_no_seniority_signal:
             return False
+    elif p.seniority and level not in p.seniority:
+        return False
     if p.min_salary is not None and row.get("salary_quality") == "ok":
         predicted = bool(row.get("salary_is_predicted"))
         if not predicted or p.min_salary_uses_predicted:
@@ -312,8 +313,13 @@ def collapse(rows: list[dict[str, Any]]) -> list[Entry]:
     `rows` must be newest first (fetch_postings orders them that way)."""
     groups: dict[tuple[str, str], list[dict[str, Any]]] = {}
     for row in rows:
-        employer = row.get("employer_key") or row.get("employer") or "(no employer)"
-        key = (employer, row.get("title_key") or (row.get("title") or "").strip().lower())
+        employer = row.get("employer_key") or row.get("employer")
+        if employer is None:
+            # an unknown employer is not the same employer: never merge two
+            # postings just because both lack a company
+            key = (f"(no employer) job {row.get('job_id')}", "")
+        else:
+            key = (employer, row.get("title_key") or (row.get("title") or "").strip().lower())
         groups.setdefault(key, []).append(row)
     entries = []
     for group in groups.values():

@@ -632,10 +632,15 @@ def window_finding(rows: list[Mapping[str, Any]]) -> Finding:
 def check_search_window(ctx: Context, conn: Connection) -> Finding:
     rows = conn.execute(
         text(
-            "select source, fetch_date, query, results_captured, api_total, pct_captured "
-            "from v_search_window_coverage c "
-            "where fetch_date = (select max(fetch_date) from v_search_window_coverage l "
-            "where l.source = c.source)"
+            # the latest day per source is found once and joined, not
+            # re-derived per row: a correlated subquery here re-ran the view
+            # (and its JSON reads) for every row of history
+            "with coverage as (select * from v_search_window_coverage), "
+            "latest as (select source, max(fetch_date) as fetch_date from coverage "
+            "group by source) "
+            "select c.source, c.fetch_date, c.query, c.results_captured, c.api_total, "
+            "c.pct_captured from coverage c join latest l "
+            "on l.source = c.source and l.fetch_date = c.fetch_date"
         )
     ).mappings()
     return window_finding([dict(r) for r in rows])
