@@ -2,6 +2,35 @@
 
 One entry per run, newest first. The backlog is `docs/dev-log/next-backlog.md`.
 
+## 2026-11-13: fifth Phase 2 run
+
+- **Branch:** `claude/portfolio-next`; main is still at 2f80d85, so there was nothing to merge.
+- **Starting head:** 50bdb10. The pre-commit script was green on it; CI was green on its last three
+  pushes (`gh run list`).
+- **Review-load brake:** 27 commits were not in main at the start, so this run did Tier 1 work only.
+- **Finished:** a review of the Phase 1 parts that neither N1 nor N10 had covered, and a fresh walk of
+  the README's demo quick start. No defect was found, so no code changed.
+- **Commits:** the one that carries this entry (log only).
+- **pytest:** 897 passed, 1 skipped before and after.
+
+### What was checked
+
+| Area | Files | Result |
+|---|---|---|
+| A1 engine cache | `src/utils/db.py` | One engine per URL; `None` resolves to settings; nothing outside the module reads the legacy `_engine` / `_SessionFactory` globals, so test teardown that resets them stays harmless |
+| B1 `--init-narrative` and narrative parsing | `src/reports/publish.py`, `src/reports/__main__.py` | Each report's `SECTIONS` keys match its `doc.placeholder(...)` calls; a placeholder and its "numbers from this run" list are one block, so the merge drops both |
+| D1 coverage view | `sql/views/v_search_window_coverage.sql` | `fetched_at` is `timestamptz`, so the UTC fetch date is right; a re-fetched page counts once |
+| D2 sort order | `src/ingestion/ingest_adzuna.py`, `adzuna_client.py`, `scripts/smoke_adzuna.py`, `src/utils/config.py` | Unset sends no `sort_by`; set, it reaches the request, every stored page and the run params, on the guarded, dry-run and skip paths |
+| N10 provenance | `src/reports/provenance.py` | The pathspec excludes run with `cwd` at the repo root, so `.` is the whole checkout |
+| Reader role and doctor view list | `src/dashboard/reader_role.py`, `src/doctor.py` | Both enumerate views (from `pg_views` and `sql/views/`), so the four new views need no list edits |
+| README demo quick start | README.md "Run it yourself" | On a fresh `jobmarket_demo`: migrate, `seed_demo_data.py --full` (26 views), all four reports rendered (to the scratchpad), doctor exit 0 with 4 expected WARNs on demo data, shortlist with the example profile: 67 entries (outside the repo) |
+
+### Next run
+
+Commits not in main after this run: 28. The brake still applies: Tier 1 fixes only until the owner
+merges. Open items N7, N8 and N9 wait for the merge. Every Phase 1 part has now had a second review;
+unless main moves, the next run has no Tier 1 work left and should only re-run the checks.
+
 ## 2026-11-13: fourth Phase 2 run
 
 - **Branch:** `claude/portfolio-next`; main is still at 2f80d85, so there was nothing to merge.
