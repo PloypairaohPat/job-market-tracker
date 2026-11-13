@@ -2,6 +2,23 @@
 
 One entry per run, newest first. The backlog is `docs/dev-log/next-backlog.md`.
 
+## 2026-11-13: third Phase 2 run
+
+- **Branch:** `claude/portfolio-next`; main is still at 2f80d85, so there was nothing to merge.
+- **Starting head:** 0d02430. The pre-commit script was green on it; CI was green on its last three
+  pushes (`gh run list`).
+- **Finished:** N6. CI now runs `python scripts/apply_views.py` twice on the alembic-built database,
+  after the migration round trip and before the tests, as the local pre-commit script does
+  (`make views` twice). README's status table and `docs/PROJECT_GUIDE.md` now list the step.
+- **Commits:** the N6 commit that carries this entry.
+- **pytest:** 895 passed, 1 skipped before and after (no tests added; the change is CI only).
+
+### Next run
+
+Commits not in main after this run: 26, above the review-load brake of 25. The owner has been
+asked to review and merge. Until main catches up, runs do Tier 1 work only (fixes to what exists).
+Open items N7, N8 and N9 wait for the merge.
+
 ## 2026-11-13: second Phase 2 run
 
 - **Branch:** `claude/portfolio-next`; main is still at 2f80d85, so there was nothing to merge.

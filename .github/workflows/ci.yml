@@ -1,6 +1,7 @@
-# CI: lint, format, migration round trip and the full test suite (unit +
-# Postgres integration) on every push and pull request. Uses no secrets:
-# every test runs against fixtures and fakes, never a live API.
+# CI: lint, format, migration round trip, views applied twice and the full
+# test suite (unit + Postgres integration) on every push and pull request.
+# Uses no secrets: every test runs against fixtures and fakes, never a live
+# API.
 name: CI
 
 on:
@@ -62,6 +63,11 @@ jobs:
 
       - name: Migration round trip
         run: alembic upgrade head && alembic downgrade base && alembic upgrade head
+
+      - name: Views apply twice
+        # Every sql/views/*.sql on the alembic-built schema, then again:
+        # catches a view that fails on re-apply (CREATE OR REPLACE limits).
+        run: python scripts/apply_views.py && python scripts/apply_views.py
 
       - name: Tests
         # The round trip left an alembic-built schema; integration tests

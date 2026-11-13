@@ -43,7 +43,7 @@ The pitch is yours to write. These are the true, checkable facts it can draw on,
 - A visa-sponsorship layer joining postings to Department of Labor LCA filing records, kept private at the posting level. `src/visa/README.md`.
 - A daily runner with a monthly API budget guard, a run log and a read-only health check; it runs under Windows Task Scheduler today. `docs/daily-operation.md`.
 - Guardrails as code: a report can't print a rate without its denominator or a salary median below n = 15. `src/reports/guardrails.py`, `docs/reports.md`.
-- CI on every push: lint, format, a migration round trip and the full test suite against real Postgres. `.github/workflows/ci.yml`.
+- CI on every push: lint, format, a migration round trip, the views applied twice and the full test suite against real Postgres. `.github/workflows/ci.yml`.
 - A deploy kit for a small server exists and has not been used yet. `docs/deploy.md`.
 
 ---
@@ -222,7 +222,7 @@ Each bullet names where it is shown.
 - **Statistical reporting discipline**: medians with IQR, n beside every grouped number, floors below which a figure is withheld (`src/reports/guardrails.py`).
 - **Data visualization**: matplotlib report charts (`src/reports/charts.py`) and Metabase cards.
 - **Scheduling and monitoring**: a daily runner with a budget guard, run log, health check and laptop doctor (`src/pipeline/`, `src/doctor.py`).
-- **Containers and CI**: Docker Compose, a pipeline image checked by `scripts/verify_image.sh`, GitHub Actions running lint, format, a migration round trip and the test suite.
+- **Containers and CI**: Docker Compose, a pipeline image checked by `scripts/verify_image.sh`, GitHub Actions running lint, format, a migration round trip, the views applied twice and the test suite.
 - **Version control**: a public GitHub repo with documentation.
 
 ### Analytical

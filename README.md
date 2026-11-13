@@ -161,7 +161,7 @@ Running it every day, reading the health check and the budget arithmetic: [`docs
 | Cleaning layer, skill taxonomy extractor, visa-sponsorship layer | | Public dashboard links (they follow the server cut-over) |
 | SQL views, six Metabase dashboards as code | | |
 | Report kit: four reports render from the views; a publish path for the narratives | | |
-| CI: lint, format, migration round trip and the full test suite | | |
+| CI: lint, format, migration round trip, views applied twice and the full test suite | | |
 
 ## Documentation
 
