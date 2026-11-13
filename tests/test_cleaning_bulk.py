@@ -262,3 +262,37 @@ def test_skills_keyset_batches_converge_and_update_confidence(engine, monkeypatc
         assert extract_skills.extract_for_all_jobs(s, ids, 0.0, tiny_taxonomy(0.7)) == (5, 4)
     writes = [q for q in touching(seen, "job_skills") if not q.lstrip().startswith("SELECT")]
     assert writes == []
+
+
+# --------------------------------------------------------------------- #
+# E4 statements against jobs don't grow with the number of jobs
+
+
+def statements_per_step(n: int, tmp_path) -> dict[str, int]:
+    from scripts import bench_cleaning
+
+    dispose_engines()
+    bench_cleaning.reset_schema(TEST_DB_URL)
+    bench_cleaning.seed(TEST_DB_URL, n)
+    out = {}
+    for step in bench_cleaning.STEPS:
+        with statements() as seen, session_scope(TEST_DB_URL) as s:
+            if step == "skills":
+                from src.cleaning import extract_skills
+
+                extract_skills.extract_for_all_jobs(s, extract_skills.sync_taxonomy(s))
+            else:
+                apply_cleaning.run_steps(s, (step,), tmp_path / "c.csv")
+        out[step] = len(touching(seen, "jobs"))
+    return out
+
+
+def test_statements_against_jobs_are_a_small_constant(engine, tmp_path):
+    # both sizes fit one batch of every step, so the counts must be equal
+    small = statements_per_step(40, tmp_path)
+    large = statements_per_step(400, tmp_path)
+    assert small == large
+    assert max(large.values()) <= 3, large
+    # read + one UPDATE per batch for each job-level step; one read for visa
+    # and skills; companies only summarizes (one read); metro never reads jobs
+    assert large["metro"] == 0

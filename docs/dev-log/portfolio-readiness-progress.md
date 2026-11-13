@@ -33,10 +33,11 @@ into `docs/dev-log/portfolio-readiness.md` when Parts A to F are done.
 | E1 one pass over jobs | done | E1 |
 | E2 visa signals in bulk | done | E2 |
 | E3 skills in bulk | done | E3 |
+| E4 statement-count test, after timings | done | E4 |
 
 ## Latest test count
 
-808 passed, 1 skipped (after E3).
+809 passed, 1 skipped (after E4).
 
 ## Parked questions
 
@@ -199,3 +200,30 @@ total          11.99s                 63.61s
 Surprise for the report: at 20,000 jobs (2,000 invented companies) the
 `companies` step is the second-slowest: `find_merge_candidates` compares
 every pair of names. Part E doesn't cover it; not changed.
+
+### E4: after Part E (same machine, same script)
+
+```
+step                      N=5000               N=20000
+seniority       0.13s        7 st      0.59s       21 st
+salary          0.18s        7 st      0.73s       21 st
+remote          0.10s        7 st      0.42s       21 st
+metro           0.01s        9 st      0.00s        9 st
+companies       1.29s      502 st     22.88s     2002 st
+scope           0.31s        7 st      1.19s       21 st
+visa            0.77s       13 st      3.06s       42 st
+skills          2.74s      103 st     10.78s      193 st
+total           5.53s                 39.65s            
+```
+
+Excluding `companies` (unchanged by Part E): 10.61s -> 4.24s at 5,000
+jobs, 41.88s -> 16.77s at 20,000. SQL round trips against all tables
+for the job-level steps: from one per job to a few per 2,000-job batch.
+
+`tests/test_cleaning_bulk.py::test_statements_against_jobs_are_a_small_constant`
+seeds 40 and 400 jobs (both inside one batch of every step) and asserts
+identical per-step counts of statements touching `jobs`, each at most 3
+(seen: seniority/salary/remote/scope 3 = read, UPDATE, final empty read;
+visa 2; skills 2; companies 1; metro 0). Beyond one batch the count grows
+by one read and at most one write per batch (2,000 jobs for the job-level
+steps and visa, 500 for skills), not per job. No wall-clock assertion.
