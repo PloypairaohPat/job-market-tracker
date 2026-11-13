@@ -29,10 +29,11 @@ into `docs/dev-log/portfolio-readiness.md` when Parts A to F are done.
 | D4 removed_at documented as reserved | done | D3 (same commit) |
 | D5 docs/time-series-readiness.md | done | D5 |
 | D6 doctor check 11, search window | done | D6 |
+| E0 reference module, equality test, benchmark | done | E0 |
 
 ## Latest test count
 
-795 passed, 1 skipped (after D6).
+801 passed, 1 skipped (after E0).
 
 ## Parked questions
 
@@ -164,3 +165,34 @@ exit code there stays 0.
 Note for the final report: `docs/time-series-readiness.md` links the
 parked threshold to this progress file; repoint it when the file is
 folded into `portfolio-readiness.md`.
+
+### E0: reference and benchmark
+
+- `tests/reference_cleaning.py`: a copy of the job-level steps, metro,
+  visa and `extract_for_all_jobs` as they stood after D (post-A2/A3, so no
+  intended difference; only the stale-link log line dropped).
+- `tests/test_cleaning_reference_equality.py`: both sides start from the
+  same scrambled state (demo seed + six invented edge rows + a skill that
+  left the taxonomy), and must leave identical contents and counts, at
+  `min_confidence` 0.0 and 0.8; plus a second-run-changes-nothing test.
+  Checked that it catches a regression: reverting A3's full-text read in
+  production makes it fail.
+- `scripts/bench_cleaning.py`, before Part E (this VM, Postgres 16 local;
+  "st" = SQL round trips, an executemany counted once per row):
+
+```
+step                      N=5000               N=20000
+seniority       0.35s     2505 st      1.50s     9953 st
+salary          0.43s     3969 st      1.96s    15951 st
+remote          0.23s     1202 st      1.09s     4836 st
+metro           0.00s        9 st      0.00s        9 st
+companies       1.38s      502 st     21.73s     2002 st
+scope           0.53s     5001 st      2.40s    20001 st
+visa            1.02s       85 st      4.34s      334 st
+skills          8.05s    23439 st     30.59s    92639 st
+total          11.99s                 63.61s
+```
+
+Surprise for the report: at 20,000 jobs (2,000 invented companies) the
+`companies` step is the second-slowest: `find_merge_candidates` compares
+every pair of names. Part E doesn't cover it; not changed.
