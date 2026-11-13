@@ -19,6 +19,7 @@ Status values: open, in progress, done (commit), parked (reason).
 | N7 | 3 | Measure coverage locally (not added to pyproject) and test untested behaviour in cleaning, visa, reports and shortlist | Correctness | to be measured | M | open |
 | N8 | 4 | One command that builds a demo database, applies the views and renders every report; README quick start | Recruiter and owner: today it takes five commands | README "Run it yourself" | M | open |
 | N9 | 4 | Read-only pre-flight for publishing a report (narrative present and complete, database not demo, README block present) before the owner starts | Owner | `src/reports/publish.py` reports problems only at publish time | S | open |
+| N10 | 1 | Re-review the B publish path (not covered by the N1 review); fix what is wrong | Owner and correctness: a published report's provenance stamp is what a reader trusts | `src/reports/publish.py`, `src/reports/provenance.py`; the owner steps in `docs/dev-log/portfolio-readiness.md` | S | done (N10 commit): a second publish no longer stamps "-dirty"; owner step 1 names the view count with Phase 2 merged |
 
 ## Notes from the N1 review
 

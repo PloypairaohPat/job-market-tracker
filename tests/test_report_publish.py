@@ -219,6 +219,25 @@ def test_a_dollar_figure_in_the_render_is_not_stale():
     assert pub.stale_numbers(narrative, "| $85,000 | 33.3% |") == []
 
 
+def test_a_second_publish_is_not_stamped_dirty_by_the_first(tmp_path, monkeypatch):
+    """The first publish edits README.md and docs/reports/; publishing again after
+    fixing the narrative must not mark the stamp's commit "-dirty" for that."""
+    from src.reports import provenance
+
+    seen = []
+
+    def fake_git_commit(repo_root=REPO_ROOT, ignore=()):
+        seen.append(ignore)
+        return "c0ffee000000"
+
+    monkeypatch.setattr(provenance, "git_commit", fake_git_commit)
+    write_narrative(tmp_path, disclosure.SLUG, GOOD)
+    result = pub.publish(disclosure.SLUG, disc_reader(), tmp_path, None)
+    assert seen == [pub.PUBLISH_OUTPUTS]
+    assert set(pub.PUBLISH_OUTPUTS) == {"docs/reports", "README.md"}
+    assert "| Git commit | `c0ffee000000` |" in result.path.read_text()
+
+
 def test_republishing_replaces_old_charts(tmp_path):
     write_narrative(tmp_path, disclosure.SLUG, GOOD)
     stale = tmp_path / disclosure.SLUG / "old-chart.png"

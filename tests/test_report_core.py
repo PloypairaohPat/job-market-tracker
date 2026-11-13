@@ -209,3 +209,29 @@ def test_a_view_missing_from_the_database_says_run_make_views(engine):
         conn.execute(text("drop view v_skill_top_by_source"))
     with pytest.raises(GuardrailError, match="make views"):
         ViewReader(engine).read("v_skill_top_by_source")
+
+
+def test_git_commit_ignores_only_the_paths_it_is_told_to(monkeypatch, tmp_path):
+    import subprocess
+
+    monkeypatch.delenv(prov.COMMIT_ENV, raising=False)
+
+    def git(*args):
+        subprocess.run(["git", *args], cwd=tmp_path, check=True, capture_output=True)
+
+    git("init", "-q")
+    for path in ("README.md", "docs/reports/r/report.md", "src/a.py"):
+        (tmp_path / path).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / path).write_text("x\n")
+    git("add", ".")
+    git("-c", "user.name=t", "-c", "user.email=t@example.invalid", "commit", "-qm", "c")
+    ignore = ("docs/reports", "README.md")
+    assert not prov.git_commit(tmp_path, ignore).endswith("-dirty")
+
+    (tmp_path / "README.md").write_text("changed by a publish\n")
+    (tmp_path / "docs/reports/r/report.md").write_text("changed by a publish\n")
+    assert prov.git_commit(tmp_path).endswith("-dirty")
+    assert not prov.git_commit(tmp_path, ignore).endswith("-dirty")
+
+    (tmp_path / "src/a.py").write_text("code changed\n")
+    assert prov.git_commit(tmp_path, ignore).endswith("-dirty")

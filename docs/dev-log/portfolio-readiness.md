@@ -137,7 +137,7 @@ Windows PowerShell, from the repo root.
    uv run python scripts/apply_views.py
    uv run python -m src.doctor
    ```
-   Expect "25 views applied". The doctor now has 11 checks; check 11 may WARN (see step 3).
+   Expect "25 views applied" for this branch alone, or "26 views applied" once `claude/portfolio-next` is merged too (it adds `v_analysis_population`). The doctor now has 11 checks; check 11 may WARN (see step 3).
 2. **Git identity** for the owner's own commits (use the GitHub noreply address from github.com/settings/emails):
    ```
    git config user.name "Pat Ploypairaoh"

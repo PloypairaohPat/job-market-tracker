@@ -2,6 +2,40 @@
 
 One entry per run, newest first. The backlog is `docs/dev-log/next-backlog.md`.
 
+## 2026-11-13: fourth Phase 2 run
+
+- **Branch:** `claude/portfolio-next`; main is still at 2f80d85, so there was nothing to merge.
+- **Starting head:** 5362ff6. The pre-commit script was green on it; CI was green on its last three
+  pushes.
+- **Review-load brake:** 26 commits were not in main at the start, so this run did Tier 1 work only.
+- **Finished:** N10, a re-review of the Part B publish path (`src/reports/publish.py`,
+  `src/reports/__main__.py`, `src/reports/provenance.py`), which the N1 review had not covered.
+- **Commits:** the N10 commit that carries this entry.
+- **pytest:** 895 passed, 1 skipped before; 897 passed, 1 skipped after.
+
+### N10: findings and fixes
+
+1. **A second publish was stamped "-dirty".** The provenance commit is marked "-dirty" when any tracked
+   file has uncommitted changes. The first `--publish` rewrites the tracked README.md (and, once a
+   report is committed, its `docs/reports/<slug>/` files), so the owner's documented loop, "read every
+   stale-number warning, fix the narrative, publish again", produced a published report whose stamp
+   said the code differed from its commit when it did not. `git_commit` now takes paths to leave out,
+   and `--publish` leaves out `docs/reports` and `README.md`, the files it writes itself. A plain render
+   behaves as before. Two new tests fail before the fix: one on a throwaway git repository, one that
+   publish passes those paths.
+2. **Owner step 1 named the wrong view count once this branch is merged.** It said "25 views applied";
+   with `v_analysis_population` from N2 the count is 26. The step now names both.
+
+Checked and left as they are: the merge of narrative into placeholder blocks, the refusal paths, the
+stale-number regexes against the renderers' formats (`<0.1%`, `$85,000`, `$85k`, ranges with an en
+dash), the README block for 0, 1 and 2 reports, and that the CLI catches a guardrail failure during
+publish.
+
+### Next run
+
+Commits not in main after this run: 27. The brake still applies: Tier 1 fixes only until the owner
+merges. Open items N7, N8 and N9 wait for the merge.
+
 ## 2026-11-13: third Phase 2 run
 
 - **Branch:** `claude/portfolio-next`; main is still at 2f80d85, so there was nothing to merge.

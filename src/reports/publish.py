@@ -43,6 +43,8 @@ README = REPO_ROOT / "README.md"
 README_START = "<!-- published-reports:start -->"
 README_END = "<!-- published-reports:end -->"
 INIT_COMMENT_TAG = "init-narrative:"
+# Tracked files that publishing writes; their changes don't make the stamp "-dirty".
+PUBLISH_OUTPUTS = ("docs/reports", "README.md")
 
 _COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
 _PLACEHOLDER_BLOCK = re.compile(rf"^> \*\*\[{PLACEHOLDER_MARK}: (?P<section>[^\]]+)\]\*\*")
@@ -279,7 +281,7 @@ def publish(
 
     frames = {view: reader.read(view) for view in module.VIEWS}
     data = module.compute(frames)
-    provenance = Provenance.collect(database, reader.rows_read)
+    provenance = Provenance.collect(database, reader.rows_read, ignore_dirty=PUBLISH_OUTPUTS)
     with tempfile.TemporaryDirectory() as tmp:
         rendered_path = module.render(data, provenance, Path(tmp))  # guardrails run here
         rendered = rendered_path.read_text(encoding="utf-8")

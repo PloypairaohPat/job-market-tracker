@@ -8,6 +8,9 @@ report rendered on synthetic data can't be mistaken for findings.
 The commit comes from REPORT_GIT_COMMIT when set (the pipeline image has no
 .git, so `make prod-report` passes the host checkout's commit), else from
 `git rev-parse`, marked "-dirty" when tracked files have uncommitted changes.
+`--publish` leaves out the files publishing itself writes (docs/reports/ and
+README.md): the narrative is in the published file, and a second publish
+after fixing it would otherwise stamp the unchanged code "-dirty".
 """
 
 from __future__ import annotations
@@ -28,7 +31,9 @@ def is_demo_database(name: str) -> bool:
     return "demo" in lowered or "test" in lowered
 
 
-def git_commit(repo_root: Path = REPO_ROOT) -> str:
+def git_commit(repo_root: Path = REPO_ROOT, ignore: tuple[str, ...] = ()) -> str:
+    """The checkout's short commit, "-dirty" when a tracked file outside the
+    `ignore` paths (relative to the repo root) has uncommitted changes."""
     if os.environ.get(COMMIT_ENV):
         return os.environ[COMMIT_ENV]
 
@@ -39,7 +44,8 @@ def git_commit(repo_root: Path = REPO_ROOT) -> str:
 
     try:
         commit = git("rev-parse", "--short=12", "HEAD")
-        dirty = git("status", "--porcelain", "--untracked-files=no")
+        excludes = [f":(exclude){path}" for path in ignore]
+        dirty = git("status", "--porcelain", "--untracked-files=no", "--", ".", *excludes)
     except (OSError, subprocess.SubprocessError):
         return "unknown"
     return f"{commit}-dirty" if dirty else commit
@@ -57,10 +63,12 @@ class Provenance:
         return is_demo_database(self.database)
 
     @classmethod
-    def collect(cls, database: str, view_rows: dict[str, int]) -> Provenance:
+    def collect(
+        cls, database: str, view_rows: dict[str, int], ignore_dirty: tuple[str, ...] = ()
+    ) -> Provenance:
         return cls(
             database=database,
             generated_at=datetime.now(UTC).replace(microsecond=0),
-            git_commit=git_commit(),
+            git_commit=git_commit(ignore=ignore_dirty),
             view_rows=dict(sorted(view_rows.items())),
         )
