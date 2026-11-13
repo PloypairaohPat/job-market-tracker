@@ -2,6 +2,28 @@
 
 One entry per run, newest first. The backlog is `docs/dev-log/next-backlog.md`.
 
+## 2026-11-13: second Phase 2 run
+
+- **Branch:** `claude/portfolio-next`; main is still at 2f80d85, so there was nothing to merge.
+- **Starting head:** 10ebf19. The pre-commit script was green on it before any change.
+- **Finished:** N4 (G3, the demo-dashboard screenshot).
+
+### N4: G3, one honest screenshot
+
+- Local Docker ran the pinned `metabase/metabase:v0.64.3.4`. The demo dataset was built in
+  `jobmarket_demo` with `scripts/seed_demo_data.py --full`, the 26 views applied, the reader role
+  granted, and `python -m src.dashboard.provision` built all six dashboards (Metabase's application
+  database lived inside the throwaway container; nothing from it is committed).
+- The Market overview dashboard was captured with the pre-installed headless Chromium to
+  `docs/img/dashboard-demo.png` (2128 x 1536, 2x scale). The image shows the dashboard's own banner,
+  "DEMO DATA: synthetic, not market findings", and the README adds a caption line saying it is
+  synthetic demo data.
+- The capture stops above the seniority and top-employers tables. The demo seed reuses employer names
+  from the Adzuna fixtures, so that table pairs real employer names with invented counts; the crop keeps
+  them out of the image. `docs/dashboard.md` says how the image was made and that it should be replaced
+  by a capture of the real dashboards after the server cut-over.
+- The image was looked at before committing.
+
 ## 2026-11-13: first Phase 2 run
 
 - **Branch:** `claude/portfolio-next`, created from the head of `claude/portfolio-readiness`

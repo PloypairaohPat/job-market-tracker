@@ -144,3 +144,5 @@ If the API changed shape, the test says which call failed. Metabase's app databa
 - every visa bucket, using FAKE employers only
 
 It **truncates** its target first, so it only runs against a local database whose name contains `demo` or `test`. Point `DATABASE_URL` (and `METABASE_DB_NAME`) at such a database, never at `jobmarket`.
+
+The README's screenshot (`docs/img/dashboard-demo.png`) was captured this way: the demo dataset in a database named `jobmarket_demo`, the views applied, the reader role granted, Metabase v0.64.3.4 provisioned with `src.dashboard.provision`, and the Market overview dashboard captured in a headless browser. The image stops above the seniority and top-employers tables, because the demo seed reuses employer names from the Adzuna fixtures and those rows would pair real names with invented counts. Replace it with a capture of the real dashboards after the server cut-over.

@@ -22,6 +22,10 @@ The reports are rendered from the SQL views and published here as each narrative
 
 Six Metabase dashboards are defined as files in `dashboards/`: ingestion health, market overview, salary, skills, transparency, and a private visa outlook. They read only the `v_*` SQL views, through a read-only database role. Public links will follow the server cut-over ([`docs/deploy.md`](docs/deploy.md)); until then they run locally ([`docs/dashboard.md`](docs/dashboard.md)).
 
+![Market overview dashboard on the synthetic demo dataset](docs/img/dashboard-demo.png)
+
+*Synthetic demo data (`scripts/seed_demo_data.py --full`), not market findings. Market overview dashboard, top half.*
+
 ## In three minutes
 
 I built a job-market analytics platform for data-analyst roles. Every day it pulls postings from two public APIs: Adzuna for commercial jobs and USAJobs for federal ones. It stores every raw response in Postgres, so history can be replayed. Then it cleans the messy parts: company names, salary formats, locations, seniority, remote status and skill mentions.
