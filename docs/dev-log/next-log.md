@@ -6,7 +6,10 @@ One entry per run, newest first. The backlog is `docs/dev-log/next-backlog.md`.
 
 - **Branch:** `claude/portfolio-next`; main is still at 2f80d85, so there was nothing to merge.
 - **Starting head:** 10ebf19. The pre-commit script was green on it before any change.
-- **Finished:** N4 (G3, the demo-dashboard screenshot).
+- **Finished:** N4 (G3, the demo-dashboard screenshot) and N5 (docs-consistency test).
+- **Commits:** 37ac0f7 (N4), then the N5 commit that carries this update.
+- **pytest:** 862 passed, 1 skipped before; 862 passed, 1 skipped after N4 (no tests added);
+  895 passed, 1 skipped after N5.
 
 ### N4: G3, one honest screenshot
 
@@ -23,6 +26,26 @@ One entry per run, newest first. The backlog is `docs/dev-log/next-backlog.md`.
   them out of the image. `docs/dashboard.md` says how the image was made and that it should be replaced
   by a capture of the real dashboards after the server cut-over.
 - The image was looked at before committing.
+
+### N5: docs-consistency test
+
+- `tests/test_docs_consistency.py` (no database): every `sql/views/` file has its own heading or
+  table row in `docs/data_dictionary.md`; every `make <target>` shown as a command in README.md or
+  docs/ (outside the work logs in docs/dev-log/, which stay as written) is a Makefile target; every
+  relative link and image in README.md and docs/ resolves. Three small tests cover the parsing helpers.
+- The view check failed before this commit for four views that were only mentioned in passing:
+  `v_commercial_salary_clean`, `v_field_completeness`, `v_skill_category_composition` and
+  `v_skill_top_by_source`. Each now has an entry under a new "Phase 3 analysis views" section of
+  `docs/data_dictionary.md`, built from the view's SQL and header (columns from
+  `information_schema` on the demo database). No view changed.
+- The make check, run over the work logs too, flagged `make isn` and `make prod-` in two old logs:
+  prose fragments, not commands. That is why the logs are left out of that check.
+
+### Next run
+
+Commits not in main after this run: 25. The review-load brake applies above 25, so the next run may
+add at most one more commit; after that only Tier 1 fixes until the owner merges. Recommended next
+item: N6 (CI applies the views twice), which is a one-commit change.
 
 ## 2026-11-13: first Phase 2 run
 

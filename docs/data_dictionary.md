@@ -501,6 +501,29 @@ The exit code is 1 only on a FAIL. A month with only `skipped_budget` Adzuna run
 
 One row per job that the market comparisons count: `job_id`, `market`. `market = 'commercial'` is every `source = 'adzuna'` row; `market = 'federal'` is `source = 'usajobs' AND in_scope` (NULL or false `in_scope` is excluded); any other source is excluded. The views that compare the two markets (`v_market_jobs`, `v_employer_postings`, `v_employer_roles`, `v_employer_sponsorship_match`, `v_matched_employer_lca_wages`, `v_skill_category_composition`, `v_skill_category_composition_roles`, `v_skill_text_basis`, `v_skill_top_by_source`, `v_job_observation_spans`, `v_daily_market_flow`) read it instead of repeating the filter. `tests/test_analysis_population.py` checks that each returns exactly what its earlier inline filter returned, using copies of the earlier view files in `tests/fixtures/analysis_population_reference/`. The single-market views (`v_commercial_salary_clean`, `v_salary_population`, `v_federal_skill_by_admission`, `v_field_completeness`, `v_field_completeness_counts`) keep their own one-market filters.
 
+## Phase 3 analysis views
+
+The views behind the Phase 3 findings (`docs/phase_3_findings.md`). The definitions and caveats live in each file's header in `sql/views/`; this section lists what each returns.
+
+### `v_commercial_salary_clean`
+
+One row per commercial (Adzuna) job with a usable annual USD salary: `salary_quality = 'ok'`, `salary_currency = 'USD'`, `salary_period = 'year'`. Columns: `job_id`, `title`, `salary_min`, `salary_max`, `salary_midpoint` (the mean of min and max), `salary_is_predicted`, `seniority`, `metro_area`.
+
+- It does **not** filter on `salary_is_predicted`. A headline salary filters `salary_is_predicted = false`; predicted rows are for the predicted-vs-disclosed comparison only.
+- `seniority` is passed through: NULL means no title signal, never `mid`.
+
+### `v_field_completeness`
+
+One row per market (`commercial` | `federal`, single-market filters of its own; see `v_analysis_population` above). Columns: `market`, `n_jobs`, then the share of jobs with each field present: `pct_salary_present`, `pct_salary_disclosed`, `pct_skill_present`, `pct_seniority_present`, `pct_location_present`, `pct_metro_present`, `pct_remote_true`, `pct_company_present`, `pct_posted_at_present`. Which columns are a market fact and which are instrument-limited is set out in the view's header and in `docs/findings_field_completeness.md`; the counts behind each percentage are in `v_field_completeness_counts`.
+
+### `v_skill_category_composition`
+
+One row per (market, taxonomy `category`): `n_tags` (skill tags at `confidence >= 0.8` in that category), `pct_of_tags` (its share of the market's tags), `market_n_jobs` (jobs in the market). It compares composition, not magnitude, because commercial text is truncated at about 500 characters and federal text is not (`docs/findings_commercial_vs_federal_skills.md`).
+
+### `v_skill_top_by_source`
+
+The per-skill drill-down under `v_skill_category_composition`, with the same population and confidence threshold. One row per (market, skill): `market`, `name`, `category`, `n_jobs_tagged` (jobs tagged with the skill), `market_n_jobs`, `pct_of_jobs`. It applies no minimum-n floor; a consumer chooses its own and shows the n.
+
 ## Dashboards *(added with the Metabase dashboards)*
 
 Metabase dashboards are defined as files (`dashboards/<slug>.json` plus `dashboards/sql/<key>.sql`), validated by `src/dashboard/spec.py`, and built by `python -m src.dashboard.provision`. Operating guide: [`docs/dashboard.md`](dashboard.md).
