@@ -28,13 +28,12 @@ CREATE OR REPLACE VIEW v_skill_category_composition_roles AS
 WITH population AS (
     SELECT
         j.id,
-        CASE WHEN j.source = 'adzuna' THEN 'commercial' ELSE 'federal' END AS market,
+        ap.market,
         c.normalized_name AS employer_key,
         COALESCE(NULLIF(j.title_normalized, ''), LOWER(TRIM(j.title))) AS role_title
-    FROM jobs j
+    FROM v_analysis_population ap
+    JOIN jobs j ON j.id = ap.job_id
     LEFT JOIN companies c ON c.id = j.company_id
-    WHERE j.source = 'adzuna'
-       OR (j.source = 'usajobs' AND j.in_scope)
 ),
 roles AS (
     SELECT DISTINCT market, employer_key, role_title

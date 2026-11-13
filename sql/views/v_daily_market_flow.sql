@@ -29,11 +29,9 @@
 
 CREATE OR REPLACE VIEW v_daily_market_flow AS
 WITH pop AS (
-    SELECT j.id AS job_id, j.source,
-           CASE WHEN j.source = 'adzuna' THEN 'commercial' ELSE 'federal' END AS market
-    FROM jobs j
-    WHERE j.source = 'adzuna'
-       OR (j.source = 'usajobs' AND j.in_scope)
+    SELECT ap.job_id, j.source, ap.market
+    FROM v_analysis_population ap
+    JOIN jobs j ON j.id = ap.job_id
 ),
 markets AS (
     SELECT * FROM (VALUES ('commercial', 'adzuna'), ('federal', 'usajobs')) AS m(market, source)

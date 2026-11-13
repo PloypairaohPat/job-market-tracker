@@ -27,14 +27,13 @@
 CREATE OR REPLACE VIEW v_employer_roles AS
 WITH population AS (
     SELECT
-        CASE WHEN j.source = 'adzuna' THEN 'commercial' ELSE 'federal' END AS market,
+        ap.market,
         c.normalized_name AS employer_key,
         COALESCE(NULLIF(j.title_normalized, ''), LOWER(TRIM(j.title))) AS role_title,
         j.location_id
-    FROM jobs j
+    FROM v_analysis_population ap
+    JOIN jobs j ON j.id = ap.job_id
     LEFT JOIN companies c ON c.id = j.company_id
-    WHERE j.source = 'adzuna'
-       OR (j.source = 'usajobs' AND j.in_scope)
 ),
 per_employer AS (
     SELECT

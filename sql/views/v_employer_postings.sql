@@ -19,13 +19,12 @@
 CREATE OR REPLACE VIEW v_employer_postings AS
 WITH population AS (
     SELECT
-        CASE WHEN j.source = 'adzuna' THEN 'commercial' ELSE 'federal' END AS market,
+        ap.market,
         c.normalized_name AS employer_key,
         c.canonical_name
-    FROM jobs j
+    FROM v_analysis_population ap
+    JOIN jobs j ON j.id = ap.job_id
     LEFT JOIN companies c ON c.id = j.company_id
-    WHERE j.source = 'adzuna'
-       OR (j.source = 'usajobs' AND j.in_scope)
 ),
 totals AS (
     SELECT

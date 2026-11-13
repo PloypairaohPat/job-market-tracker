@@ -497,6 +497,10 @@ The exit code is 1 only on a FAIL. A month with only `skipped_budget` Adzuna run
 
 ---
 
+## `v_analysis_population` — the analysis population, defined once
+
+One row per job that the market comparisons count: `job_id`, `market`. `market = 'commercial'` is every `source = 'adzuna'` row; `market = 'federal'` is `source = 'usajobs' AND in_scope` (NULL or false `in_scope` is excluded); any other source is excluded. The views that compare the two markets (`v_market_jobs`, `v_employer_postings`, `v_employer_roles`, `v_employer_sponsorship_match`, `v_matched_employer_lca_wages`, `v_skill_category_composition`, `v_skill_category_composition_roles`, `v_skill_text_basis`, `v_skill_top_by_source`, `v_job_observation_spans`, `v_daily_market_flow`) read it instead of repeating the filter. `tests/test_analysis_population.py` checks that each returns exactly what its earlier inline filter returned, using copies of the earlier view files in `tests/fixtures/analysis_population_reference/`. The single-market views (`v_commercial_salary_clean`, `v_salary_population`, `v_federal_skill_by_admission`, `v_field_completeness`, `v_field_completeness_counts`) keep their own one-market filters.
+
 ## Dashboards *(added with the Metabase dashboards)*
 
 Metabase dashboards are defined as files (`dashboards/<slug>.json` plus `dashboards/sql/<key>.sql`), validated by `src/dashboard/spec.py`, and built by `python -m src.dashboard.provision`. Operating guide: [`docs/dashboard.md`](dashboard.md).

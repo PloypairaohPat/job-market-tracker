@@ -20,9 +20,7 @@
 
 CREATE OR REPLACE VIEW v_skill_category_composition AS
 WITH population AS (
-    SELECT id, 'commercial' AS market FROM jobs WHERE source = 'adzuna'
-    UNION ALL
-    SELECT id, 'federal' AS market FROM jobs WHERE source = 'usajobs' AND in_scope
+    SELECT job_id AS id, market FROM v_analysis_population
 ),
 market_totals AS (
     SELECT market, COUNT(*) AS n_jobs FROM population GROUP BY market

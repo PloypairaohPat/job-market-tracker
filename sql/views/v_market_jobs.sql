@@ -28,7 +28,7 @@
 CREATE OR REPLACE VIEW v_market_jobs AS
 SELECT
     j.id                    AS job_id,
-    CASE WHEN j.source = 'adzuna' THEN 'commercial' ELSE 'federal' END AS market,
+    ap.market,
     j.source,
     l.metro_area,
     j.seniority,
@@ -36,8 +36,7 @@ SELECT
     c.canonical_name        AS employer_name,
     j.first_seen_at,
     j.last_seen_at
-FROM jobs j
+FROM v_analysis_population ap
+JOIN jobs j ON j.id = ap.job_id
 LEFT JOIN locations l ON l.id = j.location_id
-LEFT JOIN companies c ON c.id = j.company_id
-WHERE j.source = 'adzuna'
-   OR (j.source = 'usajobs' AND j.in_scope);
+LEFT JOIN companies c ON c.id = j.company_id;

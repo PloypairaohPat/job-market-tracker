@@ -26,11 +26,9 @@
 
 CREATE OR REPLACE VIEW v_skill_text_basis AS
 WITH population AS (
-    SELECT id, 'commercial' AS market, description, description_full
-    FROM jobs WHERE source = 'adzuna'
-    UNION ALL
-    SELECT id, 'federal' AS market, description, description_full
-    FROM jobs WHERE source = 'usajobs' AND in_scope
+    SELECT ap.job_id AS id, ap.market, j.description, j.description_full
+    FROM v_analysis_population ap
+    JOIN jobs j ON j.id = ap.job_id
 ),
 tagged AS (
     SELECT job_id, COUNT(*) AS n_tags
