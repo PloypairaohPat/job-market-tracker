@@ -28,10 +28,11 @@ into `docs/dev-log/portfolio-readiness.md` when Parts A to F are done.
 | D3 v_job_observation_spans, v_daily_market_flow | done | D3 |
 | D4 removed_at documented as reserved | done | D3 (same commit) |
 | D5 docs/time-series-readiness.md | done | D5 |
+| D6 doctor check 11, search window | done | D6 |
 
 ## Latest test count
 
-790 passed, 1 skipped (after D3, D4).
+795 passed, 1 skipped (after D6).
 
 ## Parked questions
 
@@ -43,6 +44,7 @@ into `docs/dev-log/portfolio-readiness.md` when Parts A to F are done.
 | Q4 | B | Should published reports also be exported as HTML or PDF? | Not built; Markdown only |
 | Q6 | D2 | Turn on `ADZUNA_SORT_BY`? | Owner decides after looking at `v_search_window_coverage` on real data; the earlier the better |
 | Q7 | D4 | `jobs.removed_at`: (a) leave unset and documented, (b) set after N unseen snapshot days, (c) drop in a later migration | (a), built |
+| Q8 | D6 | Threshold for doctor check 11's WARN (any query's captured share on the latest day) | 50% (`WINDOW_WARN_PCT` in `src/doctor.py`) |
 | Q5 | C2 | Licence and holder: MIT / Apache-2.0 / none; holder "Pat Ploypairaoh" (the name on the merge commits) | MIT, 2026, Pat Ploypairaoh; confirm before merging |
 
 ## Evidence collected so far
@@ -149,3 +151,16 @@ Kept as written (the owner's own motivation, not claims about the repo):
 "Why this project exists", the Python and Metabase rationale, "Why not
 LinkedIn / Indeed", the risks table (one cell changed) and the success
 metrics checklist.
+
+### D6: changed test expectations
+
+`tests/test_doctor.py`: the doctor now has 11 checks. Old: check ids
+`list(range(1, 11))`; new: `list(range(1, 12))` (CLI JSON test and the
+unreachable-database test, which also expects check 11 to SKIP). The
+demo-seed end-to-end test expects check 11 = WARN: the demo seed's
+synthetic searches store 100 results of a larger invented total. The
+exit code there stays 0.
+
+Note for the final report: `docs/time-series-readiness.md` links the
+parked threshold to this progress file; repoint it when the file is
+folded into `portfolio-readiness.md`.

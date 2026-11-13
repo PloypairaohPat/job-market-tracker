@@ -133,12 +133,12 @@ def test_unreachable_database_fails_and_skips_what_needs_it(tmp_path):
     c = ctx(make_root(tmp_path, env_text(**FAKE_VALUES)), engine_factory=refusing_engine)
     findings = doctor.run_checks(c)
     by_id = {f.id: f for f in findings}
-    assert [f.id for f in findings] == list(range(1, 11))
+    assert [f.id for f in findings] == list(range(1, 12))
     assert by_id[2].status == FAIL and "not reachable at localhost:5432" in by_id[2].detail
     assert by_id[2].fix == (
         'open Docker Desktop and wait for "Engine running", then: docker compose up -d db'
     )
-    assert {by_id[i].status for i in (3, 4, 5, 7)} == {SKIP}
+    assert {by_id[i].status for i in (3, 4, 5, 7, 11)} == {SKIP}
     assert doctor.exit_code(findings) == 1
     assert_no_secrets(doctor.format_findings(findings), doctor.to_json(findings))
 
@@ -273,7 +273,7 @@ def test_cli_json_and_exit_code(tmp_path, monkeypatch, capsys):
         doctor.main()
     payload = json.loads(capsys.readouterr().out)
     assert exit_.value.code == payload["exit_code"] == 1  # no .env, no DATABASE_URL
-    assert [c["id"] for c in payload["checks"]] == list(range(1, 11))
+    assert [c["id"] for c in payload["checks"]] == list(range(1, 12))
     assert {"id", "name", "status", "detail", "fix", "fix_posix"} == set(payload["checks"][0])
 
 
@@ -320,6 +320,7 @@ def test_migrations_and_views_fail_until_applied(db, tmp_path):
     assert "no migration has been applied" in by_id[3].detail
     assert by_id[4].status == FAIL and by_id[4].fix == "uv run python scripts/apply_views.py"
     assert by_id[7].status == SKIP  # needs the views
+    assert by_id[11].status == SKIP and "needs the views" in by_id[11].detail
 
     with db.begin() as conn:
         conn.execute(text("create table alembic_version (version_num varchar(32))"))
@@ -438,7 +439,7 @@ def test_end_to_end_on_the_demo_seed(db, tmp_path):
     stamp_head(db)
     findings = doctor.run_checks(db_ctx(tmp_path, now=datetime.now(UTC)))
     statuses = {f.id: f.status for f in findings}
-    # 5 and 7 WARN by design of the demo data: it seeds one missing day
+    # 5, 7 and 11 WARN by design of the demo data: it seeds one missing day
     # (H7 lists it), and its synthetic LCA rows span a few months per FY
     assert statuses == {
         1: PASS,
@@ -451,10 +452,105 @@ def test_end_to_end_on_the_demo_seed(db, tmp_path):
         8: PASS,
         9: PASS,
         10: PASS,
+        11: WARN,  # the demo seed's synthetic searches return 100 of a larger total
     }
+    assert "of the API total (adzuna analytics engineer," in findings[10].detail
     gap = (datetime.now(UTC).date() - timedelta(days=9)).isoformat()
     assert f"H7 WARN (1 day(s) without a snapshot in the last 14 days: {gap})" in findings[4].detail
     assert doctor.exit_code(findings) == 0
     out = doctor.format_findings(findings)
     assert "nan" not in out and "None" not in out
     assert_no_secrets(out, doctor.to_json(findings))
+
+
+# --------------------------------------------------------------------- #
+# 11 search window (invented numbers)
+
+
+def window_row(query, captured, total, pct, source="adzuna", day=date(2026, 3, 2)):
+    return {
+        "source": source,
+        "fetch_date": day,
+        "query": query,
+        "results_captured": captured,
+        "api_total": total,
+        "pct_captured": None if pct is None else Decimal(str(pct)),
+    }
+
+
+def test_search_window_empty_is_info():
+    f = doctor.window_finding([])
+    assert f.status == INFO and f.id == 11 and "raw_responses is empty" in f.detail
+
+
+def test_search_window_all_above_threshold_is_info_listing_each_query():
+    f = doctor.window_finding(
+        [window_row("data analyst", 250, 300, 83.3), window_row("bi analyst", 40, 40, 100.0)]
+    )
+    assert f.status == INFO and not f.fix
+    assert f.detail == (
+        "adzuna 2026-03-02: bi analyst 40 of 40 (100.0%), data analyst 250 of 300 (83.3%)"
+    )
+
+
+def test_search_window_below_threshold_warns_naming_the_query():
+    f = doctor.window_finding(
+        [
+            window_row("data analyst", 250, 900, 27.8),
+            window_row("bi analyst", 40, 40, 100.0),
+            window_row("Data Analyst", 100, 100, 100.0, source="usajobs", day=date(2026, 3, 1)),
+        ]
+    )
+    assert f.status == WARN
+    assert f.detail.startswith(
+        "1 query(ies) captured under 50% of the API total (adzuna data analyst)"
+    )
+    assert "usajobs 2026-03-01: Data Analyst 100 of 100 (100.0%)" in f.detail
+    assert "ADZUNA_SORT_BY" in f.fix and "docs\\time-series-readiness.md" in f.fix
+    assert "docs/time-series-readiness.md" in f.fix_posix
+
+
+def test_search_window_threshold_is_strict_and_missing_total_never_warns():
+    at = doctor.window_finding([window_row("q", 50, 100, doctor.WINDOW_WARN_PCT)])
+    assert at.status == INFO
+    unknown = doctor.window_finding([window_row("q", 50, None, None)])
+    assert unknown.status == INFO and "q 50 of ? (no API total)" in unknown.detail
+
+
+def insert_raw(engine, fetched_at, what, page, count, n_results):
+    import json as _json
+
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "insert into raw_responses (source, fetched_at, endpoint, params, response) "
+                "values ('adzuna', :at, 'search', cast(:p as jsonb), cast(:r as jsonb))"
+            ),
+            {
+                "at": fetched_at,
+                "p": _json.dumps({"what": what, "page": page}),
+                "r": _json.dumps(
+                    {"count": count, "results": [{"id": i} for i in range(n_results)]}
+                ),
+            },
+        )
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(not TEST_DB_URL, reason="TEST_DATABASE_URL not set")
+def test_search_window_reads_only_the_latest_fetch_day(db, tmp_path):
+    stamp_head(db)
+    apply_views(TEST_DB_URL)
+    old = datetime(2026, 3, 1, 9, tzinfo=UTC)
+    new = datetime(2026, 3, 2, 9, tzinfo=UTC)
+    insert_raw(db, old, "fake query", 1, 1000, 10)  # 1.0% on the older day: ignored
+    insert_raw(db, new, "fake query", 1, 30, 20)
+    insert_raw(db, new, "fake query", 2, 30, 10)
+    f = findings_by_id(db_ctx(tmp_path / "a"))[11]
+    assert f.status == INFO, f.detail
+    assert f.detail == "adzuna 2026-03-02: fake query 30 of 30 (100.0%)"
+
+    insert_raw(db, new, "other fake", 1, 400, 50)  # 12.5% on the latest day
+    f = findings_by_id(db_ctx(tmp_path / "b"))[11]
+    assert f.status == WARN and "(adzuna other fake)" in f.detail
+    assert "other fake 50 of 400 (12.5%)" in f.detail

@@ -12,6 +12,8 @@ Each Adzuna query stops after 5 pages of 50 results, and USAJobs queries after t
 
 `v_search_window_coverage` measures this per query and day: results captured, the total the API reported, and the share captured. A share below 100% means every snapshot-based measure for that query and day describes a slice of the market.
 
+`python -m src.doctor` (check 11, "search window") prints the latest fetch day's share per query, and warns when any query captured under 50% of its total. The 50% line is a convention for the warning, not a validity threshold (a parked decision in [dev-log/portfolio-readiness-progress.md](dev-log/portfolio-readiness-progress.md)).
+
 ### 2. Missed days
 
 A day with no run has no snapshot, and it can never be backfilled: the APIs only answer for today. A job that appeared or disappeared on a missed day is first or last seen on a neighbouring day instead. `v_ingestion_daily` lists the days that have snapshots per source; a missing day is a gap in that view, never a zero row.

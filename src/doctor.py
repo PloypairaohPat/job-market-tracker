@@ -25,6 +25,9 @@ plus the POSIX form where it differs). In this order:
                       logs/, where they could be committed by mistake
    9 virtualenv       another virtualenv active (INFO: harmless)
   10 uv.lock          untracked uv.lock (INFO: committing it is undecided)
+  11 search window    the latest fetch day's share of each query's API total
+                      that the stored pages captured (v_search_window_coverage):
+                      INFO, or WARN when any query is under WINDOW_WARN_PCT
 
 Exit code 1 if any check FAILs, else 0. Every outside call (the database,
 schtasks, git) is injectable, so the tests use fakes.
@@ -56,6 +59,10 @@ CONNECT_TIMEOUT_SECONDS = 5
 SOURCE_VARS = ("ADZUNA_APP_ID", "ADZUNA_APP_KEY", "USAJOBS_API_KEY", "USAJOBS_USER_AGENT_EMAIL")
 STRAY_SUFFIXES = (".xlsx", ".csv", ".dump", ".log")
 TASK_NOT_RUN_YET = 267011  # SCHED_S_TASK_HAS_NOT_RUN (0x41303)
+# Check 11 warns when a query's captured share is below this. The threshold is
+# a parked decision (docs/dev-log/portfolio-readiness.md); it is not a health
+# check and changes no exit code.
+WINDOW_WARN_PCT = 50
 
 PASS, WARN, FAIL, SKIP, INFO = "PASS", "WARN", "FAIL", "SKIP", "INFO"
 _RANK = {PASS: 0, INFO: 0, SKIP: 0, WARN: 1, FAIL: 2}
@@ -579,6 +586,62 @@ def check_uv_lock(ctx: Context) -> Finding:
 
 
 # --------------------------------------------------------------------- #
+# 11 search window
+
+
+def window_finding(rows: list[Mapping[str, Any]]) -> Finding:
+    """Check 11 from v_search_window_coverage rows of each source's latest fetch day.
+
+    Each row needs source, fetch_date, query, results_captured, api_total and
+    pct_captured. INFO lists every query; WARN when any captured share is
+    below WINDOW_WARN_PCT. A missing total is listed, never a WARN.
+    """
+    name = "search window"
+    if not rows:
+        return Finding(11, name, INFO, "no stored search pages yet (raw_responses is empty)")
+    parts, low = [], []
+    for source in sorted({r["source"] for r in rows}):
+        mine = sorted((r for r in rows if r["source"] == source), key=lambda r: str(r["query"]))
+        items = []
+        for r in mine:
+            pct = r["pct_captured"]
+            if pct is None:
+                items.append(f"{r['query']} {r['results_captured']} of ? (no API total)")
+                continue
+            items.append(f"{r['query']} {r['results_captured']} of {r['api_total']} ({pct}%)")
+            if float(pct) < WINDOW_WARN_PCT:
+                low.append(f"{source} {r['query']}")
+        parts.append(f"{source} {mine[0]['fetch_date']}: " + ", ".join(items))
+    detail = "; ".join(parts)
+    if low:
+        return Finding(
+            11,
+            name,
+            WARN,
+            f"{len(low)} query(ies) captured under {WINDOW_WARN_PCT}% of the API total "
+            f"({', '.join(low)}): snapshots hold only that slice, so a job missing from a day "
+            f"may have left the window, not the market. {detail}",
+            fix='read docs\\time-series-readiness.md, "1. The search window"; '
+            "then decide on ADZUNA_SORT_BY (docs\\daily-operation.md)",
+            fix_posix='read docs/time-series-readiness.md, "1. The search window"; '
+            "then decide on ADZUNA_SORT_BY (docs/daily-operation.md)",
+        )
+    return Finding(11, name, INFO, detail)
+
+
+def check_search_window(ctx: Context, conn: Connection) -> Finding:
+    rows = conn.execute(
+        text(
+            "select source, fetch_date, query, results_captured, api_total, pct_captured "
+            "from v_search_window_coverage c "
+            "where fetch_date = (select max(fetch_date) from v_search_window_coverage l "
+            "where l.source = c.source)"
+        )
+    ).mappings()
+    return window_finding([dict(r) for r in rows])
+
+
+# --------------------------------------------------------------------- #
 
 
 def run_checks(ctx: Context) -> list[Finding]:
@@ -600,6 +663,12 @@ def run_checks(ctx: Context) -> list[Finding]:
             findings.append(Finding(7, "LCA data", SKIP, "needs the views (see check 4)"))
         else:
             findings.append(_safely(7, "LCA data", check_lca, ctx, conn))
+        if conn is None:
+            window = _needs_db(11, "search window")
+        elif not views_ok:
+            window = Finding(11, "search window", SKIP, "needs the views (see check 4)")
+        else:
+            window = _safely(11, "search window", check_search_window, ctx, conn)
     finally:
         if conn is not None:
             conn.rollback()
@@ -608,6 +677,7 @@ def run_checks(ctx: Context) -> list[Finding]:
     findings.append(_safely(8, "file placement", check_file_placement, ctx))
     findings.append(_safely(9, "virtualenv", check_virtualenv, ctx))
     findings.append(_safely(10, "uv.lock", check_uv_lock, ctx))
+    findings.append(window)
     return findings
 
 

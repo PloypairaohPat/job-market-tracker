@@ -36,7 +36,7 @@ uv run python -m src.doctor
 uv run python -m src.pipeline.health
 ```
 
-Look at the health check's **H7** line (days without a snapshot) and the streak ([docs/daily-operation.md](daily-operation.md), "How to tell the clock is running").
+Doctor check 11 ("search window") shows how much of each query's results the last day's search kept; a WARN there is not a fault to fix, see [docs/time-series-readiness.md](time-series-readiness.md). Look at the health check's **H7** line (days without a snapshot) and the streak ([docs/daily-operation.md](daily-operation.md), "How to tell the clock is running").
 
 Then re-render the reports. This loop stops at the first one that fails:
 
