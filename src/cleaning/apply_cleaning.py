@@ -27,7 +27,7 @@ import logging
 from dataclasses import asdict
 from pathlib import Path
 
-from sqlalchemy import Integer, cast, column, delete, func, select, update, values
+from sqlalchemy import Integer, cast, column, delete, func, insert, select, update, values
 from sqlalchemy.orm import Session
 
 from src.cleaning.company_normalizer import find_merge_candidates, normalize_company_name
@@ -211,15 +211,20 @@ def apply_scope(session: Session) -> dict[str, int]:
     return apply_job_steps(session, ("scope",))["scope"]
 
 
-def _usajobs_key_requirements(session: Session, job: Job, cache: dict) -> list[str] | None:
-    """KeyRequirements for a USAJobs job, read from the raw page it was last
-    parsed from (MatchedObjectId == external_id). None when absent."""
-    if job.source != "usajobs" or job.raw_response_id is None:
-        return None
-    if job.raw_response_id not in cache:
-        raw = session.get(RawResponse, job.raw_response_id)
-        items = (raw.response if raw else {}).get("SearchResult", {}).get("SearchResultItems", [])
-        cache[job.raw_response_id] = {
+VISA_BATCH_SIZE = 2000
+
+
+def _key_requirements_by_page(session: Session, raw_ids: set[int]) -> dict[int, dict]:
+    """{raw_response_id: {MatchedObjectId: KeyRequirements}} for USAJobs pages,
+    read in one query. A page that no longer exists maps to {}."""
+    found: dict[int, dict] = {raw_id: {} for raw_id in raw_ids}
+    if not raw_ids:
+        return found
+    for raw_id, response in session.execute(
+        select(RawResponse.id, RawResponse.response).where(RawResponse.id.in_(sorted(raw_ids)))
+    ):
+        items = (response or {}).get("SearchResult", {}).get("SearchResultItems", [])
+        found[raw_id] = {
             str(item.get("MatchedObjectId")): (
                 (item.get("MatchedObjectDescriptor") or {})
                 .get("UserArea", {})
@@ -228,34 +233,72 @@ def _usajobs_key_requirements(session: Session, job: Job, cache: dict) -> list[s
             )
             for item in items
         }
-    return cache[job.raw_response_id].get(job.external_id) or None
+    return found
 
 
 def apply_visa(session: Session) -> dict[str, int]:
-    """Rebuild job_visa_signals for every job (the view filters to in-scope)."""
+    """Rebuild job_visa_signals for every job (the view filters to in-scope).
+
+    Deletes every row, then reads jobs (with the company name) in keyset
+    batches and inserts each batch's signals in one multi-row statement.
+    USAJobs KeyRequirements come from the raw page each job was last parsed
+    from (MatchedObjectId == external_id): one query per batch for the pages
+    not read yet, never one per job.
+    """
+    session.flush()
     session.execute(delete(JobVisaSignal))
-    raw_cache: dict = {}
+    pages: dict[int, dict] = {}
     dist: dict[str, int] = {}
-    rows = session.execute(
-        select(Job, Company.canonical_name).outerjoin(Company, Company.id == Job.company_id)
-    ).all()
-    for job, company_name in rows:
-        signals = classify_posting(
-            job.title,
-            job.description,
-            job.description_full,
-            company_name,
-            _usajobs_key_requirements(session, job, raw_cache),
-        )
-        session.add(JobVisaSignal(job_id=job.id, **asdict(signals)))
-        for key in (
-            f"restriction:{signals.restriction}",
-            f"stance:{signals.sponsorship_stance}",
-            f"coverage:{signals.text_coverage}",
-            f"cap_exempt:{signals.cap_exempt_hint}",
-        ):
-            dist[key] = dist.get(key, 0) + 1
-        dist["opt_mentioned"] = dist.get("opt_mentioned", 0) + int(signals.opt_mentioned)
+    last_id = 0
+    while True:
+        batch = session.execute(
+            select(
+                Job.id,
+                Job.source,
+                Job.external_id,
+                Job.raw_response_id,
+                Job.title,
+                Job.description,
+                Job.description_full,
+                Company.canonical_name,
+            )
+            .outerjoin(Company, Company.id == Job.company_id)
+            .where(Job.id > last_id)
+            .order_by(Job.id)
+            .limit(VISA_BATCH_SIZE)
+        ).all()
+        if not batch:
+            break
+        last_id = batch[-1].id
+        wanted = {
+            row.raw_response_id
+            for row in batch
+            if row.source == "usajobs" and row.raw_response_id is not None
+        }
+        pages.update(_key_requirements_by_page(session, wanted - pages.keys()))
+        signals_rows = []
+        for row in batch:
+            key_requirements = None
+            if row.source == "usajobs" and row.raw_response_id is not None:
+                key_requirements = pages[row.raw_response_id].get(row.external_id) or None
+            signals = classify_posting(
+                row.title,
+                row.description,
+                row.description_full,
+                row.canonical_name,
+                key_requirements,
+            )
+            signals_rows.append({"job_id": row.id, **asdict(signals)})
+            for key in (
+                f"restriction:{signals.restriction}",
+                f"stance:{signals.sponsorship_stance}",
+                f"coverage:{signals.text_coverage}",
+                f"cap_exempt:{signals.cap_exempt_hint}",
+            ):
+                dist[key] = dist.get(key, 0) + 1
+            dist["opt_mentioned"] = dist.get("opt_mentioned", 0) + int(signals.opt_mentioned)
+        session.execute(insert(JobVisaSignal.__table__), signals_rows)
+    session.expire_all()
     return dict(sorted(dist.items()))
 
 

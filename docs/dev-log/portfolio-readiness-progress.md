@@ -31,10 +31,11 @@ into `docs/dev-log/portfolio-readiness.md` when Parts A to F are done.
 | D6 doctor check 11, search window | done | D6 |
 | E0 reference module, equality test, benchmark | done | E0 |
 | E1 one pass over jobs | done | E1 |
+| E2 visa signals in bulk | done | E2 |
 
 ## Latest test count
 
-806 passed, 1 skipped (after E1).
+807 passed, 1 skipped (after E2).
 
 ## Parked questions
 

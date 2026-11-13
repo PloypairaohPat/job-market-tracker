@@ -129,3 +129,56 @@ def test_orm_objects_held_by_the_caller_see_the_new_values(engine):
         job.title = "Senior Data Analyst"  # pending, not flushed: must be read
         apply_cleaning.apply_seniority(s)
         assert job.seniority == "senior"
+
+
+def add_raw_page(engine, items: list[tuple[str, list[str]]]) -> int:
+    import json
+
+    response = {
+        "SearchResult": {
+            "SearchResultItems": [
+                {
+                    "MatchedObjectId": ext,
+                    "MatchedObjectDescriptor": {"UserArea": {"Details": {"KeyRequirements": req}}},
+                }
+                for ext, req in items
+            ]
+        }
+    }
+    with engine.begin() as conn:
+        return conn.execute(
+            text(
+                "insert into raw_responses (source, endpoint, params, response) "
+                "values ('usajobs', 'search', '{}', cast(:r as jsonb)) returning id"
+            ),
+            {"r": json.dumps(response)},
+        ).scalar_one()
+
+
+def test_visa_reads_raw_pages_once_per_batch_not_per_job(engine, monkeypatch):
+    citizen = ["U.S. Citizenship is required."]
+    pages = [
+        add_raw_page(engine, [(f"u{p}{k}", citizen if k == 0 else []) for k in range(3)])
+        for p in range(3)
+    ]
+    add_jobs(
+        [
+            {
+                "external_id": f"u{p}{k}",
+                "source": "usajobs",
+                "title": "Management Analyst",
+                "raw_response_id": pages[p],
+            }
+            for p in range(3)
+            for k in range(3)
+        ]
+        + [{"external_id": "adz", "source": "adzuna", "title": "Data Analyst"}]
+    )
+    monkeypatch.setattr(apply_cleaning, "VISA_BATCH_SIZE", 4)  # 10 jobs: 3 batches
+    with statements() as seen, session_scope(TEST_DB_URL) as s:
+        dist = apply_cleaning.apply_visa(s)
+    assert len(touching(seen, "raw_responses")) <= 3  # at most one per batch
+    assert len([q for q in touching(seen, "job_visa_signals") if "INSERT" in q]) == 3
+    assert dist["restriction:citizenship"] == 3  # the first job on each page
+    with engine.connect() as conn:
+        assert conn.execute(text("select count(*) from job_visa_signals")).scalar() == 10
