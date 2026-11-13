@@ -27,7 +27,7 @@ import logging
 from dataclasses import asdict
 from pathlib import Path
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import Integer, cast, column, delete, func, select, update, values
 from sqlalchemy.orm import Session
 
 from src.cleaning.company_normalizer import find_merge_candidates, normalize_company_name
@@ -47,38 +47,123 @@ ALL_STEPS = ("seniority", "salary", "remote", "metro", "companies", "scope", "vi
 DEFAULT_CANDIDATES_OUT = Path("data/company_merge_candidates.csv")
 
 
+JOB_STEPS = ("seniority", "salary", "remote", "scope")
+JOB_BATCH_SIZE = 2000
+_JOB_COLUMNS = {
+    "seniority": ("seniority",),
+    "salary": ("salary_quality",),
+    "remote": ("is_remote",),
+    "scope": ("in_scope", "scope_reason"),
+}
+
+
+def apply_job_steps(session: Session, steps: tuple[str, ...] = JOB_STEPS) -> dict[str, dict]:
+    """Run the job-level steps in one pass over `jobs`; return {step: its counts}.
+
+    The steps (seniority, salary quality, remote, scope) each read only the
+    stored raw columns, never each other's output, so one read serves all
+    of them. Rows are read in keyset batches as plain tuples (no ORM
+    objects), and only rows whose derived values changed are written, one
+    UPDATE ... FROM (VALUES ...) statement per batch. The counts are the
+    same dictionaries the per-step functions always returned.
+    """
+    steps = tuple(step for step in JOB_STEPS if step in steps)
+    if not steps:
+        return {}
+    session.flush()  # a caller's pending ORM changes are part of what we read
+    extractor = SkillExtractor() if "scope" in steps else None
+    counts: dict[str, dict[str, int]] = {step: {} for step in steps}
+    if "remote" in steps:
+        counts["remote"] = {"remote_true": 0, "changed_vs_previous": 0}
+    written = [col for step in steps for col in _JOB_COLUMNS[step]]
+    jobs = Job.__table__
+    last_id = 0
+    while True:
+        batch = session.execute(
+            select(
+                jobs.c.id,
+                jobs.c.source,
+                jobs.c.category,
+                jobs.c.title,
+                jobs.c.description,
+                jobs.c.description_full,
+                jobs.c.salary_min,
+                jobs.c.salary_max,
+                jobs.c.salary_period,
+                *(jobs.c[col] for col in written),
+            )
+            .where(jobs.c.id > last_id)
+            .order_by(jobs.c.id)
+            .limit(JOB_BATCH_SIZE)
+        ).all()
+        if not batch:
+            break
+        last_id = batch[-1].id
+        changes = []
+        for row in batch:
+            new: dict[str, object] = {}
+            if "seniority" in steps:
+                new["seniority"] = classify_seniority(row.title)
+                _bump(counts["seniority"], new["seniority"] or "(none)")
+            if "salary" in steps:
+                new["salary_quality"] = assess_salary_quality(
+                    row.salary_min, row.salary_max, row.salary_period
+                )
+                _bump(counts["salary"], new["salary_quality"] or "(no salary)")
+            if "remote" in steps:
+                # Fullest text available, as scope and skills use: USAJobs keeps its
+                # telework language in description_full; Adzuna has only description.
+                # (The Adzuna display location lives in the raw response; title and
+                # description carry the signal.)
+                new["is_remote"] = detect_remote(
+                    row.title, None, row.description_full or row.description
+                )
+                counts["remote"]["changed_vs_previous"] += int(new["is_remote"] != row.is_remote)
+                counts["remote"]["remote_true"] += int(new["is_remote"])
+            if "scope" in steps:
+                text_ = f"{row.title or ''}\n{row.description_full or row.description or ''}"
+                new["in_scope"], new["scope_reason"] = classify_scope(
+                    row.source, row.category, text_, extractor
+                )
+                _bump(counts["scope"], "in_scope" if new["in_scope"] else "out_of_scope")
+            if any(new[col] != getattr(row, col) for col in written):
+                changes.append({"id": row.id, **new})
+        if changes:
+            _update_jobs(session, written, changes)
+    session.expire_all()  # ORM objects a caller holds must re-read what we wrote
+    return counts
+
+
+def _bump(dist: dict[str, int], key: str) -> None:
+    dist[key] = dist.get(key, 0) + 1
+
+
+def _update_jobs(session: Session, written: list[str], changes: list[dict]) -> None:
+    """One UPDATE jobs ... FROM (VALUES ...) for a batch of changed rows."""
+    jobs = Job.__table__
+    data = values(
+        column("id", Integer),
+        *(column(col, jobs.c[col].type) for col in written),
+        name="changed",
+    ).data([tuple(change[k] for k in ("id", *written)) for change in changes])
+    session.execute(
+        update(jobs)
+        .where(jobs.c.id == data.c.id)
+        # an all-NULL VALUES column is typed text by Postgres: cast back
+        .values({col: cast(data.c[col], jobs.c[col].type) for col in written})
+    )
+
+
 def apply_seniority(session: Session) -> dict[str, int]:
-    dist: dict[str, int] = {}
-    for job in session.execute(select(Job)).scalars():
-        job.seniority = classify_seniority(job.title)
-        key = job.seniority or "(none)"
-        dist[key] = dist.get(key, 0) + 1
-    return dist
+    return apply_job_steps(session, ("seniority",))["seniority"]
 
 
 def apply_salary_quality(session: Session) -> dict[str, int]:
-    dist: dict[str, int] = {}
-    for job in session.execute(select(Job)).scalars():
-        job.salary_quality = assess_salary_quality(
-            job.salary_min, job.salary_max, job.salary_period
-        )
-        key = job.salary_quality or "(no salary)"
-        dist[key] = dist.get(key, 0) + 1
-    return dist
+    return apply_job_steps(session, ("salary",))["salary"]
 
 
 def apply_remote(session: Session) -> dict[str, int]:
-    changed = flagged = 0
-    for job in session.execute(select(Job)).scalars():
-        loc_display = None  # Adzuna display name lives in the raw response; title+description carry the signal
-        # Fullest text available, as scope and skills use: USAJobs keeps its
-        # telework language in description_full; Adzuna has only description.
-        new_value = detect_remote(job.title, loc_display, job.description_full or job.description)
-        if new_value != job.is_remote:
-            changed += 1
-        job.is_remote = new_value
-        flagged += int(new_value)
-    return {"remote_true": flagged, "changed_vs_previous": changed}
+    return apply_job_steps(session, ("remote",))["remote"]
 
 
 def apply_metro(session: Session) -> dict[str, int]:
@@ -123,14 +208,7 @@ def apply_companies(session: Session, candidates_out: Path) -> dict[str, int]:
 
 
 def apply_scope(session: Session) -> dict[str, int]:
-    extractor = SkillExtractor()
-    dist: dict[str, int] = {}
-    for job in session.execute(select(Job)).scalars():
-        text = f"{job.title or ''}\n{job.description_full or job.description or ''}"
-        job.in_scope, job.scope_reason = classify_scope(job.source, job.category, text, extractor)
-        key = "in_scope" if job.in_scope else "out_of_scope"
-        dist[key] = dist.get(key, 0) + 1
-    return dist
+    return apply_job_steps(session, ("scope",))["scope"]
 
 
 def _usajobs_key_requirements(session: Session, job: Job, cache: dict) -> list[str] | None:
@@ -200,17 +278,18 @@ def run_steps(
     steps: tuple[str, ...] = ALL_STEPS,
     candidates_out: Path = DEFAULT_CANDIDATES_OUT,
 ) -> dict[str, dict]:
-    """Run the named steps in ALL_STEPS order; return {step: its counts}.
-    Shared by main() and the daily runner (src/pipeline/daily.py)."""
+    """Run the named steps; return {step: its counts}, in ALL_STEPS order.
+    The job-level steps (JOB_STEPS) share one pass over `jobs`, which runs
+    first; they don't depend on metro or companies. Shared by main() and
+    the daily runner (src/pipeline/daily.py)."""
+    job_level = apply_job_steps(session, steps)
     results: dict[str, dict] = {}
-    if "seniority" in steps:
-        results["seniority"] = apply_seniority(session)
-        logger.info("seniority: %s", results["seniority"])
-    if "salary" in steps:
-        results["salary"] = apply_salary_quality(session)
-        logger.info("salary_quality: %s", results["salary"])
-    if "remote" in steps:
-        results["remote"] = apply_remote(session)
+    for step, label in (("seniority", "seniority"), ("salary", "salary_quality")):
+        if step in job_level:
+            results[step] = job_level[step]
+            logger.info("%s: %s", label, results[step])
+    if "remote" in job_level:
+        results["remote"] = job_level["remote"]
         logger.info("remote: %s", results["remote"])
     if "metro" in steps:
         results["metro"] = apply_metro(session)
@@ -219,8 +298,8 @@ def run_steps(
         results["companies"] = apply_companies(session, candidates_out)
         logger.info("companies: %s", results["companies"])
         summarize_normalization_effect(session)
-    if "scope" in steps:
-        results["scope"] = apply_scope(session)
+    if "scope" in job_level:
+        results["scope"] = job_level["scope"]
         logger.info("scope: %s", results["scope"])
     if "visa" in steps:
         results["visa"] = apply_visa(session)

@@ -30,10 +30,11 @@ into `docs/dev-log/portfolio-readiness.md` when Parts A to F are done.
 | D5 docs/time-series-readiness.md | done | D5 |
 | D6 doctor check 11, search window | done | D6 |
 | E0 reference module, equality test, benchmark | done | E0 |
+| E1 one pass over jobs | done | E1 |
 
 ## Latest test count
 
-801 passed, 1 skipped (after E0).
+806 passed, 1 skipped (after E1).
 
 ## Parked questions
 

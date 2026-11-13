@@ -8,8 +8,13 @@ raw-then-normalized pattern applied to cleaning. Two entry points:
   that no longer match (changed text, a skill removed from the taxonomy)
   are deleted. `--rebuild` clears `job_skills` first for a clean start
 - `python -m src.cleaning.apply_cleaning` — seniority, salary quality,
-  remote upgrade, metro assignment, company normalization (`--only STEP`
-  to run a subset)
+  remote upgrade, metro assignment, company normalization, scope and visa
+  signals (`--only STEP` to run a subset). The job-level steps (seniority,
+  salary, remote, scope) share one batched pass over `jobs` and write only
+  rows whose values changed. Every run recomputes every row, so a rule
+  change reaches all of them; `tests/test_cleaning_reference_equality.py`
+  pins the results to a frozen copy of the earlier row-by-row code, and
+  `scripts/bench_cleaning.py` times each step on synthetic rows
 
 Design rules enforced throughout:
 1. **Flag, don't guess** — no signal means NULL, never a default bucket.
