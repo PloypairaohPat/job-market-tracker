@@ -16,4 +16,4 @@ logs describe how the code was built; the project's findings are in the
 | [overnight-employer-report.md](overnight-employer-report.md) | `claude/employer-report` | Report 3, employers and sponsorship (Milestone F) |
 | [overnight-lca-loader-fix.md](overnight-lca-loader-fix.md) | `claude/lca-loader-fix` | The LCA loader, fixed for the Department of Labor's file layout |
 | [overnight-batch.md](overnight-batch.md) | `claude/overnight-batch` | Laptop doctor, Report 3 changes, Report 4 (salaries), the alias helper |
-| [portfolio-readiness-progress.md](portfolio-readiness-progress.md) | `claude/portfolio-readiness` | Progress on the portfolio-readiness brief (folded into `portfolio-readiness.md` when done) |
+| [portfolio-readiness.md](portfolio-readiness.md) | `claude/portfolio-readiness` | The portfolio-readiness brief, Parts A to F: what shipped, evidence, parked questions, the owner's next steps |
