@@ -2,6 +2,23 @@
 
 One entry per run, newest first. The backlog is `docs/dev-log/next-backlog.md`.
 
+## 2026-11-22: seventh Phase 2 run
+
+- **Branch:** `claude/portfolio-next`; main is still at 2f80d85 and 63ea064 is still not in main, so
+  there was nothing to merge and N3 stays parked.
+- **Starting head:** 6fb8823. The pre-commit script was green on it (897 passed, 1 skipped; ruff
+  clean; alembic round trip clean with one head, a02471448340; 26 views applied twice). CI was green on
+  its last three pushes.
+- **Review-load brake:** 29 commits were not in main at the start, so Tier 1 checks only. Acceptance
+  criterion 9 still passes. No defect found, so no code changed.
+- **Commits:** the one that carries this entry (log only).
+- **pytest:** 897 passed, 1 skipped before and after.
+
+### Next run
+
+Commits not in main after this run: 30. Nothing changes until the owner merges; pausing the scheduled
+task until then avoids further log-only commits.
+
 ## 2026-11-21: sixth Phase 2 run
 
 - **Branch:** `claude/portfolio-next`; main is still at 2f80d85 and 63ea064 (`claude/battery-fix`) is
